@@ -111,18 +111,81 @@ type Comando = "menu" | "reiniciar" | "ligar" | "desligar" | "bloquear" | "statu
  * resposta enviada ao administrador voltaria como mensagem "fromMe" e seria
  * interpretada como novo comando, gerando respostas em loop.
  */
+const MARCAS_DO_BOT = [
+  "status da central",
+  "central —",
+  "central -",
+  "controle do sistema",
+  "reiniciando o sistema",
+  "reinicio concluido",
+  "*conexoes*",
+  "*filas*",
+  "em atendimento:",
+  "aguardando:",
+  "administrador:",
+  "situacao atual:",
+  "sistema *ligado*",
+  "sistema *desligado*",
+  "sistema *bloqueado*",
+  "sistema: ligado",
+  "sistema: desligado",
+  "sistema: bloqueado",
+  "nao consegui executar",
+  "modo manutenc",
+  "nenhum dispositivo cadastrado",
+];
+
 export function ehEcoAutomatico(body: string | null | undefined) {
   const texto = limpar(body ?? "");
   if (!texto) return false;
-  return (
-    texto.includes("controle do sistema") ||
-    texto.includes("reiniciando o sistema") ||
-    texto.includes("reinicio concluido") ||
-    texto.includes("sistema *ligado*") ||
-    texto.includes("sistema *desligado*") ||
-    texto.includes("sistema *bloqueado*") ||
-    texto.includes("nao consegui executar")
-  );
+  return MARCAS_DO_BOT.some((marca) => texto.includes(marca));
+}
+
+/** Comandos aceitos quando a mensagem vem do próprio aparelho (fromMe). */
+const COMANDOS_ESTRITOS = new Set([
+  "menu",
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "#admin",
+  "#sistema",
+  "admin",
+  "sistema",
+  "status",
+  "reiniciar",
+  "ligar",
+  "desligar",
+  "bloquear",
+]);
+
+/**
+ * Em mensagens fromMe só aceitamos comandos curtos e explícitos: qualquer
+ * texto longo ou com várias linhas é conteúdo (nosso ou do usuário), nunca
+ * comando — é essa regra que impede o loop de respostas.
+ */
+export function ehComandoEstrito(body: string | null | undefined) {
+  const bruto = (body ?? "").trim();
+  if (!bruto || bruto.length > 30 || /\r|\n/.test(bruto)) return false;
+  return COMANDOS_ESTRITOS.has(limpar(bruto).replace(/[.!?]+$/, ""));
+}
+
+/** Trava de frequência: no máximo 1 comando por chat a cada 5 segundos. */
+const ULTIMA_RESPOSTA = new Map<string, number>();
+const JANELA_MS = 5000;
+
+export function liberarComando(chave: string) {
+  const agora = Date.now();
+  const anterior = ULTIMA_RESPOSTA.get(chave) ?? 0;
+  if (agora - anterior < JANELA_MS) return false;
+  ULTIMA_RESPOSTA.set(chave, agora);
+  if (ULTIMA_RESPOSTA.size > 200) {
+    for (const [k, v] of ULTIMA_RESPOSTA) {
+      if (agora - v > JANELA_MS * 10) ULTIMA_RESPOSTA.delete(k);
+    }
+  }
+  return true;
 }
 
 export { ADMIN_BOT_NAME } from "@/lib/admin-bot";
