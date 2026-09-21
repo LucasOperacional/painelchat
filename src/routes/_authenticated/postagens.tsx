@@ -313,6 +313,19 @@ function PostagensPage() {
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" /> Carregando postagens…
         </div>
+      ) : postagens.isError ? (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <XCircle className="h-8 w-8 text-destructive" />
+            <p className="text-sm text-muted-foreground">
+              Não foi possível carregar as postagens agora. A conexão com o servidor falhou
+              momentaneamente.
+            </p>
+            <Button variant="outline" onClick={() => postagens.refetch()}>
+              Tentar novamente
+            </Button>
+          </CardContent>
+        </Card>
       ) : (postagens.data ?? []).length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
