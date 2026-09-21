@@ -91,6 +91,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/chatbot", label: "Chatbot", icon: Bot, adminOnly: true },
       { to: "/divulgazap", label: "DivulgaZap", icon: Megaphone, adminOnly: true },
       { to: "/divulgacao", label: "Divulgação em grupos", icon: Users, adminOnly: true },
+      { to: "/postagens", label: "Postagens e Stories", icon: CalendarClock, adminOnly: true },
       { to: "/chamadas", label: "Chamadas", icon: PhoneCall, adminOnly: false },
       { to: "/ia", label: "IA", icon: Sparkles, adminOnly: true },
     ],
