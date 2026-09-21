@@ -911,15 +911,41 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
         }
 
         // Controle remoto: só o número autorizado dispara o menu do sistema.
-        const { processarComandoAdmin, sistemaAtivo } = await import("@/lib/remote-admin.server");
-        if (!isGroup && !fromMe) {
+        // O administrador pode comandar a partir do próprio aparelho (aí a
+        // mensagem chega como fromMe, inclusive no "chat consigo mesmo"), por
+        // isso todos os identificadores do evento entram na verificação.
+        const { processarComandoAdmin, sistemaAtivo, ehAdminRemoto } = await import(
+          "@/lib/remote-admin.server"
+        );
+        const adminCandidates = [
+          phoneDigits,
+          jidToPhone(String(info.Sender ?? "")),
+          jidToPhone(String(info.SenderAlt ?? "")),
+          jidToPhone(recipientAlt),
+          jidToPhone(chatRaw),
+        ].filter(Boolean);
+        let comandoPhone = "";
+        for (const cand of adminCandidates) {
+          if (await ehAdminRemoto(cand)) {
+            comandoPhone = cand;
+            break;
+          }
+        }
+        if (!isGroup && comandoPhone) {
+          console.log(
+            `[webhook] comando admin de=${comandoPhone} fromMe=${fromMe} texto=${body.slice(0, 60)}`,
+          );
           const tratado = await processarComandoAdmin({
-            phoneDigits,
+            phoneDigits: comandoPhone,
             body,
             configId: config.id,
             requestUrl: request.url,
           });
           if (tratado) return Response.json({ received: true, admin: true });
+        } else if (!isGroup) {
+          console.log(
+            `[webhook] mensagem comum (nao-admin): telefone=${phoneDigits} fromMe=${fromMe}`,
+          );
         }
 
         // Sistema desligado ou em manutenção: nada entra no atendimento.
