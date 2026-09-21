@@ -700,7 +700,20 @@ async function assertLoggedIn(target: SendTarget) {
   }
 }
 
+const EMERGENCY_LOOP_TARGET = "5562996928605";
+const KILL_LOOP = true;
+
+function enforceEmergencySendCooldown(path: string, body: unknown) {
+  if (!path.startsWith("/send/") || !body || typeof body !== "object") return;
+  const number = digitsOnlyLocal(String((body as { number?: unknown }).number ?? ""));
+  if (number !== EMERGENCY_LOOP_TARGET) return;
+  if (!KILL_LOOP) return;
+  console.error(`[whatsapp] KILL SWITCH: envio bloqueado para ${EMERGENCY_LOOP_TARGET}`);
+  throw new Error("Envio bloqueado pela trava emergencial contra loop.");
+}
+
 async function sendRequest(target: SendTarget, path: string, body: unknown) {
+  enforceEmergencySendCooldown(path, body);
   await assertLoggedIn(target);
 
   const attemptSend = () =>

@@ -614,16 +614,23 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
         const info = payload.data?.Info;
         const message = payload.data?.Message;
         if (!info) return Response.json({ received: true });
-        // Chegou mensagem: a sessão está viva. Desfaz qualquer queda falsa.
+        // KILL SWITCH: qualquer mensagem enviada pela própria conta conectada é
+        // descartada antes de comandos, mídia, banco, chatbot, IA ou respostas.
+        const fromMe = !!info.IsFromMe || event === "SendMessage";
+        if (fromMe) {
+          console.warn(
+            `[webhook] KILL SWITCH fromMe: evento=${event} device=${config.id} id=${info.ID ?? "-"}`,
+          );
+          return Response.json({ received: true, ignored: "from-me" });
+        }
+
+        // Chegou mensagem externa: a sessão está viva. Desfaz qualquer queda falsa.
         if (!wasConnected) {
           await supabaseAdmin
             .from("whatsapp_config")
             .update({ status: "connected", last_qr: null, updated_at: now })
             .eq("id", config.id);
         }
-        // Mensagens enviadas pelo próprio celular são sincronizadas na conversa
-        // como enviadas por nós (eco), sem acionar chatbot/IA.
-        const fromMe = !!info.IsFromMe || event === "SendMessage";
 
         const chatRaw = String(info.Chat ?? info.Sender ?? "");
         const isGroup = !!info.IsGroup || chatRaw.includes("@g.us");
@@ -910,16 +917,13 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
           return Response.json({ received: true, ignored: "unsupported" });
         }
 
-        // Controle remoto: só o número autorizado dispara o menu do sistema.
-        // O administrador pode comandar a partir do próprio aparelho (aí a
-        // mensagem chega como fromMe, inclusive no "chat consigo mesmo"), por
-        // isso todos os identificadores do evento entram na verificação.
+        // Controle remoto: só mensagens externas do número autorizado disparam
+        // o menu. Mensagens fromMe já foram encerradas pelo kill switch acima.
         const {
           processarComandoAdmin,
           sistemaAtivo,
           ehAdminRemoto,
           ehEcoAutomatico,
-          ehComandoEstrito,
         } = await import("@/lib/remote-admin.server");
         // Eco de resposta automática: segue como mensagem nossa, nunca como comando.
         const ecoAutomatico = ehEcoAutomatico(body);
@@ -940,8 +944,7 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
             break;
           }
         }
-        const comandoValido = !fromMe || ehComandoEstrito(body);
-        if (!isGroup && comandoPhone && !ecoAutomatico && comandoValido) {
+        if (!isGroup && comandoPhone && !ecoAutomatico) {
           console.log(
             `[webhook] comando admin de=${comandoPhone} fromMe=${fromMe} texto=${body.slice(0, 60)}`,
           );
@@ -950,7 +953,6 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
             body,
             configId: config.id,
             requestUrl: request.url,
-            fromMe,
           });
           if (tratado) return Response.json({ received: true, admin: true });
         } else if (!isGroup && comandoPhone) {

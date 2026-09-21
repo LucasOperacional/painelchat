@@ -5,4 +5,6 @@
 - [x] Agendamentos (sentinela/monitor) no endereço publicado
 - [x] Verificação de conexões/filas/realtime em produção
 - [x] Menu de controle enviado ao administrador 5562996928605
-- [ ] (aguardando decisão do usuário) Corrigir 3 achados graves de segurança
+- [x] Corrigir 3 achados graves de segurança
+- [x] Kill switch: descartar todo evento fromMe antes de qualquer processamento
+- [x] Bloquear totalmente novos envios ao administrador durante a emergência
