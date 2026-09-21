@@ -20,17 +20,18 @@ async function requireAdmin(context: {
 /** Origem pública e acessível pela internet (o webhook exige HTTPS público). */
 function publicOrigin(requestUrl: string) {
   const origin = new URL(requestUrl).origin;
-  // Os domínios `id-preview--...` exigem a sessão da prévia e rejeitam o
-  // webhook externo. Para a Evolution sempre usamos o domínio estável `project--`.
+  // Os domínios `id-preview--...` exigem a sessão da prévia e `-dev` serve só a
+  // prévia. Para a Evolution usamos o domínio estável da versão publicada.
   if (
     /^https:\/\//.test(origin) &&
-    !/localhost|127\.0\.0\.1|\/\/id-preview--/.test(origin)
+    !/localhost|127\.0\.0\.1|\/\/id-preview--/.test(origin) &&
+    !/-dev\.lovable\.app$/.test(origin)
   ) {
     return origin;
   }
   const projectId =
-    process.env["LOVABLE_PROJECT_ID"] ?? "97ffdf59-274d-422b-93c2-4b8e8cb52bb4";
-  return `https://project--${projectId}-dev.lovable.app`;
+    process.env["LOVABLE_PROJECT_ID"] ?? "a3daa33e-35ce-4bc4-9ed0-fa0c79c7a779";
+  return `https://project--${projectId}.lovable.app`;
 }
 
 function webhookUrl(request: Request, webhookToken: string) {

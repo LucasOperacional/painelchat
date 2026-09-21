@@ -55,12 +55,33 @@ export async function sistemaAtivo() {
   return (await controleSistema()).state === "ligado";
 }
 
+/**
+ * Variações do mesmo número brasileiro: o WhatsApp entrega o mesmo telefone
+ * com e sem o nono dígito, dependendo do aparelho.
+ */
+function variacoes(numero: string) {
+  const lista = new Set<string>([numero]);
+  if (numero.startsWith("55") && numero.length === 13) {
+    const ddd = numero.slice(2, 4);
+    const assinante = numero.slice(4);
+    if (assinante.startsWith("9")) lista.add(`55${ddd}${assinante.slice(1)}`);
+  }
+  if (numero.startsWith("55") && numero.length === 12) {
+    lista.add(`55${numero.slice(2, 4)}9${numero.slice(4)}`);
+  }
+  return lista;
+}
+
 /** É exatamente o número autorizado do administrador? */
 export async function ehAdminRemoto(phoneDigits: string | null | undefined) {
   const numero = normalizarNumero(phoneDigits);
   if (!numero) return false;
   const { adminPhone } = await controleSistema();
-  return numero === adminPhone;
+  const autorizados = variacoes(adminPhone);
+  for (const variacao of variacoes(numero)) {
+    if (autorizados.has(variacao)) return true;
+  }
+  return false;
 }
 
 const MENU = [

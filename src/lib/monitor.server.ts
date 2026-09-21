@@ -137,8 +137,9 @@ async function marcarEstado(
 
 function origemPublica(): string {
   const projectId =
-    process.env["LOVABLE_PROJECT_ID"] ?? "39b1da47-cdc6-44f9-86c6-8cf9e1e4fbad";
-  return projectId ? `https://project--${projectId}-dev.lovable.app` : "";
+    process.env["LOVABLE_PROJECT_ID"] ?? "a3daa33e-35ce-4bc4-9ed0-fa0c79c7a779";
+  // Domínio estável da versão publicada (é ele que a Evolution precisa alcançar).
+  return `https://project--${projectId}.lovable.app`;
 }
 
 /** Tenta religar a instância (reconecta e reassina o webhook). */
@@ -189,7 +190,9 @@ export type ResultadoVerificacao = {
 };
 
 /** Passa por todos os aparelhos, religa o que caiu e avisa o número de plantão. */
-export async function verificarConexoes(): Promise<ResultadoVerificacao> {
+export async function verificarConexoes(
+  requestUrl?: string | null,
+): Promise<ResultadoVerificacao> {
   const settings = await carregarMonitorSettings();
   const resultado: ResultadoVerificacao = {
     verificados: 0,
@@ -199,9 +202,12 @@ export async function verificarConexoes(): Promise<ResultadoVerificacao> {
   };
   if (!settings.ativo) return resultado;
 
-  const { listEvolutionConfigs, ensureEvolutionInstance, evolutionGetStatus } = await import(
-    "@/lib/evolution.server"
-  );
+  const {
+    listEvolutionConfigs,
+    ensureEvolutionInstance,
+    evolutionGetStatus,
+    ensureEvolutionWebhook,
+  } = await import("@/lib/evolution.server");
   const devices = await listEvolutionConfigs();
 
   for (const device of devices) {
@@ -235,6 +241,8 @@ export async function verificarConexoes(): Promise<ResultadoVerificacao> {
     }
 
     if (online) {
+      // Autocorreção: garante que o webhook aponte para o endereço de produção.
+      await ensureEvolutionWebhook(device.id, { requestUrl: requestUrl ?? null });
       await marcarEstado(device.id, {
         monitor_estado: "online",
         monitor_tentativas: 0,
