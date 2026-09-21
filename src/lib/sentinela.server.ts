@@ -309,7 +309,9 @@ export async function guardarWebhook(
   }
 
   let registroId: string | null = null;
-  if (payload) {
+  const nomeEvento = payload ? eventoDoPayload(payload) : "";
+  const vaiParaDiario = !!payload && !EVENTOS_SEM_DIARIO.has(nomeEvento.toLowerCase());
+  if (vaiParaDiario) {
     try {
       const db = await admin();
       const { data } = await db
@@ -317,11 +319,11 @@ export async function guardarWebhook(
         .insert({
           token,
           url: request.url,
-          evento: eventoDoPayload(payload),
+          evento: nomeEvento,
           external_id: externalIdDoPayload(payload),
           status: "processando",
           tentativas: 1,
-          payload: payload as never,
+          payload: enxugarPayload(payload) as never,
         } as never)
         .select("id")
         .single();
