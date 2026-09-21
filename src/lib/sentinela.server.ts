@@ -227,6 +227,36 @@ function eventoDoPayload(payload: unknown): string {
   return String(raw?.["event"] ?? raw?.["type"] ?? "");
 }
 
+/** Eventos sem conteúdo para recuperar: guardá-los só enche o banco. */
+const EVENTOS_SEM_DIARIO = new Set([
+  "receipt",
+  "chatpresence",
+  "presence",
+  "pushname",
+  "historysync",
+  "groupinfo",
+  "connected",
+]);
+
+/** Limite de texto por campo: arquivos em base64 não entram no diário. */
+const LIMITE_CAMPO = 4_000;
+
+/** Remove anexos gigantes (base64) antes de guardar o evento. */
+function enxugarPayload(valor: unknown, profundidade = 0): unknown {
+  if (typeof valor === "string") {
+    return valor.length > LIMITE_CAMPO ? `[conteúdo grande removido: ${valor.length} caracteres]` : valor;
+  }
+  if (profundidade > 8 || valor === null || typeof valor !== "object") return valor;
+  if (Array.isArray(valor)) {
+    return valor.slice(0, 50).map((item) => enxugarPayload(item, profundidade + 1));
+  }
+  const saida: Record<string, unknown> = {};
+  for (const [chave, item] of Object.entries(valor as Record<string, unknown>)) {
+    saida[chave] = enxugarPayload(item, profundidade + 1);
+  }
+  return saida;
+}
+
 /**
  * Envelope de segurança do webhook: protege contra enxurrada, grava o evento
  * recebido e só então processa. Se o processamento falhar, o evento fica
@@ -279,7 +309,9 @@ export async function guardarWebhook(
   }
 
   let registroId: string | null = null;
-  if (payload) {
+  const nomeEvento = payload ? eventoDoPayload(payload) : "";
+  const vaiParaDiario = !!payload && !EVENTOS_SEM_DIARIO.has(nomeEvento.toLowerCase());
+  if (vaiParaDiario) {
     try {
       const db = await admin();
       const { data } = await db
@@ -287,11 +319,11 @@ export async function guardarWebhook(
         .insert({
           token,
           url: request.url,
-          evento: eventoDoPayload(payload),
+          evento: nomeEvento,
           external_id: externalIdDoPayload(payload),
           status: "processando",
           tentativas: 1,
-          payload: payload as never,
+          payload: enxugarPayload(payload) as never,
         } as never)
         .select("id")
         .single();
@@ -353,22 +385,36 @@ async function reprocessarEvento(linha: Record<string, unknown>): Promise<boolea
   const { processarWebhookEvolution } = await import("@/routes/api/public/evolution");
   const url = String(linha["url"] || "https://central.local/api/public/evolution");
   const token = String(linha["token"] ?? "");
+  const db = await admin();
+
+  // A fila carrega apenas os campos leves; o conteúdo vem só na hora de reprocessar.
+  let payload = linha["payload"];
+  if (payload === undefined) {
+    const { data } = await db
+      .from("webhook_eventos")
+      .select("payload")
+      .eq("id", String(linha["id"]))
+      .maybeSingle();
+    payload = (data as { payload?: unknown } | null)?.payload ?? {};
+  }
+
   const request = new Request(url, {
     method: "POST",
     headers: { "content-type": "application/json", "x-webhook-token": token },
-    body: JSON.stringify(linha["payload"] ?? {}),
+    body: JSON.stringify(payload ?? {}),
   });
 
-  const db = await admin();
   const tentativas = Number(linha["tentativas"] ?? 0) + 1;
   try {
     const resposta = await processarWebhookEvolution(request);
     const ok = resposta.status < 400;
+    // Token recusado (401/403) nunca vai funcionar numa nova tentativa: encerra a fila.
+    const definitivo = resposta.status === 401 || resposta.status === 403;
     await db
       .from("webhook_eventos")
       .update({
         status: ok ? "ok" : "erro",
-        tentativas,
+        tentativas: definitivo ? 5 : tentativas,
         http_status: resposta.status,
         erro: ok ? null : `HTTP ${resposta.status}`,
         processado_em: new Date().toISOString(),
@@ -473,6 +519,13 @@ export async function executarCicloSentinela(
   let verificacoes = 0;
   let corrigidos = 0;
 
+  // Faxina do diário: sem ela o banco cresce sem limite e tudo fica lento.
+  try {
+    await db.rpc("sentinela_limpar_diario");
+  } catch (error) {
+    console.error("[sentinela] faxina do diário falhou:", (error as Error).message);
+  }
+
   /* 1. Conexões com as APIs de WhatsApp (religa sozinha quando cai). */
   try {
     const { verificarConexoes } = await import("@/lib/monitor.server");
@@ -521,7 +574,7 @@ export async function executarCicloSentinela(
   try {
     const { data: pendentes } = await db
       .from("webhook_eventos")
-      .select("*")
+      .select("id, url, token, evento, external_id, tentativas, erro, created_at")
       .in("status", ["erro", "processando", "pendente"])
       .lt("tentativas", MAX_TENTATIVAS_EVENTO)
       .lt("created_at", new Date(Date.now() - 60_000).toISOString())
