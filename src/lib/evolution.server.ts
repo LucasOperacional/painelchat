@@ -701,16 +701,31 @@ async function assertLoggedIn(target: SendTarget) {
 }
 
 const EMERGENCY_LOOP_TARGET = "5562996928605";
-const KILL_LOOP = true;
+// A trava total foi substituída pelas proteções definitivas contra loop:
+// (1) todo evento fromMe é descartado na entrada do webhook,
+// (2) o eco das respostas da central é reconhecido e ignorado,
+// (3) no máximo 1 comando respondido a cada 5s por conversa.
+const KILL_LOOP = false;
+// Além disso, nenhum envio repetido para o número do administrador em menos de 5s.
+const JANELA_ENVIO_MS = 5000;
+let ultimoEnvioAdmin = 0;
 
 function enforceEmergencySendCooldown(path: string, body: unknown) {
   if (!path.startsWith("/send/") || !body || typeof body !== "object") return;
   const number = digitsOnlyLocal(String((body as { number?: unknown }).number ?? ""));
   if (number !== EMERGENCY_LOOP_TARGET) return;
-  if (!KILL_LOOP) return;
-  console.error(`[whatsapp] KILL SWITCH: envio bloqueado para ${EMERGENCY_LOOP_TARGET}`);
-  throw new Error("Envio bloqueado pela trava emergencial contra loop.");
+  if (KILL_LOOP) {
+    console.error(`[whatsapp] KILL SWITCH: envio bloqueado para ${EMERGENCY_LOOP_TARGET}`);
+    throw new Error("Envio bloqueado pela trava emergencial contra loop.");
+  }
+  const agora = Date.now();
+  if (agora - ultimoEnvioAdmin < JANELA_ENVIO_MS) {
+    console.error("[whatsapp] envio ao administrador barrado pela trava de 5s (anti-loop)");
+    throw new Error("Aguarde alguns segundos antes de um novo envio para este número.");
+  }
+  ultimoEnvioAdmin = agora;
 }
+
 
 async function sendRequest(target: SendTarget, path: string, body: unknown) {
   enforceEmergencySendCooldown(path, body);
