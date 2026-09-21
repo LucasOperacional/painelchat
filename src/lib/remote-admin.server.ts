@@ -104,18 +104,27 @@ function limpar(text: string) {
     .toLowerCase();
 }
 
-type Comando = "menu" | "reiniciar" | "ligar" | "desligar" | "bloquear" | "status" | null;
+type Comando = "menu" | "reiniciar" | "ligar" | "desligar" | "bloquear" | "status";
 
+/** Nome do chatbot dedicado ao controle remoto (nunca atende clientes). */
+export const ADMIN_BOT_NAME = "Controle do Sistema (Admin)";
+
+/**
+ * Reconhecimento automático: qualquer mensagem do administrador vira comando.
+ * O que não for reconhecido devolve o menu, então ele nunca fica sem resposta.
+ */
 function interpretar(body: string): Comando {
-  const texto = limpar(body);
-  if (!texto) return null;
-  if (["menu", "#admin", "#sistema", "0", "admin", "sistema"].includes(texto)) return "menu";
-  if (texto === "1" || /^reiniciar/.test(texto)) return "reiniciar";
-  if (texto === "2" || /^ligar/.test(texto)) return "ligar";
-  if (texto === "3" || /^desligar/.test(texto)) return "desligar";
-  if (texto === "4" || /^bloquear/.test(texto)) return "bloquear";
-  if (texto === "5" || /^status/.test(texto)) return "status";
-  return null;
+  const texto = limpar(body).replace(/^[#/*.\s-]+/, "").replace(/[.!?]+$/, "");
+  if (!texto) return "menu";
+  if (["menu", "admin", "sistema", "0", "ajuda", "opcoes", "opcao", "start", "oi", "ola"].includes(texto)) {
+    return "menu";
+  }
+  if (texto === "1" || /reinicia|restart|reset|reconect/.test(texto)) return "reiniciar";
+  if (texto === "2" || /^lig(ar|a|o)?\b|ativar|retomar|on$/.test(texto)) return "ligar";
+  if (texto === "3" || /deslig|pausar|parar|off$/.test(texto)) return "desligar";
+  if (texto === "4" || /bloquea|bloquear|manutenc/.test(texto)) return "bloquear";
+  if (texto === "5" || /status|situacao|relatorio|conexoes|filas/.test(texto)) return "status";
+  return "menu";
 }
 
 async function definirEstado(state: EstadoSistema) {

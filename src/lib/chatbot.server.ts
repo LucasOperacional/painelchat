@@ -39,10 +39,12 @@ export async function loadActiveChatbot(): Promise<{
   options: ChatbotOption[];
 } | null> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { ADMIN_BOT_NAME } = await import("@/lib/remote-admin.server");
   const { data } = await supabaseAdmin
     .from("chatbots")
     .select("*")
     .eq("is_active", true)
+    .neq("name", ADMIN_BOT_NAME)
     .order("created_at")
     .limit(1)
     .maybeSingle();
