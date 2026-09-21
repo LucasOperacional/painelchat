@@ -351,17 +351,19 @@ function inicioDoDia() {
 export async function relatorioMensagens() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const desde = inicioDoDia();
-  const contar = async (build: (q: ReturnType<typeof contagemBase>) => unknown) => {
-    const query = contagemBase();
-    const { count } = (await (build(query) as never)) as { count: number | null };
-    return count ?? 0;
-  };
-  function contagemBase() {
-    return supabaseAdmin.from("messages").select("id", { count: "exact", head: true });
-  }
+  const { count: totalEnviadas } = await supabaseAdmin
+    .from("messages")
+    .select("id", { count: "exact", head: true })
+    .eq("direction", "outbound")
+    .gte("created_at", desde);
+  const { count: totalRecebidas } = await supabaseAdmin
+    .from("messages")
+    .select("id", { count: "exact", head: true })
+    .eq("direction", "inbound")
+    .gte("created_at", desde);
+  const enviadas = totalEnviadas ?? 0;
+  const recebidas = totalRecebidas ?? 0;
 
-  const enviadas = await contar((q) => q.eq("direction", "outbound").gte("created_at", desde));
-  const recebidas = await contar((q) => q.eq("direction", "inbound").gte("created_at", desde));
 
   const { count: naFila } = await supabaseAdmin
     .from("webhook_eventos")
