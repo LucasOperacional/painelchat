@@ -591,10 +591,59 @@ export async function processarComandoAdmin(input: {
       await responder(`${MENU}\n\nSituação atual: *${state}*`);
       return true;
     }
+    if (comando === "menu_completo") {
+      await responder(MENU_COMPLETO);
+      return true;
+    }
     if (comando === "reiniciar") {
-      await responder("Reiniciando o sistema e as APIs...");
+      // Uma única resposta por opção: nada de aviso antes + resultado depois.
       const linhas = await reiniciarConexoes(input.requestUrl ?? null);
-      await responder(["*Reinício concluído*", ...linhas].join("\n"));
+      await responder(
+        ["*Reinicio concluido* (Evolution Go + WuzAPI)", ...linhas, "", "Webhooks revalidados."].join("\n"),
+      );
+      return true;
+    }
+    if (comando === "status") {
+      await responder(await resumoStatus());
+      return true;
+    }
+    if (comando === "sentinela") {
+      await responder(await resumoSentinela());
+      return true;
+    }
+    if (comando === "sentinela_ligar") {
+      await definirSentinela(true);
+      await responder("🛡️ Sentinela *ativa*. Vigilancia e protecao ligadas.");
+      return true;
+    }
+    if (comando === "sentinela_pausar") {
+      await definirSentinela(false);
+      await responder("🛡️ Sentinela *pausada*. Nenhum ciclo automatico sera executado.");
+      return true;
+    }
+    if (comando === "ia") {
+      await responder(await resumoIA());
+      return true;
+    }
+    if (comando === "ia_ligar") {
+      await definirIA(true);
+      await responder("🤖 IA e chatbots de atendimento *ligados*.");
+      return true;
+    }
+    if (comando === "ia_pausar") {
+      await definirIA(false);
+      await responder("🤖 IA e chatbots de atendimento *pausados*.");
+      return true;
+    }
+    if (comando === "alternar") {
+      const { state } = await controleSistema();
+      const novo: EstadoSistema = state === "ligado" ? "desligado" : "ligado";
+      await definirEstado(novo);
+      await responder(
+        novo === "ligado"
+          ? "✅ Atendimento geral *ligado*."
+          : "⏸️ Atendimento geral *desligado*. Recebimento e chatbots pausados.",
+      );
       return true;
     }
     if (comando === "ligar") {
@@ -614,6 +663,7 @@ export async function processarComandoAdmin(input: {
     }
     await responder(await resumoStatus());
     return true;
+
   } catch (error) {
     console.error("[admin-remoto] falha no comando:", (error as Error).message);
     await responder(`Não consegui executar: ${(error as Error).message}`);
