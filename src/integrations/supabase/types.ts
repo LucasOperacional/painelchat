@@ -1106,7 +1106,6 @@ export type Database = {
           data_vencimento: string | null
           id: string
           nome_original: string
-          project_id: string | null
           status: string
           storage_path: string
           tamanho_bytes: number
@@ -1120,7 +1119,6 @@ export type Database = {
           data_vencimento?: string | null
           id?: string
           nome_original: string
-          project_id?: string | null
           status?: string
           storage_path: string
           tamanho_bytes?: number
@@ -1134,22 +1132,13 @@ export type Database = {
           data_vencimento?: string | null
           id?: string
           nome_original?: string
-          project_id?: string | null
           status?: string
           storage_path?: string
           tamanho_bytes?: number
           user_id?: string
           valor?: number | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "das_mei_documentos_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       departments: {
         Row: {
