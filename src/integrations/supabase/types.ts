@@ -2020,6 +2020,168 @@ export type Database = {
           },
         ]
       }
+      postagem_envios: {
+        Row: {
+          created_at: string
+          destino: string
+          destino_nome: string
+          detalhe: string
+          id: string
+          ok: boolean
+          postagem_id: string
+          project_id: string | null
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          destino?: string
+          destino_nome?: string
+          detalhe?: string
+          id?: string
+          ok?: boolean
+          postagem_id: string
+          project_id?: string | null
+          tipo?: string
+        }
+        Update: {
+          created_at?: string
+          destino?: string
+          destino_nome?: string
+          detalhe?: string
+          id?: string
+          ok?: boolean
+          postagem_id?: string
+          project_id?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "postagem_envios_postagem_id_fkey"
+            columns: ["postagem_id"]
+            isOneToOne: false
+            referencedRelation: "postagens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "postagem_envios_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      postagens: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          delay_segundos: number
+          destino: string
+          device_id: string | null
+          dias_semana: number[]
+          frequencia: string
+          grupos: string[]
+          id: string
+          inicio_em: string | null
+          intervalo_horas: number
+          mensagem: string
+          midia_tipo: string
+          midia_url: string
+          nome: string
+          project_id: string | null
+          proximo_em: string | null
+          status: string
+          total_enviados: number
+          total_falhas: number
+          ultimo_em: string | null
+          ultimo_status: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          delay_segundos?: number
+          destino?: string
+          device_id?: string | null
+          dias_semana?: number[]
+          frequencia?: string
+          grupos?: string[]
+          id?: string
+          inicio_em?: string | null
+          intervalo_horas?: number
+          mensagem?: string
+          midia_tipo?: string
+          midia_url?: string
+          nome?: string
+          project_id?: string | null
+          proximo_em?: string | null
+          status?: string
+          total_enviados?: number
+          total_falhas?: number
+          ultimo_em?: string | null
+          ultimo_status?: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          delay_segundos?: number
+          destino?: string
+          device_id?: string | null
+          dias_semana?: number[]
+          frequencia?: string
+          grupos?: string[]
+          id?: string
+          inicio_em?: string | null
+          intervalo_horas?: number
+          mensagem?: string
+          midia_tipo?: string
+          midia_url?: string
+          nome?: string
+          project_id?: string | null
+          proximo_em?: string | null
+          status?: string
+          total_enviados?: number
+          total_falhas?: number
+          ultimo_em?: string | null
+          ultimo_status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "postagens_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_config"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "postagens_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      postagens_settings: {
+        Row: {
+          created_at: string
+          cron_token: string
+          id: boolean
+        }
+        Insert: {
+          created_at?: string
+          cron_token?: string
+          id?: boolean
+        }
+        Update: {
+          created_at?: string
+          cron_token?: string
+          id?: boolean
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
