@@ -1,0 +1,1383 @@
+// Cliente HTTP da Evolution Go — segue exclusivamente a documentação oficial:
+// https://docs.evolutionfoundation.com.br/evolution-go
+//
+// Autenticação (docs → Webhooks / Configuração Inicial):
+//   Header apikey      = GLOBAL_API_KEY do servidor Evolution Go
+//   Header instanceId  = UUID da instância
+// Uso exclusivo no servidor.
+
+export const EVOLUTION_DEFAULT_BASE_URL = "https://api.nxsplus.xyz";
+export { WUZAPI_DEFAULT_BASE_URL } from "@/lib/wuzapi.server";
+
+/** Eventos assinados no webhook da instância (docs → Webhooks). */
+// Todos os eventos oficiais marcados de forma explícita: assim a Evolution Go
+// guarda a lista completa na instância e a conexão continua firme mesmo depois
+// de uma queda ou reinício do servidor.
+export const EVOLUTION_SUBSCRIBE = [
+  "MESSAGE",
+  "SEND_MESSAGE",
+  "READ_RECEIPT",
+  "PRESENCE",
+  "HISTORY_SYNC",
+  "CHAT_PRESENCE",
+  "CALL",
+  "CONNECTION",
+  "LABEL",
+  "CONTACT",
+  "GROUP",
+  "NEWSLETTER",
+  "QRCODE",
+  "BUTTON_CLICK",
+  "PICTURE",
+  "USER_ABOUT",
+] as const;
+
+/** Atalho aceito por servidores antigos caso a lista explícita seja recusada. */
+export const EVOLUTION_SUBSCRIBE_FALLBACK = ["ALL"] as const;
+
+
+/** A mensagem de erro indica recusa da lista de eventos do webhook? */
+export function isWebhookEventsError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /eventos?\s+para\s+webhook|invalid.*event|event.*invalid|subscribe/i.test(message);
+}
+
+
+export { digitsOnly, jidToPhone, formatBrPhone } from "@/lib/phone";
+
+export type EvolutionConfig = {
+  id: string;
+  base_url: string;
+  instance_id: string;
+  instance_name: string;
+  phone: string;
+  status: string;
+  last_qr: string | null;
+  last_event: string | null;
+  default_queue_id: string | null;
+  provider: string;
+  webhook_token: string;
+  color: string;
+  label: string;
+  is_default: boolean;
+  company: string;
+  display_id: string | null;
+  updated_at: string;
+  created_at: string;
+};
+
+/** Envelope padrão das respostas: { data, message }. */
+type EvolutionEnvelope<T> = { data?: T; message?: string };
+
+/** Carrega um dispositivo específico; sem id, usa o dispositivo padrão. */
+export async function loadEvolutionConfig(
+  configId?: string | null,
+): Promise<EvolutionConfig | null> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  if (configId) {
+    const { data, error } = await supabaseAdmin
+      .from("whatsapp_config")
+      .select("*")
+      .eq("id", configId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (data) return data as EvolutionConfig;
+  }
+  const { data, error } = await supabaseAdmin
+    .from("whatsapp_config")
+    .select("*")
+    .order("is_default", { ascending: false })
+    .order("created_at")
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as EvolutionConfig | null) ?? null;
+}
+
+/** Lista todos os dispositivos de WhatsApp cadastrados na central. */
+export async function listEvolutionConfigs(projectId?: string | null): Promise<EvolutionConfig[]> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  let query = supabaseAdmin.from("whatsapp_config").select("*");
+  // Cada endereço (franquia) enxerga só os próprios aparelhos.
+  if (projectId) query = query.eq("project_id", projectId);
+  const { data, error } = await query
+    .order("is_default", { ascending: false })
+    .order("created_at");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as EvolutionConfig[];
+}
+
+function normalizeBaseUrl(baseUrl: string) {
+  return (baseUrl || "").trim().replace(/\/+$/, "");
+}
+
+/**
+ * Cache curto em memória para credenciais e status de login.
+ * Sem ele cada envio gastava 2 consultas ao banco antes do HTTP.
+ */
+const memo = new Map<string, { value: string | boolean; expires: number }>();
+
+function memoGet<T extends string | boolean>(key: string): T | undefined {
+  const hit = memo.get(key);
+  if (!hit) return undefined;
+  if (hit.expires < Date.now()) {
+    memo.delete(key);
+    return undefined;
+  }
+  return hit.value as T;
+}
+
+function memoSet(key: string, value: string | boolean, ttlMs: number) {
+  memo.set(key, { value, expires: Date.now() + ttlMs });
+}
+
+function memoClear(prefixOrKey: string) {
+  for (const key of [...memo.keys()]) {
+    if (key.startsWith(prefixOrKey)) memo.delete(key);
+  }
+}
+
+/** Qual provedor atende este dispositivo: "evolution" (padrão) ou "wuzapi". */
+async function providerOf(configId: string | null): Promise<string> {
+  const cacheKey = `provider:${configId ?? "default"}`;
+  const cached = memoGet<string>(cacheKey);
+  if (cached !== undefined) return cached;
+  let provider = "evolution";
+  try {
+    const config = await loadEvolutionConfig(configId);
+    provider = (config?.provider || "evolution").trim().toLowerCase();
+  } catch {
+    provider = "evolution";
+  }
+  memoSet(cacheKey, provider, 30_000);
+  return provider;
+}
+
+/** Provedor deste dispositivo ("evolution" ou "wuzapi"), para uso externo. */
+export async function deviceProvider(configId: string | null): Promise<string> {
+  return providerOf(configId);
+}
+
+/** Limpa o provedor em cache (usar ao trocar a API de um dispositivo). */
+export function invalidateProviderCache() {
+  memoClear("provider:");
+  memoClear("token:");
+  memoClear("key:");
+}
+
+/**
+ * Credencial global de uma integração (token + endereço), salva sem depender
+ * de nenhum dispositivo. Assim o token continua guardado mesmo antes de existir
+ * um aparelho vinculado.
+ */
+export const GLOBAL_CONFIG_ID = "00000000-0000-0000-0000-000000000000";
+
+export async function saveProviderGlobalCredentials(input: {
+  provider: string;
+  apiKey?: string;
+  baseUrl?: string;
+}) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: current } = await supabaseAdmin
+    .from("whatsapp_secrets")
+    .select("instance_token, base_url")
+    .eq("provider", input.provider)
+    .eq("config_id", GLOBAL_CONFIG_ID)
+    .maybeSingle();
+  const previous = (current ?? {}) as { instance_token?: string; base_url?: string };
+
+  const { error } = await supabaseAdmin.from("whatsapp_secrets").upsert(
+    {
+      provider: input.provider,
+      config_id: GLOBAL_CONFIG_ID,
+      instance_token: (input.apiKey ?? "").trim() || previous.instance_token || "",
+      base_url: (input.baseUrl ?? "").trim() || previous.base_url || "",
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "provider,config_id" },
+  );
+  if (error) throw new Error(error.message);
+  invalidateProviderCache();
+}
+
+/** Endereço salvo (ou padrão) do servidor conforme a integração escolhida. */
+export async function defaultBaseUrlFor(provider: string): Promise<string> {
+  const { WUZAPI_DEFAULT_BASE_URL: wuz } = await import("@/lib/wuzapi.server");
+  const fallback = provider === "wuzapi" ? wuz : EVOLUTION_DEFAULT_BASE_URL;
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("whatsapp_secrets")
+      .select("base_url")
+      .eq("provider", provider)
+      .eq("config_id", GLOBAL_CONFIG_ID)
+      .maybeSingle();
+    const saved = ((data as { base_url?: string } | null)?.base_url ?? "").trim();
+    if (saved) return saved.replace(/\/+$/, "");
+  } catch {
+    /* sem credencial global salva: usa o padrão */
+  }
+  return fallback;
+}
+
+export async function evolutionRequest<T = unknown>(options: {
+  baseUrl: string;
+  instanceId?: string | undefined;
+  configId?: string | null;
+  path: string;
+  method?: "GET" | "POST" | "DELETE";
+  body?: unknown;
+  timeoutMs?: number;
+  /** Força a integração usada, sem depender do que está salvo/em cache. */
+  provider?: string | undefined;
+}): Promise<T> {
+  // Rotas globais (/instance/all e /instance/create) usam a API Key global.
+  // As demais são da instância e exigem o token dela como apikey.
+  const isGlobalPath = /^\/instance\/(all|create)$/.test(options.path);
+  const instanceToken = isGlobalPath
+    ? ""
+    : await loadEvolutionInstanceToken(options.configId ?? null);
+
+  // Conexões da WuzAPI falam outro dialeto: traduzimos a chamada mantendo a
+  // mesma resposta { data } que o restante da central já consome.
+  const resolvedProvider =
+    (options.provider ?? "").trim().toLowerCase() || (await providerOf(options.configId ?? null));
+  if (resolvedProvider === "wuzapi") {
+    const { wuzapiDispatch } = await import("@/lib/wuzapi.server");
+    return (await wuzapiDispatch({
+      baseUrl: options.baseUrl,
+      path: options.path,
+      ...(options.method ? { method: options.method } : {}),
+      body: options.body,
+      ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
+      token: instanceToken || (await loadEvolutionInstanceToken(options.configId ?? null)),
+      adminToken: await loadWuzapiAdminToken(options.configId ?? null),
+    })) as T;
+  }
+
+  const apiKey = instanceToken || (await loadEvolutionApiKey(options.configId ?? null));
+  if (!apiKey)
+    throw new Error(
+      "Falta cadastrar a API Key global da Evolution Go em Administração → API de conexão.",
+    );
+  const base = normalizeBaseUrl(options.baseUrl) || EVOLUTION_DEFAULT_BASE_URL;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    apikey: apiKey,
+  };
+  if (options.instanceId) headers["instanceId"] = options.instanceId;
+
+  const init: RequestInit = { method: options.method ?? "GET", headers };
+  if (options.body !== undefined) init.body = JSON.stringify(options.body);
+
+  // A Evolution Go limita requisições (429 rate-overlimit). Em vez de quebrar a
+  // tela, esperamos um pouco e tentamos de novo algumas vezes.
+  let response!: Response;
+  let text = "";
+  const maxAttempts = 4;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 12_000);
+    try {
+      response = await fetch(`${base}${options.path}`, { ...init, signal: controller.signal });
+    } catch (error) {
+      if ((error as Error).name === "AbortError")
+        throw new Error(
+          "O servidor Evolution Go não respondeu no tempo esperado. Tente novamente.",
+        );
+      throw new Error(
+        "Não foi possível falar com o servidor Evolution Go. Confira o endereço em Administração → API de conexão.",
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+
+    text = await response.text();
+    if ((response.status === 429 || response.status === 503) && attempt < maxAttempts) {
+      const retryAfter = Number(response.headers.get("retry-after"));
+      const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
+        ? Math.min(retryAfter * 1000, 10_000)
+        : attempt * 1500;
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+      continue;
+    }
+    break;
+  }
+
+  let payload: unknown = null;
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    payload = text;
+  }
+
+  if (!response.ok) throw new Error(describeEvolutionError(response.status, payload));
+  return payload as T;
+}
+
+/** Traduz o ErrorResponse documentado ({ success, error: { code, message } }). */
+function describeEvolutionError(status: number, payload: unknown): string {
+  const raw = payload as
+    | { error?: string | { code?: string; message?: string }; message?: string }
+    | string
+    | null;
+  const errorField = typeof raw === "object" && raw ? raw.error : undefined;
+  const message =
+    (typeof errorField === "string" ? errorField : errorField?.message) ??
+    (typeof raw === "object" && raw ? raw.message : typeof raw === "string" ? raw : undefined) ??
+    `Falha na Evolution Go (HTTP ${status}).`;
+
+  if (/client is nil|not logged|no session|logged\s*out/i.test(message)) {
+    return "O WhatsApp deste dispositivo não está pareado. Abra Administração → Dispositivos e leia o QR Code para voltar a enviar mensagens.";
+  }
+  if (/not registered on whatsapp|not exists on whatsapp|invalid.*number/i.test(message)) {
+    return "Esse número não tem WhatsApp ativo. Confira o DDD e os dígitos e tente novamente.";
+  }
+  if (status === 429 || /rate-?overlimit|too many requests/i.test(message)) {
+    return "O servidor do WhatsApp recebeu pedidos demais e pediu uma pausa. Aguarde alguns segundos e tente novamente.";
+  }
+  if (status === 401 || status === 403) {
+    return "A Evolution Go recusou as credenciais. Revise a API Key global em Administração → API de conexão.";
+  }
+  if (status === 404) {
+    return "A Evolution Go não encontrou essa instância. Confira o ID da instância em Administração → API de conexão.";
+  }
+  return message;
+}
+
+// ---------------------------------------------------------------------------
+// Instância (docs → Referência API › Instance)
+// ---------------------------------------------------------------------------
+
+type InstanceTarget = {
+  baseUrl: string;
+  instanceId?: string;
+  configId?: string | null;
+  timeoutMs?: number;
+  provider?: string | undefined;
+};
+
+/** POST /instance/create → { data: { id, name, token } } */
+export async function evolutionCreateInstance(
+  target: { baseUrl: string; configId?: string | null; provider?: string | undefined },
+  input: { name: string },
+): Promise<{ id: string; name: string; token: string }> {
+  // Embora o token seja opcional na documentação, algumas instalações da
+  // Evolution Go não o devolvem quando ele é gerado automaticamente. Criá-lo
+  // aqui garante que as chamadas seguintes da instância sempre sejam
+  // autenticadas e evita o erro "token is required".
+  const requestedToken = crypto.randomUUID();
+  const res = await evolutionRequest<EvolutionEnvelope<{ id?: string; name?: string; token?: string }>>({
+    baseUrl: target.baseUrl,
+    configId: target.configId ?? null,
+    path: "/instance/create",
+    method: "POST",
+    body: { name: input.name, token: requestedToken },
+    provider: target.provider,
+  });
+  const id = res?.data?.id ?? "";
+  if (!id)
+    throw new Error(
+      `O servidor ${target.provider === "wuzapi" ? "WuzAPI" : "Evolution Go"} não retornou o identificador da conexão criada.`,
+    );
+  return {
+    id,
+    name: res?.data?.name ?? input.name,
+    token: res?.data?.token ?? requestedToken,
+  };
+}
+
+/** POST /instance/connect — conecta e registra o webhook desta central. */
+export async function evolutionConnectInstance(
+  target: InstanceTarget,
+  input: { webhookUrl: string; phone?: string; immediate?: boolean },
+): Promise<{ qrcode: string | null; pairingCode: string | null; jid: string }> {
+  const attempt = async (events: readonly string[]) => {
+    const body: Record<string, unknown> = {
+      webhookUrl: input.webhookUrl,
+      // Formato exato da documentação: apenas "subscribe" (array).
+      subscribe: [...events],
+
+    };
+    if (input.phone) body["phone"] = input.phone;
+    if (input.immediate) body["immediate"] = true;
+
+    return evolutionRequest<
+      EvolutionEnvelope<{ jid?: string; webhookUrl?: string; Qrcode?: string; Code?: string }>
+    >({
+      baseUrl: target.baseUrl,
+      instanceId: target.instanceId,
+      configId: target.configId ?? null,
+      provider: target.provider,
+      path: "/instance/connect",
+      method: "POST",
+      body,
+    });
+  };
+
+  let res: EvolutionEnvelope<{
+    jid?: string;
+    webhookUrl?: string;
+    Qrcode?: string;
+    Code?: string;
+  }>;
+  try {
+    res = await attempt(EVOLUTION_SUBSCRIBE);
+  } catch (error) {
+    // "Eventos para Webhook inválidos": o servidor recusou a lista completa.
+    if (!isWebhookEventsError(error)) throw error;
+    res = await attempt(EVOLUTION_SUBSCRIBE_FALLBACK);
+  }
+
+  // Guarda o endereço confirmado do webhook: se a Evolution Go cair, a central
+  // sabe que precisa reafirmar os eventos na volta.
+  if (target.configId) {
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await supabaseAdmin
+        .from("whatsapp_config")
+        .update({
+          webhook_url: res?.data?.webhookUrl || input.webhookUrl,
+          webhook_synced_at: new Date().toISOString(),
+        } as never)
+        .eq("id", target.configId);
+    } catch {
+      /* a conexão vale mesmo se o registro do webhook não for salvo */
+    }
+  }
+
+  return {
+    qrcode: extractEvolutionQr(res),
+    pairingCode: res?.data?.Code ?? null,
+    jid: res?.data?.jid ?? "",
+  };
+}
+
+
+/** GET /instance/qr → { data: { Qrcode, Code } } */
+export async function evolutionGetQr(
+  target: InstanceTarget,
+): Promise<{ qrcode: string | null; code: string | null }> {
+  const res = await evolutionRequest<EvolutionEnvelope<{ Qrcode?: string; Code?: string }>>({
+    baseUrl: target.baseUrl,
+    instanceId: target.instanceId,
+    configId: target.configId ?? null,
+    provider: target.provider,
+    path: "/instance/qr",
+  });
+  return { qrcode: extractEvolutionQr(res), code: res?.data?.Code ?? null };
+}
+
+/** GET /instance/status → { data: { Connected, LoggedIn, Name } } */
+export async function evolutionGetStatus(target: InstanceTarget): Promise<{
+  connected: boolean;
+  loggedIn: boolean;
+  name: string;
+  phone: string;
+}> {
+  const res = await evolutionRequest<
+    EvolutionEnvelope<{ Connected?: boolean; LoggedIn?: boolean; Name?: string; Jid?: string }>
+  >({
+    baseUrl: target.baseUrl,
+    instanceId: target.instanceId,
+    configId: target.configId ?? null,
+    provider: target.provider,
+    path: "/instance/status",
+    timeoutMs: target.timeoutMs ?? 20_000,
+  });
+  return extractEvolutionConnection(res);
+}
+
+/** POST /instance/pair → { data: { PairingCode } } */
+export async function evolutionPair(
+  target: InstanceTarget,
+  input: { phone: string },
+): Promise<string | null> {
+  const attempt = (events: readonly string[]) =>
+    evolutionRequest<EvolutionEnvelope<{ PairingCode?: string }>>({
+      baseUrl: target.baseUrl,
+      instanceId: target.instanceId,
+      configId: target.configId ?? null,
+      provider: target.provider,
+      path: "/instance/pair",
+      method: "POST",
+      body: { phone: input.phone, subscribe: [...events] },
+    });
+  let res: EvolutionEnvelope<{ PairingCode?: string }>;
+  try {
+    res = await attempt(EVOLUTION_SUBSCRIBE);
+  } catch (error) {
+    if (!isWebhookEventsError(error)) throw error;
+    res = await attempt(EVOLUTION_SUBSCRIBE_FALLBACK);
+  }
+  return res?.data?.PairingCode ?? null;
+}
+
+
+/** DELETE /instance/logout — encerra a sessão do WhatsApp na instância. */
+export async function evolutionLogout(target: InstanceTarget) {
+  return evolutionRequest({
+    baseUrl: target.baseUrl,
+    instanceId: target.instanceId,
+    configId: target.configId ?? null,
+    path: "/instance/logout",
+    method: "DELETE",
+  });
+}
+
+/** POST /instance/disconnect — desliga a instância sem apagar a sessão. */
+export async function evolutionDisconnect(target: InstanceTarget) {
+  return evolutionRequest({
+    baseUrl: target.baseUrl,
+    instanceId: target.instanceId,
+    configId: target.configId ?? null,
+    path: "/instance/disconnect",
+    method: "POST",
+  });
+}
+
+/** GET /instance/all — usado para validar a API Key global. */
+export async function evolutionListInstances(target: {
+  baseUrl: string;
+  configId?: string | null;
+  provider?: string | undefined;
+}): Promise<Array<Record<string, unknown>>> {
+  const res = await evolutionRequest<EvolutionEnvelope<Array<Record<string, unknown>>>>({
+    baseUrl: target.baseUrl,
+    configId: target.configId ?? null,
+    path: "/instance/all",
+    provider: target.provider,
+  });
+  return Array.isArray(res?.data) ? res.data : [];
+}
+
+// ---------------------------------------------------------------------------
+// Envio de mensagens (docs → Referência API › Send Message)
+// ---------------------------------------------------------------------------
+
+type SendTarget = { baseUrl: string; instanceId: string; configId?: string | null };
+
+/** Todas as rotas /send/* respondem { data: { Info: { ID } } }. */
+function extractSentId(payload: unknown): string | null {
+  const p = payload as
+    | { data?: { Info?: { ID?: string }; ID?: string; id?: string } }
+    | null;
+  return p?.data?.Info?.ID ?? p?.data?.ID ?? p?.data?.id ?? null;
+}
+
+const NOT_PAIRED_MESSAGE =
+  "O WhatsApp deste dispositivo não está pareado. Abra Administração → Dispositivos e leia o QR Code para voltar a enviar mensagens.";
+
+/**
+ * Antes de enviar, confirma que a sessão está logada.
+ * Sem login a Evolution Go aceita a requisição e nunca responde (o envio ficava travando).
+ * O resultado positivo fica em cache por 2 minutos para não somar um HTTP extra em cada envio.
+ */
+async function assertLoggedIn(target: SendTarget) {
+  const cacheKey = `login:${target.instanceId}`;
+  if (memoGet<boolean>(cacheKey) === true) return;
+
+  // A sessão pode estar apenas reconectando (queda rápida de rede do celular).
+  // Damos duas chances antes de dizer que o aparelho está desconectado.
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const status = await evolutionGetStatus({
+        baseUrl: target.baseUrl,
+        instanceId: target.instanceId,
+        configId: target.configId ?? null,
+        timeoutMs: 6_000,
+      });
+      if (status.loggedIn) {
+        memoSet(cacheKey, true, 120_000);
+        return;
+      }
+      if (attempt === 2) throw new Error(NOT_PAIRED_MESSAGE);
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    } catch (error) {
+      if ((error as Error).message === NOT_PAIRED_MESSAGE) throw error;
+      // Falha ao consultar o status não deve impedir a tentativa de envio.
+      return;
+    }
+  }
+}
+
+async function sendRequest(target: SendTarget, path: string, body: unknown) {
+  await assertLoggedIn(target);
+
+  const attemptSend = () =>
+    evolutionRequest<unknown>({
+      baseUrl: target.baseUrl,
+      instanceId: target.instanceId,
+      configId: target.configId ?? null,
+      path,
+      method: "POST",
+      body,
+      // Envios de grupo e de mídia podem levar bem mais tempo no servidor.
+      timeoutMs: 60_000,
+    });
+
+  try {
+    return extractSentId(await attemptSend());
+  } catch (error) {
+    // Sessão pode ter caído: descarta o cache para revalidar no próximo envio.
+    memoClear(`login:${target.instanceId}`);
+    if ((error as Error).message !== NOT_PAIRED_MESSAGE) throw error;
+
+    // A sessão costuma voltar sozinha em poucos segundos; tenta de novo uma vez.
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await assertLoggedIn(target);
+    try {
+      return extractSentId(await attemptSend());
+    } catch (retryError) {
+      memoClear(`login:${target.instanceId}`);
+      throw retryError;
+    }
+  }
+}
+
+/** Invalida o cache de sessão (usado ao conectar/desconectar dispositivos). */
+export function invalidateEvolutionSessionCache(instanceId?: string | null) {
+  memoClear(instanceId ? `login:${instanceId}` : "login:");
+}
+
+/** POST /send/text */
+export async function evolutionSendText(
+  target: SendTarget,
+  input: {
+    number: string;
+    text: string;
+    delay?: number;
+    /** Resposta citada (reply-to) no formato da Evolution Go. */
+    quoted?: { messageId: string; participant?: string };
+  },
+) {
+  return sendRequest(target, "/send/text", {
+    number: input.number,
+    text: input.text,
+    ...(input.delay ? { delay: input.delay } : {}),
+    ...(input.quoted?.messageId
+      ? {
+          quoted: {
+            messageId: input.quoted.messageId,
+            ...(input.quoted.participant ? { participant: input.quoted.participant } : {}),
+          },
+        }
+      : {}),
+  });
+}
+
+/** POST /send/media — type: image | video | audio | document */
+export async function evolutionSendMedia(
+  target: SendTarget,
+  input: { number: string; url: string; fileName: string; mimeType: string; caption?: string },
+) {
+  const mime = (input.mimeType || "").toLowerCase();
+  const type = mime.startsWith("image/")
+    ? "image"
+    : mime.startsWith("video/")
+      ? "video"
+      : mime.startsWith("audio/")
+        ? "audio"
+        : "document";
+  return sendRequest(target, "/send/media", {
+    number: input.number,
+    type,
+    url: input.url,
+    filename: input.fileName,
+    caption: input.caption ?? "",
+  });
+}
+
+/** POST /send/sticker — figurinha (webp). Cai para imagem comum se a API não aceitar. */
+export async function evolutionSendSticker(
+  target: SendTarget,
+  input: { number: string; url: string },
+) {
+  try {
+    // A rota aceita apenas o campo "sticker" (URL do .webp).
+    return await sendRequest(target, "/send/sticker", {
+      number: input.number,
+      sticker: input.url,
+    });
+  } catch {
+    // Se o arquivo não for aceito como figurinha, envia como imagem comum
+    // ("sticker" não é um tipo válido em /send/media).
+    return sendRequest(target, "/send/media", {
+      number: input.number,
+      type: "image",
+      url: input.url,
+      filename: "figurinha.webp",
+      caption: "",
+    });
+  }
+}
+
+
+/** POST /send/contact */
+export async function evolutionSendContact(
+  target: SendTarget,
+  input: { number: string; contactName: string; contactPhone: string },
+) {
+  return sendRequest(target, "/send/contact", {
+    number: input.number,
+    vcard: { fullName: input.contactName, phone: input.contactPhone },
+  });
+}
+
+/** POST /send/link */
+export async function evolutionSendLink(
+  target: SendTarget,
+  input: { number: string; url: string; text: string; title?: string; description?: string },
+) {
+  return sendRequest(target, "/send/link", {
+    number: input.number,
+    url: input.url,
+    text: input.text,
+    title: input.title ?? "",
+    description: input.description ?? "",
+  });
+}
+
+export type EvolutionMenuButton = {
+  type: "reply" | "url" | "call" | "copy" | "pix";
+  displayText: string;
+  id?: string;
+  url?: string;
+  phoneNumber?: string;
+  copyCode?: string;
+  key?: string;
+  keyType?: "phone" | "email" | "cpf" | "cnpj" | "random";
+  name?: string;
+  currency?: string;
+};
+
+/** POST /send/button — mensagem com botões interativos (até 3 respostas rápidas). */
+export async function evolutionSendButton(
+  target: SendTarget,
+  input: {
+    number: string;
+    title: string;
+    description: string;
+    footer?: string;
+    imageUrl?: string;
+    buttons: EvolutionMenuButton[];
+  },
+) {
+  return sendRequest(target, "/send/button", {
+    number: input.number,
+    title: input.title,
+    description: input.description,
+    footer: input.footer ?? "",
+    ...(input.imageUrl ? { imageUrl: input.imageUrl } : {}),
+    buttons: input.buttons,
+  });
+}
+
+/** POST /send/list — menu em lista com seções (abre em tela cheia no WhatsApp). */
+export async function evolutionSendList(
+  target: SendTarget,
+  input: {
+    number: string;
+    title: string;
+    description: string;
+    buttonText: string;
+    footerText?: string;
+    sections: { title: string; rows: { title: string; description?: string; rowId: string }[] }[];
+  },
+) {
+  return sendRequest(target, "/send/list", {
+    number: input.number,
+    title: input.title,
+    description: input.description,
+    buttonText: input.buttonText,
+    footerText: input.footerText ?? "",
+    sections: input.sections,
+  });
+}
+
+/** POST /send/poll — enquete com opções de voto. */
+export async function evolutionSendPoll(
+  target: SendTarget,
+  input: { number: string; question: string; options: string[]; maxAnswer?: number },
+) {
+  return sendRequest(target, "/send/poll", {
+    number: input.number,
+    question: input.question,
+    options: input.options,
+    maxAnswer: input.maxAnswer ?? 1,
+  });
+}
+
+/**
+ * POST /message/delete → apaga a mensagem para todos no WhatsApp (revoke).
+ * Conforme o swagger da Evolution Go, o corpo aceita apenas { chat, messageId }.
+ */
+export async function evolutionDeleteMessage(
+  target: SendTarget,
+  input: {
+    number: string;
+    messageId: string;
+    fromMe: boolean;
+    participant?: string | undefined;
+  },
+) {
+  await assertLoggedIn(target);
+  await evolutionRequest<unknown>({
+    baseUrl: target.baseUrl,
+    instanceId: target.instanceId,
+    configId: target.configId ?? null,
+    path: "/message/delete",
+    method: "POST",
+    body: { chat: input.number, messageId: input.messageId },
+    timeoutMs: 30_000,
+  });
+  return true;
+}
+
+
+
+// ---------------------------------------------------------------------------
+// Contatos e grupos (docs → User / Group)
+// ---------------------------------------------------------------------------
+
+/**
+ * POST /user/avatar → foto de perfil do contato ou grupo.
+ * A Evolution Go só responde quando o destino vem como JID completo; a versão
+ * full-size (preview:false) trava, então usamos preview:true.
+ */
+export async function evolutionGetAvatar(
+  target: SendTarget,
+  input: { number: string },
+): Promise<string | null> {
+  const raw = (input.number ?? "").trim();
+  if (!raw) return null;
+  const jid = raw.includes("@")
+    ? raw.replace("@c.us", "@s.whatsapp.net")
+    : `${digitsOnlyLocal(raw)}@s.whatsapp.net`;
+
+  const res = await evolutionRequest<
+    EvolutionEnvelope<{ URL?: string; url?: string; PictureID?: string }>
+  >({
+    baseUrl: target.baseUrl,
+    instanceId: target.instanceId,
+    configId: target.configId ?? null,
+    path: "/user/avatar",
+    method: "POST",
+    body: { number: jid, preview: true },
+    timeoutMs: 15_000,
+  });
+  const url = res?.data?.URL ?? res?.data?.url ?? null;
+  return typeof url === "string" && url.startsWith("http") ? url : null;
+}
+
+function digitsOnlyLocal(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+/** GET /group/list → grupos da instância. */
+export async function evolutionListGroups(
+  target: SendTarget,
+): Promise<Array<Record<string, unknown>>> {
+  // Junta os dois endpoints da Evolution Go para trazer todos os grupos:
+  // /group/list (cache do servidor) e /group/myall (consulta ao WhatsApp).
+  const all: Array<Record<string, unknown>> = [];
+  let lastError: Error | null = null;
+  for (const path of ["/group/list", "/group/myall"]) {
+    try {
+      const res = await evolutionRequest<EvolutionEnvelope<Array<Record<string, unknown>>>>({
+        baseUrl: target.baseUrl,
+        instanceId: target.instanceId,
+        configId: target.configId ?? null,
+        path,
+        // A lista de grupos costuma ser grande e demorar mais que os demais
+        // endpoints; damos mais tempo antes de desistir.
+        timeoutMs: 45_000,
+      });
+      if (Array.isArray(res?.data)) all.push(...res.data);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error("Falha ao listar os grupos.");
+    }
+  }
+  // Se nenhum endpoint respondeu, mostramos o motivo em vez de "nenhum grupo".
+  if (all.length === 0 && lastError) throw lastError;
+  return all;
+}
+
+
+/** POST /group/info → dados de um grupo (nome real, dono, participantes). */
+export async function evolutionGroupInfo(
+  target: SendTarget,
+  groupJid: string,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const res = await evolutionRequest<EvolutionEnvelope<Record<string, unknown>>>({
+      baseUrl: target.baseUrl,
+      instanceId: target.instanceId,
+      configId: target.configId ?? null,
+      path: "/group/info",
+      method: "POST",
+      body: { groupJid },
+    });
+    return res?.data && typeof res.data === "object" ? res.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Nome real do grupo: consulta /group/info quando a listagem não trouxe o nome. */
+export async function evolutionResolveGroupName(
+  target: SendTarget,
+  groupJid: string,
+): Promise<string | null> {
+  const info = await evolutionGroupInfo(target, groupJid);
+  if (!info) return null;
+  for (const key of ["Name", "name", "Subject", "subject", "GroupName", "title"]) {
+    const value = info[key];
+    if (typeof value === "string" && value.trim() && !/^\d+$/.test(value.trim())) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
+/** GET /user/contacts → agenda do número conectado. */
+export async function evolutionListContacts(
+  target: SendTarget,
+): Promise<Array<Record<string, unknown>>> {
+  const res = await evolutionRequest<EvolutionEnvelope<Array<Record<string, unknown>>>>({
+    baseUrl: target.baseUrl,
+    instanceId: target.instanceId,
+    configId: target.configId ?? null,
+    path: "/user/contacts",
+  });
+  return Array.isArray(res?.data) ? res.data : [];
+}
+
+// ---------------------------------------------------------------------------
+// Leitura de respostas
+// ---------------------------------------------------------------------------
+
+/** QR Code da Evolution Go: data.Qrcode (data URL/base64) e data.Code. */
+export function extractEvolutionQr(payload: unknown): string | null {
+  const seen = new Set<unknown>();
+  const keys = ["Qrcode", "qrcode", "QrCode", "qrCode", "qr", "base64", "code", "Code"];
+  const walk = (node: unknown, depth = 0): string | null => {
+    if (!node || depth > 5) return null;
+    if (typeof node === "string") {
+      const v = node.trim();
+      if (v.startsWith("data:image")) return v;
+      if (v.length > 100 && /^[A-Za-z0-9+/=\r\n]+$/.test(v)) return v;
+      return null;
+    }
+    if (typeof node !== "object" || seen.has(node)) return null;
+    seen.add(node);
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        const found = walk(item, depth + 1);
+        if (found) return found;
+      }
+      return null;
+    }
+    const record = node as Record<string, unknown>;
+    for (const key of keys) {
+      const found = walk(record[key], depth + 1);
+      if (found) return found;
+    }
+    for (const value of Object.values(record)) {
+      const found = walk(value, depth + 1);
+      if (found) return found;
+    }
+    return null;
+  };
+  return walk(payload);
+}
+
+/** Estado da instância: data.Connected / data.LoggedIn / data.Name. */
+export function extractEvolutionConnection(payload: unknown): {
+  connected: boolean;
+  loggedIn: boolean;
+  phone: string;
+  name: string;
+} {
+  const seen = new Set<unknown>();
+  let connected = false;
+  let loggedIn = false;
+  let phone = "";
+  let name = "";
+
+  const walk = (node: unknown, depth = 0) => {
+    if (!node || typeof node !== "object" || depth > 5 || seen.has(node)) return;
+    seen.add(node);
+    if (Array.isArray(node)) {
+      node.forEach((item) => walk(item, depth + 1));
+      return;
+    }
+    const record = node as Record<string, unknown>;
+    for (const [rawKey, value] of Object.entries(record)) {
+      const key = rawKey.toLowerCase();
+      if ((key === "connected" || key === "isconnected") && value === true) connected = true;
+      if ((key === "loggedin" || key === "isloggedin") && value === true) loggedIn = true;
+      if (key === "status" && typeof value === "string") {
+        const state = value.toLowerCase().replace(/[\s_-]/g, "");
+        if (["open", "connected", "online", "ready"].includes(state)) connected = true;
+      }
+      if (!phone && ["jid", "phone", "number", "wid"].includes(key) && typeof value === "string")
+        phone = value;
+      if (!name && ["name", "pushname", "instancename"].includes(key) && typeof value === "string")
+        name = value;
+      walk(value, depth + 1);
+    }
+  };
+
+  walk(payload);
+  return { connected, loggedIn, phone, name };
+}
+
+// ---------------------------------------------------------------------------
+// API Key global e provisionamento do dispositivo
+// ---------------------------------------------------------------------------
+
+async function loadProviderApiToken(provider: string, envName: string, configId?: string | null): Promise<string> {
+  const envKey = (process.env[envName] ?? "").trim();
+  if (envKey) return envKey;
+
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const query = supabaseAdmin.from("whatsapp_secrets").select("instance_token").eq("provider", provider);
+  const { data } = configId
+    ? await query.eq("config_id", configId).maybeSingle()
+    : await query.order("updated_at", { ascending: false }).limit(1).maybeSingle();
+  let result = ((data as { instance_token?: string } | null)?.instance_token ?? "").trim();
+  if (!result && configId) {
+    const { data: shared } = await supabaseAdmin
+      .from("whatsapp_secrets")
+      .select("instance_token")
+      .eq("provider", provider)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    result = ((shared as { instance_token?: string } | null)?.instance_token ?? "").trim();
+  }
+  return result;
+}
+
+/**
+ * Credencial global do servidor deste dispositivo. Dispositivos da WuzAPI usam
+ * o token de administrador; os demais usam a API Key global da Evolution Go.
+ */
+export async function loadEvolutionApiKey(configId?: string | null): Promise<string> {
+  if ((await providerOf(configId ?? null)) === "wuzapi") {
+    return loadProviderApiToken("wuzapi", "WUZAPI_ADMIN_TOKEN", configId);
+  }
+  return loadProviderApiToken("evolution", "EVOLUTION_API_KEY", configId);
+}
+
+/** Credencial global salva para uma integração específica (sem depender do dispositivo). */
+export async function loadProviderSharedKey(provider: string): Promise<string> {
+  return provider === "wuzapi"
+    ? loadProviderApiToken("wuzapi", "WUZAPI_ADMIN_TOKEN", null)
+    : loadProviderApiToken("evolution", "EVOLUTION_API_KEY", null);
+}
+
+/** Token de administrador do WuzAPI salvo na central, com fallback do ambiente. */
+export async function loadWuzapiAdminToken(configId?: string | null): Promise<string> {
+  return loadProviderApiToken("wuzapi", "WUZAPI_ADMIN_TOKEN", configId);
+}
+
+/** Guarda a API Key global de um provedor (evolution/wuzapi). */
+export async function saveProviderApiKey(input: {
+  configId: string;
+  provider: string;
+  apiKey: string;
+}) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { error } = await supabaseAdmin.from("whatsapp_secrets").upsert(
+    {
+      provider: input.provider,
+      config_id: input.configId,
+      instance_token: input.apiKey.trim(),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "provider,config_id" },
+  );
+  if (error) throw new Error(error.message);
+  memoClear("key:");
+  memoClear("provider:");
+  memoClear("token:");
+}
+
+/** Guarda a API Key global da Evolution Go (preserva o token da instância). */
+export async function saveEvolutionApiKey(input: { configId: string; apiKey: string }) {
+  await saveProviderApiKey({ configId: input.configId, provider: "evolution", apiKey: input.apiKey });
+}
+
+/** Token da instância (usado como apikey nas rotas por instância). */
+export async function loadEvolutionInstanceToken(configId?: string | null): Promise<string> {
+  if (!configId) return "";
+  const cacheKey = `token:${configId}`;
+  const cached = memoGet<string>(cacheKey);
+  if (cached !== undefined) return cached;
+
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const provider = await providerOf(configId);
+  const { data } = await supabaseAdmin
+    .from("whatsapp_secrets")
+    .select("client_token")
+    .eq("provider", provider)
+    .eq("config_id", configId)
+    .maybeSingle();
+  const token = ((data as { client_token?: string } | null)?.client_token ?? "").trim();
+  if (token) memoSet(cacheKey, token, 300_000);
+  return token;
+}
+
+/** Guarda o token da instância devolvido pela Evolution Go. */
+export async function saveEvolutionInstanceToken(input: { configId: string; token: string }) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const provider = await providerOf(input.configId);
+  await supabaseAdmin.from("whatsapp_secrets").upsert(
+    {
+      provider,
+      config_id: input.configId,
+      client_token: input.token.trim(),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "provider,config_id" },
+  );
+  memoSet(`token:${input.configId}`, input.token.trim(), 300_000);
+}
+
+/**
+ * Garante que exista um dispositivo Evolution Go pronto para uso: cria o
+ * dispositivo padrão, aplica a URL do servidor e replica a API Key global.
+ */
+export async function ensureEvolutionDevice(configId?: string | null): Promise<EvolutionConfig> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  let config = await loadEvolutionConfig(configId);
+  const provider = (config?.provider || "evolution").trim().toLowerCase();
+  const defaultBase = await defaultBaseUrlFor(provider);
+
+  const envInstanceId = (process.env["EVOLUTION_INSTANCE_ID"] ?? "").trim();
+  const envInstanceName = (process.env["EVOLUTION_INSTANCE_NAME"] ?? "central").trim();
+
+  if (!config) {
+    const { data: created, error } = await supabaseAdmin
+      .from("whatsapp_config")
+      .insert({
+        provider: "evolution",
+        base_url: EVOLUTION_DEFAULT_BASE_URL,
+        instance_id: envInstanceId,
+        instance_name: envInstanceName || "central",
+        label: "Dispositivo principal",
+        company: "Suporte",
+        is_default: true,
+      })
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    config = created as EvolutionConfig;
+  }
+
+  let needsPatch = false;
+  if (!normalizeBaseUrl(config.base_url)) {
+    config.base_url = defaultBase;
+    needsPatch = true;
+  }
+  if (!config.instance_id?.trim() && envInstanceId) {
+    config.instance_id = envInstanceId;
+    needsPatch = true;
+  }
+  if (needsPatch) {
+    await supabaseAdmin
+      .from("whatsapp_config")
+      .update({
+        base_url: config.base_url,
+        instance_id: config.instance_id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", config.id);
+  }
+
+  const { data: own } = await supabaseAdmin
+    .from("whatsapp_secrets")
+    .select("instance_token")
+    .eq("provider", provider)
+    .eq("config_id", config.id)
+    .maybeSingle();
+  const ownToken = ((own as { instance_token?: string } | null)?.instance_token ?? "").trim();
+  if (!ownToken) {
+    // Replica a credencial global da MESMA integração (Evolution ou WuzAPI).
+    const shared =
+      provider === "wuzapi"
+        ? await loadProviderApiToken("wuzapi", "WUZAPI_ADMIN_TOKEN", null)
+        : await loadProviderApiToken("evolution", "EVOLUTION_API_KEY", null);
+    if (shared) await saveProviderApiKey({ configId: config.id, provider, apiKey: shared });
+  }
+
+  return config;
+}
+
+/**
+ * Garante instância criada na Evolution Go e devolve o id dela.
+ * Também garante o token da instância (apikey das rotas por instância),
+ * buscando em /instance/all quando ele ainda não está guardado.
+ */
+export async function ensureEvolutionInstance(config: EvolutionConfig): Promise<string> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const current = config.instance_id?.trim() ?? "";
+
+  if (current) {
+    if (await loadEvolutionInstanceToken(config.id)) return current;
+    // O valor salvo pode ser o id OU o token da instância: descobre os dois.
+    const instances = await evolutionListInstances({
+      baseUrl: config.base_url,
+      configId: config.id,
+      provider: config.provider ?? undefined,
+    });
+    const match = instances.find((i) => {
+      const id = String(i["id"] ?? "");
+      const token = String(i["token"] ?? "");
+      const name = String(i["name"] ?? "");
+      return (
+        id === current ||
+        token === current ||
+        (!!name && name === (config.instance_name || config.label))
+      );
+    });
+    if (match) {
+      const id = String(match["id"] ?? "") || current;
+      const token = String(match["token"] ?? "");
+      if (token) await saveEvolutionInstanceToken({ configId: config.id, token });
+      if (id !== current) {
+        await supabaseAdmin
+          .from("whatsapp_config")
+          .update({ instance_id: id, updated_at: new Date().toISOString() })
+          .eq("id", config.id);
+        config.instance_id = id;
+      }
+      return id;
+    }
+    return current;
+  }
+
+  const created = await evolutionCreateInstance(
+    { baseUrl: config.base_url, configId: config.id, provider: config.provider ?? undefined },
+    { name: config.instance_name || config.label || "central" },
+  );
+  if (created.token) {
+    await saveEvolutionInstanceToken({ configId: config.id, token: created.token });
+  }
+  await supabaseAdmin
+    .from("whatsapp_config")
+    .update({ instance_id: created.id, updated_at: new Date().toISOString() })
+    .eq("id", config.id);
+  config.instance_id = created.id;
+  return created.id;
+}
+
+/** Acha a primeira string longa que pareça base64 dentro da resposta do servidor. */
+function acharBase64(valor: unknown, profundidade = 0): string | null {
+  if (profundidade > 6) return null;
+  if (typeof valor === "string") {
+    const limpo = valor.includes(",") ? valor.slice(valor.indexOf(",") + 1) : valor;
+    return limpo.length > 200 && /^[A-Za-z0-9+/=\s]+$/.test(limpo) ? limpo : null;
+  }
+  if (Array.isArray(valor)) {
+    for (const item of valor) {
+      const achado = acharBase64(item, profundidade + 1);
+      if (achado) return achado;
+    }
+    return null;
+  }
+  if (valor && typeof valor === "object") {
+    for (const item of Object.values(valor as Record<string, unknown>)) {
+      const achado = acharBase64(item, profundidade + 1);
+      if (achado) return achado;
+    }
+  }
+  return null;
+}
+
+function acharMimetype(valor: unknown, profundidade = 0): string | null {
+  if (profundidade > 6 || !valor || typeof valor !== "object") return null;
+  for (const [chave, item] of Object.entries(valor as Record<string, unknown>)) {
+    if (/mime/i.test(chave) && typeof item === "string" && item.includes("/")) return item;
+    const achado = acharMimetype(item, profundidade + 1);
+    if (achado) return achado;
+  }
+  return null;
+}
+
+/** Evolution Go: POST /message/downloadmedia devolve a mídia já descriptografada. */
+async function evolutionDownloadMedia(input: {
+  configId: string | null;
+  kind: "image" | "sticker" | "video" | "audio" | "document";
+  media: Record<string, unknown>;
+}): Promise<{ base64: string; mimetype: string } | null> {
+  const config = await loadEvolutionConfig(input.configId);
+  const baseUrl =
+    normalizeBaseUrl(config?.base_url ?? "") || (await defaultBaseUrlFor("evolution"));
+  if (!baseUrl) return null;
+  const token = await loadEvolutionInstanceToken(input.configId);
+  if (!token) return null;
+  try {
+    const headers: Record<string, string> = {
+      apikey: token,
+      "Content-Type": "application/json",
+    };
+    if (config?.instance_id?.trim()) headers["instanceId"] = config.instance_id.trim();
+    const res = await fetch(`${baseUrl}/message/downloadmedia`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ message: { [`${input.kind}Message`]: input.media } }),
+    });
+    const texto = await res.text();
+    if (!res.ok) {
+      console.error(`[evolution] download de mídia falhou (${res.status}): ${texto.slice(0, 300)}`);
+      return null;
+    }
+    const json = JSON.parse(texto) as unknown;
+    const base64 = acharBase64(json);
+    if (!base64) return null;
+    const mimetype =
+      acharMimetype(json) ??
+      (typeof input.media["mimetype"] === "string" ? (input.media["mimetype"] as string) : "") ??
+      "";
+    return { base64, mimetype: mimetype || "application/octet-stream" };
+  } catch (error) {
+    console.error("[evolution] download de mídia falhou:", (error as Error).message);
+    return null;
+  }
+}
+
+/**
+ * Baixa a mídia de uma mensagem recebida quando o provedor entrega o arquivo
+ * criptografado. Funciona nas duas conexões: WuzAPI (/chat/download…) e
+ * Evolution Go (/message/downloadmedia).
+ */
+export async function downloadInboundMedia(input: {
+  configId: string | null;
+  kind: "image" | "sticker" | "video" | "audio" | "document";
+  media: Record<string, unknown> | undefined;
+}): Promise<{ base64: string; mimetype: string } | null> {
+  if (!input.media) return null;
+  const provider = await providerOf(input.configId);
+  if (provider !== "wuzapi") {
+    return evolutionDownloadMedia({
+      configId: input.configId,
+      kind: input.kind,
+      media: input.media,
+    });
+  }
+  const config = await loadEvolutionConfig(input.configId);
+  const baseUrl = normalizeBaseUrl(config?.base_url ?? "") || (await defaultBaseUrlFor("wuzapi"));
+  const { wuzapiDownloadMedia } = await import("@/lib/wuzapi.server");
+  return wuzapiDownloadMedia({
+    baseUrl,
+    token: await loadEvolutionInstanceToken(input.configId),
+    adminToken: await loadWuzapiAdminToken(input.configId),
+    kind: input.kind,
+    media: input.media,
+  });
+}
+

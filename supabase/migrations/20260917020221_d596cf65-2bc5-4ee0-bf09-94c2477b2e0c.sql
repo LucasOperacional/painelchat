@@ -1,0 +1,1 @@
+ALTER TABLE public.button_menus ADD COLUMN IF NOT EXISTS option_routes jsonb NOT NULL DEFAULT '[]'::jsonb;

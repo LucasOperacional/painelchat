@@ -1,0 +1,1 @@
+ALTER TYPE public.chatbot_action ADD VALUE IF NOT EXISTS 'loja';

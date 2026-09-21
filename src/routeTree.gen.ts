@@ -10,33 +10,630 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as LojaRouteImport } from './routes/loja'
+import { Route as AuthenticatedApiConexaoRouteImport } from './routes/_authenticated/api-conexao'
+import { Route as AuthenticatedAtendimentoRouteImport } from './routes/_authenticated/atendimento'
+import { Route as AuthenticatedBackupRouteImport } from './routes/_authenticated/backup'
+import { Route as AuthenticatedBancoRouteImport } from './routes/_authenticated/banco'
+import { Route as AuthenticatedBeneficiosRouteImport } from './routes/_authenticated/beneficios'
+import { Route as AuthenticatedChamadasRouteImport } from './routes/_authenticated/chamadas'
+import { Route as AuthenticatedChatbotRouteImport } from './routes/_authenticated/chatbot'
+import { Route as AuthenticatedCobrancasRouteImport } from './routes/_authenticated/cobrancas'
+import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
+import { Route as AuthenticatedConsultasRouteImport } from './routes/_authenticated/consultas'
+import { Route as AuthenticatedContabilidadeRouteImport } from './routes/_authenticated/contabilidade'
+import { Route as AuthenticatedContatosRouteImport } from './routes/_authenticated/contatos'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedDepartamentosRouteImport } from './routes/_authenticated/departamentos'
+import { Route as AuthenticatedDivulgacaoRouteImport } from './routes/_authenticated/divulgacao'
+import { Route as AuthenticatedDivulgazapRouteImport } from './routes/_authenticated/divulgazap'
+import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
+import { Route as AuthenticatedEstoqueRouteImport } from './routes/_authenticated/estoque'
+import { Route as AuthenticatedFilasRouteImport } from './routes/_authenticated/filas'
+import { Route as AuthenticatedFranquiasRouteImport } from './routes/_authenticated/franquias'
+import { Route as AuthenticatedIaRouteImport } from './routes/_authenticated/ia'
+import { Route as AuthenticatedKanbanRouteImport } from './routes/_authenticated/kanban'
+import { Route as AuthenticatedMonitoramentoRouteImport } from './routes/_authenticated/monitoramento'
+import { Route as AuthenticatedNfseRouteImport } from './routes/_authenticated/nfse'
+import { Route as AuthenticatedNfseGoianiaRouteImport } from './routes/_authenticated/nfse-goiania'
+import { Route as AuthenticatedNotasRouteImport } from './routes/_authenticated/notas'
+import { Route as AuthenticatedProcessosRouteImport } from './routes/_authenticated/processos'
+import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
+import { Route as AuthenticatedSentinelaRouteImport } from './routes/_authenticated/sentinela'
+import { Route as AuthenticatedSistemaApiRouteImport } from './routes/_authenticated/sistema-api'
+import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticated/whatsapp'
+import { Route as AuthenticatedDasMeiIndexRouteImport } from './routes/_authenticated/das-mei.index'
+import { Route as AuthenticatedDasMeiReceberRouteImport } from './routes/_authenticated/das-mei.receber'
+import { Route as AuthenticatedWebviewIndexRouteImport } from './routes/_authenticated/webview.index'
+import { Route as AuthenticatedWebviewIdRouteImport } from './routes/_authenticated/webview.$id'
+import { Route as ApiPublicAltispayRouteImport } from './routes/api/public/altispay'
+import { Route as ApiPublicBroadcastRouteImport } from './routes/api/public/broadcast'
+import { Route as ApiPublicCobrancasRouteImport } from './routes/api/public/cobrancas'
+import { Route as ApiPublicDasMeiShareRouteImport } from './routes/api/public/das-mei-share'
+import { Route as ApiPublicEvolutionRouteImport } from './routes/api/public/evolution'
+import { Route as ApiPublicLojaRouteImport } from './routes/api/public/loja'
+import { Route as ApiPublicMisticpayRouteImport } from './routes/api/public/misticpay'
+import { Route as ApiPublicMonitorRouteImport } from './routes/api/public/monitor'
+import { Route as ApiPublicSentinelaRouteImport } from './routes/api/public/sentinela'
+import { Route as ApiPublicWebviewProxyRouteImport } from './routes/api/public/webview-proxy'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LojaRoute = LojaRouteImport.update({
+  id: '/loja',
+  path: '/loja',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedApiConexaoRoute = AuthenticatedApiConexaoRouteImport.update({
+  id: '/api-conexao',
+  path: '/api-conexao',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAtendimentoRoute =
+  AuthenticatedAtendimentoRouteImport.update({
+    id: '/atendimento',
+    path: '/atendimento',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedBackupRoute = AuthenticatedBackupRouteImport.update({
+  id: '/backup',
+  path: '/backup',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedBancoRoute = AuthenticatedBancoRouteImport.update({
+  id: '/banco',
+  path: '/banco',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedBeneficiosRoute = AuthenticatedBeneficiosRouteImport.update({
+  id: '/beneficios',
+  path: '/beneficios',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedChamadasRoute = AuthenticatedChamadasRouteImport.update({
+  id: '/chamadas',
+  path: '/chamadas',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedChatbotRoute = AuthenticatedChatbotRouteImport.update({
+  id: '/chatbot',
+  path: '/chatbot',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedCobrancasRoute = AuthenticatedCobrancasRouteImport.update({
+  id: '/cobrancas',
+  path: '/cobrancas',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedConfiguracoesRoute =
+  AuthenticatedConfiguracoesRouteImport.update({
+    id: '/configuracoes',
+    path: '/configuracoes',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedConsultasRoute = AuthenticatedConsultasRouteImport.update({
+  id: '/consultas',
+  path: '/consultas',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedContabilidadeRoute =
+  AuthenticatedContabilidadeRouteImport.update({
+    id: '/contabilidade',
+    path: '/contabilidade',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedContatosRoute = AuthenticatedContatosRouteImport.update({
+  id: '/contatos',
+  path: '/contatos',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDepartamentosRoute =
+  AuthenticatedDepartamentosRouteImport.update({
+    id: '/departamentos',
+    path: '/departamentos',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedDivulgacaoRoute = AuthenticatedDivulgacaoRouteImport.update({
+  id: '/divulgacao',
+  path: '/divulgacao',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDivulgazapRoute = AuthenticatedDivulgazapRouteImport.update({
+  id: '/divulgazap',
+  path: '/divulgazap',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedEquipeRoute = AuthenticatedEquipeRouteImport.update({
+  id: '/equipe',
+  path: '/equipe',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedEstoqueRoute = AuthenticatedEstoqueRouteImport.update({
+  id: '/estoque',
+  path: '/estoque',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedFilasRoute = AuthenticatedFilasRouteImport.update({
+  id: '/filas',
+  path: '/filas',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedFranquiasRoute = AuthenticatedFranquiasRouteImport.update({
+  id: '/franquias',
+  path: '/franquias',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedIaRoute = AuthenticatedIaRouteImport.update({
+  id: '/ia',
+  path: '/ia',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedKanbanRoute = AuthenticatedKanbanRouteImport.update({
+  id: '/kanban',
+  path: '/kanban',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedMonitoramentoRoute =
+  AuthenticatedMonitoramentoRouteImport.update({
+    id: '/monitoramento',
+    path: '/monitoramento',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedNfseRoute = AuthenticatedNfseRouteImport.update({
+  id: '/nfse',
+  path: '/nfse',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedNfseGoianiaRoute =
+  AuthenticatedNfseGoianiaRouteImport.update({
+    id: '/nfse-goiania',
+    path: '/nfse-goiania',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedNotasRoute = AuthenticatedNotasRouteImport.update({
+  id: '/notas',
+  path: '/notas',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedProcessosRoute = AuthenticatedProcessosRouteImport.update({
+  id: '/processos',
+  path: '/processos',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedRelatoriosRoute = AuthenticatedRelatoriosRouteImport.update({
+  id: '/relatorios',
+  path: '/relatorios',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSentinelaRoute = AuthenticatedSentinelaRouteImport.update({
+  id: '/sentinela',
+  path: '/sentinela',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSistemaApiRoute = AuthenticatedSistemaApiRouteImport.update({
+  id: '/sistema-api',
+  path: '/sistema-api',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedWhatsappRoute = AuthenticatedWhatsappRouteImport.update({
+  id: '/whatsapp',
+  path: '/whatsapp',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDasMeiIndexRoute =
+  AuthenticatedDasMeiIndexRouteImport.update({
+    id: '/das-mei/',
+    path: '/das-mei/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedDasMeiReceberRoute =
+  AuthenticatedDasMeiReceberRouteImport.update({
+    id: '/das-mei/receber',
+    path: '/das-mei/receber',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedWebviewIndexRoute =
+  AuthenticatedWebviewIndexRouteImport.update({
+    id: '/webview/',
+    path: '/webview/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedWebviewIdRoute = AuthenticatedWebviewIdRouteImport.update({
+  id: '/webview/$id',
+  path: '/webview/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const ApiPublicAltispayRoute = ApiPublicAltispayRouteImport.update({
+  id: '/api/public/altispay',
+  path: '/api/public/altispay',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicBroadcastRoute = ApiPublicBroadcastRouteImport.update({
+  id: '/api/public/broadcast',
+  path: '/api/public/broadcast',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicCobrancasRoute = ApiPublicCobrancasRouteImport.update({
+  id: '/api/public/cobrancas',
+  path: '/api/public/cobrancas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicDasMeiShareRoute = ApiPublicDasMeiShareRouteImport.update({
+  id: '/api/public/das-mei-share',
+  path: '/api/public/das-mei-share',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicEvolutionRoute = ApiPublicEvolutionRouteImport.update({
+  id: '/api/public/evolution',
+  path: '/api/public/evolution',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicLojaRoute = ApiPublicLojaRouteImport.update({
+  id: '/api/public/loja',
+  path: '/api/public/loja',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicMisticpayRoute = ApiPublicMisticpayRouteImport.update({
+  id: '/api/public/misticpay',
+  path: '/api/public/misticpay',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicMonitorRoute = ApiPublicMonitorRouteImport.update({
+  id: '/api/public/monitor',
+  path: '/api/public/monitor',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicSentinelaRoute = ApiPublicSentinelaRouteImport.update({
+  id: '/api/public/sentinela',
+  path: '/api/public/sentinela',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicWebviewProxyRoute = ApiPublicWebviewProxyRouteImport.update({
+  id: '/api/public/webview-proxy',
+  path: '/api/public/webview-proxy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/loja': typeof LojaRoute
+  '/api-conexao': typeof AuthenticatedApiConexaoRoute
+  '/atendimento': typeof AuthenticatedAtendimentoRoute
+  '/backup': typeof AuthenticatedBackupRoute
+  '/banco': typeof AuthenticatedBancoRoute
+  '/beneficios': typeof AuthenticatedBeneficiosRoute
+  '/chamadas': typeof AuthenticatedChamadasRoute
+  '/chatbot': typeof AuthenticatedChatbotRoute
+  '/cobrancas': typeof AuthenticatedCobrancasRoute
+  '/configuracoes': typeof AuthenticatedConfiguracoesRoute
+  '/consultas': typeof AuthenticatedConsultasRoute
+  '/contabilidade': typeof AuthenticatedContabilidadeRoute
+  '/contatos': typeof AuthenticatedContatosRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/departamentos': typeof AuthenticatedDepartamentosRoute
+  '/divulgacao': typeof AuthenticatedDivulgacaoRoute
+  '/divulgazap': typeof AuthenticatedDivulgazapRoute
+  '/equipe': typeof AuthenticatedEquipeRoute
+  '/estoque': typeof AuthenticatedEstoqueRoute
+  '/filas': typeof AuthenticatedFilasRoute
+  '/franquias': typeof AuthenticatedFranquiasRoute
+  '/ia': typeof AuthenticatedIaRoute
+  '/kanban': typeof AuthenticatedKanbanRoute
+  '/monitoramento': typeof AuthenticatedMonitoramentoRoute
+  '/nfse': typeof AuthenticatedNfseRoute
+  '/nfse-goiania': typeof AuthenticatedNfseGoianiaRoute
+  '/notas': typeof AuthenticatedNotasRoute
+  '/processos': typeof AuthenticatedProcessosRoute
+  '/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/sentinela': typeof AuthenticatedSentinelaRoute
+  '/sistema-api': typeof AuthenticatedSistemaApiRoute
+  '/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/das-mei/receber': typeof AuthenticatedDasMeiReceberRoute
+  '/webview/$id': typeof AuthenticatedWebviewIdRoute
+  '/api/public/altispay': typeof ApiPublicAltispayRoute
+  '/api/public/broadcast': typeof ApiPublicBroadcastRoute
+  '/api/public/cobrancas': typeof ApiPublicCobrancasRoute
+  '/api/public/das-mei-share': typeof ApiPublicDasMeiShareRoute
+  '/api/public/evolution': typeof ApiPublicEvolutionRoute
+  '/api/public/loja': typeof ApiPublicLojaRoute
+  '/api/public/misticpay': typeof ApiPublicMisticpayRoute
+  '/api/public/monitor': typeof ApiPublicMonitorRoute
+  '/api/public/sentinela': typeof ApiPublicSentinelaRoute
+  '/api/public/webview-proxy': typeof ApiPublicWebviewProxyRoute
+  '/das-mei/': typeof AuthenticatedDasMeiIndexRoute
+  '/webview/': typeof AuthenticatedWebviewIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/loja': typeof LojaRoute
+  '/api-conexao': typeof AuthenticatedApiConexaoRoute
+  '/atendimento': typeof AuthenticatedAtendimentoRoute
+  '/backup': typeof AuthenticatedBackupRoute
+  '/banco': typeof AuthenticatedBancoRoute
+  '/beneficios': typeof AuthenticatedBeneficiosRoute
+  '/chamadas': typeof AuthenticatedChamadasRoute
+  '/chatbot': typeof AuthenticatedChatbotRoute
+  '/cobrancas': typeof AuthenticatedCobrancasRoute
+  '/configuracoes': typeof AuthenticatedConfiguracoesRoute
+  '/consultas': typeof AuthenticatedConsultasRoute
+  '/contabilidade': typeof AuthenticatedContabilidadeRoute
+  '/contatos': typeof AuthenticatedContatosRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/departamentos': typeof AuthenticatedDepartamentosRoute
+  '/divulgacao': typeof AuthenticatedDivulgacaoRoute
+  '/divulgazap': typeof AuthenticatedDivulgazapRoute
+  '/equipe': typeof AuthenticatedEquipeRoute
+  '/estoque': typeof AuthenticatedEstoqueRoute
+  '/filas': typeof AuthenticatedFilasRoute
+  '/franquias': typeof AuthenticatedFranquiasRoute
+  '/ia': typeof AuthenticatedIaRoute
+  '/kanban': typeof AuthenticatedKanbanRoute
+  '/monitoramento': typeof AuthenticatedMonitoramentoRoute
+  '/nfse': typeof AuthenticatedNfseRoute
+  '/nfse-goiania': typeof AuthenticatedNfseGoianiaRoute
+  '/notas': typeof AuthenticatedNotasRoute
+  '/processos': typeof AuthenticatedProcessosRoute
+  '/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/sentinela': typeof AuthenticatedSentinelaRoute
+  '/sistema-api': typeof AuthenticatedSistemaApiRoute
+  '/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/das-mei/receber': typeof AuthenticatedDasMeiReceberRoute
+  '/webview/$id': typeof AuthenticatedWebviewIdRoute
+  '/api/public/altispay': typeof ApiPublicAltispayRoute
+  '/api/public/broadcast': typeof ApiPublicBroadcastRoute
+  '/api/public/cobrancas': typeof ApiPublicCobrancasRoute
+  '/api/public/das-mei-share': typeof ApiPublicDasMeiShareRoute
+  '/api/public/evolution': typeof ApiPublicEvolutionRoute
+  '/api/public/loja': typeof ApiPublicLojaRoute
+  '/api/public/misticpay': typeof ApiPublicMisticpayRoute
+  '/api/public/monitor': typeof ApiPublicMonitorRoute
+  '/api/public/sentinela': typeof ApiPublicSentinelaRoute
+  '/api/public/webview-proxy': typeof ApiPublicWebviewProxyRoute
+  '/das-mei': typeof AuthenticatedDasMeiIndexRoute
+  '/webview': typeof AuthenticatedWebviewIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/loja': typeof LojaRoute
+  '/_authenticated/api-conexao': typeof AuthenticatedApiConexaoRoute
+  '/_authenticated/atendimento': typeof AuthenticatedAtendimentoRoute
+  '/_authenticated/backup': typeof AuthenticatedBackupRoute
+  '/_authenticated/banco': typeof AuthenticatedBancoRoute
+  '/_authenticated/beneficios': typeof AuthenticatedBeneficiosRoute
+  '/_authenticated/chamadas': typeof AuthenticatedChamadasRoute
+  '/_authenticated/chatbot': typeof AuthenticatedChatbotRoute
+  '/_authenticated/cobrancas': typeof AuthenticatedCobrancasRoute
+  '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
+  '/_authenticated/consultas': typeof AuthenticatedConsultasRoute
+  '/_authenticated/contabilidade': typeof AuthenticatedContabilidadeRoute
+  '/_authenticated/contatos': typeof AuthenticatedContatosRoute
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/departamentos': typeof AuthenticatedDepartamentosRoute
+  '/_authenticated/divulgacao': typeof AuthenticatedDivulgacaoRoute
+  '/_authenticated/divulgazap': typeof AuthenticatedDivulgazapRoute
+  '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
+  '/_authenticated/estoque': typeof AuthenticatedEstoqueRoute
+  '/_authenticated/filas': typeof AuthenticatedFilasRoute
+  '/_authenticated/franquias': typeof AuthenticatedFranquiasRoute
+  '/_authenticated/ia': typeof AuthenticatedIaRoute
+  '/_authenticated/kanban': typeof AuthenticatedKanbanRoute
+  '/_authenticated/monitoramento': typeof AuthenticatedMonitoramentoRoute
+  '/_authenticated/nfse': typeof AuthenticatedNfseRoute
+  '/_authenticated/nfse-goiania': typeof AuthenticatedNfseGoianiaRoute
+  '/_authenticated/notas': typeof AuthenticatedNotasRoute
+  '/_authenticated/processos': typeof AuthenticatedProcessosRoute
+  '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/_authenticated/sentinela': typeof AuthenticatedSentinelaRoute
+  '/_authenticated/sistema-api': typeof AuthenticatedSistemaApiRoute
+  '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/_authenticated/das-mei/receber': typeof AuthenticatedDasMeiReceberRoute
+  '/_authenticated/webview/$id': typeof AuthenticatedWebviewIdRoute
+  '/api/public/altispay': typeof ApiPublicAltispayRoute
+  '/api/public/broadcast': typeof ApiPublicBroadcastRoute
+  '/api/public/cobrancas': typeof ApiPublicCobrancasRoute
+  '/api/public/das-mei-share': typeof ApiPublicDasMeiShareRoute
+  '/api/public/evolution': typeof ApiPublicEvolutionRoute
+  '/api/public/loja': typeof ApiPublicLojaRoute
+  '/api/public/misticpay': typeof ApiPublicMisticpayRoute
+  '/api/public/monitor': typeof ApiPublicMonitorRoute
+  '/api/public/sentinela': typeof ApiPublicSentinelaRoute
+  '/api/public/webview-proxy': typeof ApiPublicWebviewProxyRoute
+  '/_authenticated/das-mei/': typeof AuthenticatedDasMeiIndexRoute
+  '/_authenticated/webview/': typeof AuthenticatedWebviewIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/loja'
+    | '/api-conexao'
+    | '/atendimento'
+    | '/backup'
+    | '/banco'
+    | '/beneficios'
+    | '/chamadas'
+    | '/chatbot'
+    | '/cobrancas'
+    | '/configuracoes'
+    | '/consultas'
+    | '/contabilidade'
+    | '/contatos'
+    | '/dashboard'
+    | '/departamentos'
+    | '/divulgacao'
+    | '/divulgazap'
+    | '/equipe'
+    | '/estoque'
+    | '/filas'
+    | '/franquias'
+    | '/ia'
+    | '/kanban'
+    | '/monitoramento'
+    | '/nfse'
+    | '/nfse-goiania'
+    | '/notas'
+    | '/processos'
+    | '/relatorios'
+    | '/sentinela'
+    | '/sistema-api'
+    | '/whatsapp'
+    | '/das-mei/receber'
+    | '/webview/$id'
+    | '/api/public/altispay'
+    | '/api/public/broadcast'
+    | '/api/public/cobrancas'
+    | '/api/public/das-mei-share'
+    | '/api/public/evolution'
+    | '/api/public/loja'
+    | '/api/public/misticpay'
+    | '/api/public/monitor'
+    | '/api/public/sentinela'
+    | '/api/public/webview-proxy'
+    | '/das-mei/'
+    | '/webview/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/loja'
+    | '/api-conexao'
+    | '/atendimento'
+    | '/backup'
+    | '/banco'
+    | '/beneficios'
+    | '/chamadas'
+    | '/chatbot'
+    | '/cobrancas'
+    | '/configuracoes'
+    | '/consultas'
+    | '/contabilidade'
+    | '/contatos'
+    | '/dashboard'
+    | '/departamentos'
+    | '/divulgacao'
+    | '/divulgazap'
+    | '/equipe'
+    | '/estoque'
+    | '/filas'
+    | '/franquias'
+    | '/ia'
+    | '/kanban'
+    | '/monitoramento'
+    | '/nfse'
+    | '/nfse-goiania'
+    | '/notas'
+    | '/processos'
+    | '/relatorios'
+    | '/sentinela'
+    | '/sistema-api'
+    | '/whatsapp'
+    | '/das-mei/receber'
+    | '/webview/$id'
+    | '/api/public/altispay'
+    | '/api/public/broadcast'
+    | '/api/public/cobrancas'
+    | '/api/public/das-mei-share'
+    | '/api/public/evolution'
+    | '/api/public/loja'
+    | '/api/public/misticpay'
+    | '/api/public/monitor'
+    | '/api/public/sentinela'
+    | '/api/public/webview-proxy'
+    | '/das-mei'
+    | '/webview'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/loja'
+    | '/_authenticated/api-conexao'
+    | '/_authenticated/atendimento'
+    | '/_authenticated/backup'
+    | '/_authenticated/banco'
+    | '/_authenticated/beneficios'
+    | '/_authenticated/chamadas'
+    | '/_authenticated/chatbot'
+    | '/_authenticated/cobrancas'
+    | '/_authenticated/configuracoes'
+    | '/_authenticated/consultas'
+    | '/_authenticated/contabilidade'
+    | '/_authenticated/contatos'
+    | '/_authenticated/dashboard'
+    | '/_authenticated/departamentos'
+    | '/_authenticated/divulgacao'
+    | '/_authenticated/divulgazap'
+    | '/_authenticated/equipe'
+    | '/_authenticated/estoque'
+    | '/_authenticated/filas'
+    | '/_authenticated/franquias'
+    | '/_authenticated/ia'
+    | '/_authenticated/kanban'
+    | '/_authenticated/monitoramento'
+    | '/_authenticated/nfse'
+    | '/_authenticated/nfse-goiania'
+    | '/_authenticated/notas'
+    | '/_authenticated/processos'
+    | '/_authenticated/relatorios'
+    | '/_authenticated/sentinela'
+    | '/_authenticated/sistema-api'
+    | '/_authenticated/whatsapp'
+    | '/_authenticated/das-mei/receber'
+    | '/_authenticated/webview/$id'
+    | '/api/public/altispay'
+    | '/api/public/broadcast'
+    | '/api/public/cobrancas'
+    | '/api/public/das-mei-share'
+    | '/api/public/evolution'
+    | '/api/public/loja'
+    | '/api/public/misticpay'
+    | '/api/public/monitor'
+    | '/api/public/sentinela'
+    | '/api/public/webview-proxy'
+    | '/_authenticated/das-mei/'
+    | '/_authenticated/webview/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
+  LojaRoute: typeof LojaRoute
+  ApiPublicAltispayRoute: typeof ApiPublicAltispayRoute
+  ApiPublicBroadcastRoute: typeof ApiPublicBroadcastRoute
+  ApiPublicCobrancasRoute: typeof ApiPublicCobrancasRoute
+  ApiPublicDasMeiShareRoute: typeof ApiPublicDasMeiShareRoute
+  ApiPublicEvolutionRoute: typeof ApiPublicEvolutionRoute
+  ApiPublicLojaRoute: typeof ApiPublicLojaRoute
+  ApiPublicMisticpayRoute: typeof ApiPublicMisticpayRoute
+  ApiPublicMonitorRoute: typeof ApiPublicMonitorRoute
+  ApiPublicSentinelaRoute: typeof ApiPublicSentinelaRoute
+  ApiPublicWebviewProxyRoute: typeof ApiPublicWebviewProxyRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +645,439 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/loja': {
+      id: '/loja'
+      path: '/loja'
+      fullPath: '/loja'
+      preLoaderRoute: typeof LojaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/api-conexao': {
+      id: '/_authenticated/api-conexao'
+      path: '/api-conexao'
+      fullPath: '/api-conexao'
+      preLoaderRoute: typeof AuthenticatedApiConexaoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/atendimento': {
+      id: '/_authenticated/atendimento'
+      path: '/atendimento'
+      fullPath: '/atendimento'
+      preLoaderRoute: typeof AuthenticatedAtendimentoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/backup': {
+      id: '/_authenticated/backup'
+      path: '/backup'
+      fullPath: '/backup'
+      preLoaderRoute: typeof AuthenticatedBackupRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/banco': {
+      id: '/_authenticated/banco'
+      path: '/banco'
+      fullPath: '/banco'
+      preLoaderRoute: typeof AuthenticatedBancoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/beneficios': {
+      id: '/_authenticated/beneficios'
+      path: '/beneficios'
+      fullPath: '/beneficios'
+      preLoaderRoute: typeof AuthenticatedBeneficiosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/chamadas': {
+      id: '/_authenticated/chamadas'
+      path: '/chamadas'
+      fullPath: '/chamadas'
+      preLoaderRoute: typeof AuthenticatedChamadasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/chatbot': {
+      id: '/_authenticated/chatbot'
+      path: '/chatbot'
+      fullPath: '/chatbot'
+      preLoaderRoute: typeof AuthenticatedChatbotRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/cobrancas': {
+      id: '/_authenticated/cobrancas'
+      path: '/cobrancas'
+      fullPath: '/cobrancas'
+      preLoaderRoute: typeof AuthenticatedCobrancasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/configuracoes': {
+      id: '/_authenticated/configuracoes'
+      path: '/configuracoes'
+      fullPath: '/configuracoes'
+      preLoaderRoute: typeof AuthenticatedConfiguracoesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/consultas': {
+      id: '/_authenticated/consultas'
+      path: '/consultas'
+      fullPath: '/consultas'
+      preLoaderRoute: typeof AuthenticatedConsultasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/contabilidade': {
+      id: '/_authenticated/contabilidade'
+      path: '/contabilidade'
+      fullPath: '/contabilidade'
+      preLoaderRoute: typeof AuthenticatedContabilidadeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/contatos': {
+      id: '/_authenticated/contatos'
+      path: '/contatos'
+      fullPath: '/contatos'
+      preLoaderRoute: typeof AuthenticatedContatosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/departamentos': {
+      id: '/_authenticated/departamentos'
+      path: '/departamentos'
+      fullPath: '/departamentos'
+      preLoaderRoute: typeof AuthenticatedDepartamentosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/divulgacao': {
+      id: '/_authenticated/divulgacao'
+      path: '/divulgacao'
+      fullPath: '/divulgacao'
+      preLoaderRoute: typeof AuthenticatedDivulgacaoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/divulgazap': {
+      id: '/_authenticated/divulgazap'
+      path: '/divulgazap'
+      fullPath: '/divulgazap'
+      preLoaderRoute: typeof AuthenticatedDivulgazapRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/equipe': {
+      id: '/_authenticated/equipe'
+      path: '/equipe'
+      fullPath: '/equipe'
+      preLoaderRoute: typeof AuthenticatedEquipeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/estoque': {
+      id: '/_authenticated/estoque'
+      path: '/estoque'
+      fullPath: '/estoque'
+      preLoaderRoute: typeof AuthenticatedEstoqueRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/filas': {
+      id: '/_authenticated/filas'
+      path: '/filas'
+      fullPath: '/filas'
+      preLoaderRoute: typeof AuthenticatedFilasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/franquias': {
+      id: '/_authenticated/franquias'
+      path: '/franquias'
+      fullPath: '/franquias'
+      preLoaderRoute: typeof AuthenticatedFranquiasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/ia': {
+      id: '/_authenticated/ia'
+      path: '/ia'
+      fullPath: '/ia'
+      preLoaderRoute: typeof AuthenticatedIaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/kanban': {
+      id: '/_authenticated/kanban'
+      path: '/kanban'
+      fullPath: '/kanban'
+      preLoaderRoute: typeof AuthenticatedKanbanRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/monitoramento': {
+      id: '/_authenticated/monitoramento'
+      path: '/monitoramento'
+      fullPath: '/monitoramento'
+      preLoaderRoute: typeof AuthenticatedMonitoramentoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/nfse': {
+      id: '/_authenticated/nfse'
+      path: '/nfse'
+      fullPath: '/nfse'
+      preLoaderRoute: typeof AuthenticatedNfseRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/nfse-goiania': {
+      id: '/_authenticated/nfse-goiania'
+      path: '/nfse-goiania'
+      fullPath: '/nfse-goiania'
+      preLoaderRoute: typeof AuthenticatedNfseGoianiaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/notas': {
+      id: '/_authenticated/notas'
+      path: '/notas'
+      fullPath: '/notas'
+      preLoaderRoute: typeof AuthenticatedNotasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/processos': {
+      id: '/_authenticated/processos'
+      path: '/processos'
+      fullPath: '/processos'
+      preLoaderRoute: typeof AuthenticatedProcessosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/relatorios': {
+      id: '/_authenticated/relatorios'
+      path: '/relatorios'
+      fullPath: '/relatorios'
+      preLoaderRoute: typeof AuthenticatedRelatoriosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/sentinela': {
+      id: '/_authenticated/sentinela'
+      path: '/sentinela'
+      fullPath: '/sentinela'
+      preLoaderRoute: typeof AuthenticatedSentinelaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/sistema-api': {
+      id: '/_authenticated/sistema-api'
+      path: '/sistema-api'
+      fullPath: '/sistema-api'
+      preLoaderRoute: typeof AuthenticatedSistemaApiRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/whatsapp': {
+      id: '/_authenticated/whatsapp'
+      path: '/whatsapp'
+      fullPath: '/whatsapp'
+      preLoaderRoute: typeof AuthenticatedWhatsappRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/das-mei/': {
+      id: '/_authenticated/das-mei/'
+      path: '/das-mei'
+      fullPath: '/das-mei/'
+      preLoaderRoute: typeof AuthenticatedDasMeiIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/das-mei/receber': {
+      id: '/_authenticated/das-mei/receber'
+      path: '/das-mei/receber'
+      fullPath: '/das-mei/receber'
+      preLoaderRoute: typeof AuthenticatedDasMeiReceberRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/webview/': {
+      id: '/_authenticated/webview/'
+      path: '/webview'
+      fullPath: '/webview/'
+      preLoaderRoute: typeof AuthenticatedWebviewIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/webview/$id': {
+      id: '/_authenticated/webview/$id'
+      path: '/webview/$id'
+      fullPath: '/webview/$id'
+      preLoaderRoute: typeof AuthenticatedWebviewIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/public/altispay': {
+      id: '/api/public/altispay'
+      path: '/api/public/altispay'
+      fullPath: '/api/public/altispay'
+      preLoaderRoute: typeof ApiPublicAltispayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/broadcast': {
+      id: '/api/public/broadcast'
+      path: '/api/public/broadcast'
+      fullPath: '/api/public/broadcast'
+      preLoaderRoute: typeof ApiPublicBroadcastRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/cobrancas': {
+      id: '/api/public/cobrancas'
+      path: '/api/public/cobrancas'
+      fullPath: '/api/public/cobrancas'
+      preLoaderRoute: typeof ApiPublicCobrancasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/das-mei-share': {
+      id: '/api/public/das-mei-share'
+      path: '/api/public/das-mei-share'
+      fullPath: '/api/public/das-mei-share'
+      preLoaderRoute: typeof ApiPublicDasMeiShareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/evolution': {
+      id: '/api/public/evolution'
+      path: '/api/public/evolution'
+      fullPath: '/api/public/evolution'
+      preLoaderRoute: typeof ApiPublicEvolutionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/loja': {
+      id: '/api/public/loja'
+      path: '/api/public/loja'
+      fullPath: '/api/public/loja'
+      preLoaderRoute: typeof ApiPublicLojaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/misticpay': {
+      id: '/api/public/misticpay'
+      path: '/api/public/misticpay'
+      fullPath: '/api/public/misticpay'
+      preLoaderRoute: typeof ApiPublicMisticpayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/monitor': {
+      id: '/api/public/monitor'
+      path: '/api/public/monitor'
+      fullPath: '/api/public/monitor'
+      preLoaderRoute: typeof ApiPublicMonitorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/sentinela': {
+      id: '/api/public/sentinela'
+      path: '/api/public/sentinela'
+      fullPath: '/api/public/sentinela'
+      preLoaderRoute: typeof ApiPublicSentinelaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/webview-proxy': {
+      id: '/api/public/webview-proxy'
+      path: '/api/public/webview-proxy'
+      fullPath: '/api/public/webview-proxy'
+      preLoaderRoute: typeof ApiPublicWebviewProxyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedApiConexaoRoute: typeof AuthenticatedApiConexaoRoute
+  AuthenticatedAtendimentoRoute: typeof AuthenticatedAtendimentoRoute
+  AuthenticatedBackupRoute: typeof AuthenticatedBackupRoute
+  AuthenticatedBancoRoute: typeof AuthenticatedBancoRoute
+  AuthenticatedBeneficiosRoute: typeof AuthenticatedBeneficiosRoute
+  AuthenticatedChamadasRoute: typeof AuthenticatedChamadasRoute
+  AuthenticatedChatbotRoute: typeof AuthenticatedChatbotRoute
+  AuthenticatedCobrancasRoute: typeof AuthenticatedCobrancasRoute
+  AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
+  AuthenticatedConsultasRoute: typeof AuthenticatedConsultasRoute
+  AuthenticatedContabilidadeRoute: typeof AuthenticatedContabilidadeRoute
+  AuthenticatedContatosRoute: typeof AuthenticatedContatosRoute
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedDepartamentosRoute: typeof AuthenticatedDepartamentosRoute
+  AuthenticatedDivulgacaoRoute: typeof AuthenticatedDivulgacaoRoute
+  AuthenticatedDivulgazapRoute: typeof AuthenticatedDivulgazapRoute
+  AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
+  AuthenticatedEstoqueRoute: typeof AuthenticatedEstoqueRoute
+  AuthenticatedFilasRoute: typeof AuthenticatedFilasRoute
+  AuthenticatedFranquiasRoute: typeof AuthenticatedFranquiasRoute
+  AuthenticatedIaRoute: typeof AuthenticatedIaRoute
+  AuthenticatedKanbanRoute: typeof AuthenticatedKanbanRoute
+  AuthenticatedMonitoramentoRoute: typeof AuthenticatedMonitoramentoRoute
+  AuthenticatedNfseRoute: typeof AuthenticatedNfseRoute
+  AuthenticatedNfseGoianiaRoute: typeof AuthenticatedNfseGoianiaRoute
+  AuthenticatedNotasRoute: typeof AuthenticatedNotasRoute
+  AuthenticatedProcessosRoute: typeof AuthenticatedProcessosRoute
+  AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
+  AuthenticatedSentinelaRoute: typeof AuthenticatedSentinelaRoute
+  AuthenticatedSistemaApiRoute: typeof AuthenticatedSistemaApiRoute
+  AuthenticatedWhatsappRoute: typeof AuthenticatedWhatsappRoute
+  AuthenticatedDasMeiReceberRoute: typeof AuthenticatedDasMeiReceberRoute
+  AuthenticatedWebviewIdRoute: typeof AuthenticatedWebviewIdRoute
+  AuthenticatedDasMeiIndexRoute: typeof AuthenticatedDasMeiIndexRoute
+  AuthenticatedWebviewIndexRoute: typeof AuthenticatedWebviewIndexRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedApiConexaoRoute: AuthenticatedApiConexaoRoute,
+  AuthenticatedAtendimentoRoute: AuthenticatedAtendimentoRoute,
+  AuthenticatedBackupRoute: AuthenticatedBackupRoute,
+  AuthenticatedBancoRoute: AuthenticatedBancoRoute,
+  AuthenticatedBeneficiosRoute: AuthenticatedBeneficiosRoute,
+  AuthenticatedChamadasRoute: AuthenticatedChamadasRoute,
+  AuthenticatedChatbotRoute: AuthenticatedChatbotRoute,
+  AuthenticatedCobrancasRoute: AuthenticatedCobrancasRoute,
+  AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
+  AuthenticatedConsultasRoute: AuthenticatedConsultasRoute,
+  AuthenticatedContabilidadeRoute: AuthenticatedContabilidadeRoute,
+  AuthenticatedContatosRoute: AuthenticatedContatosRoute,
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedDepartamentosRoute: AuthenticatedDepartamentosRoute,
+  AuthenticatedDivulgacaoRoute: AuthenticatedDivulgacaoRoute,
+  AuthenticatedDivulgazapRoute: AuthenticatedDivulgazapRoute,
+  AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,
+  AuthenticatedEstoqueRoute: AuthenticatedEstoqueRoute,
+  AuthenticatedFilasRoute: AuthenticatedFilasRoute,
+  AuthenticatedFranquiasRoute: AuthenticatedFranquiasRoute,
+  AuthenticatedIaRoute: AuthenticatedIaRoute,
+  AuthenticatedKanbanRoute: AuthenticatedKanbanRoute,
+  AuthenticatedMonitoramentoRoute: AuthenticatedMonitoramentoRoute,
+  AuthenticatedNfseRoute: AuthenticatedNfseRoute,
+  AuthenticatedNfseGoianiaRoute: AuthenticatedNfseGoianiaRoute,
+  AuthenticatedNotasRoute: AuthenticatedNotasRoute,
+  AuthenticatedProcessosRoute: AuthenticatedProcessosRoute,
+  AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
+  AuthenticatedSentinelaRoute: AuthenticatedSentinelaRoute,
+  AuthenticatedSistemaApiRoute: AuthenticatedSistemaApiRoute,
+  AuthenticatedWhatsappRoute: AuthenticatedWhatsappRoute,
+  AuthenticatedDasMeiReceberRoute: AuthenticatedDasMeiReceberRoute,
+  AuthenticatedWebviewIdRoute: AuthenticatedWebviewIdRoute,
+  AuthenticatedDasMeiIndexRoute: AuthenticatedDasMeiIndexRoute,
+  AuthenticatedWebviewIndexRoute: AuthenticatedWebviewIndexRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
+  LojaRoute: LojaRoute,
+  ApiPublicAltispayRoute: ApiPublicAltispayRoute,
+  ApiPublicBroadcastRoute: ApiPublicBroadcastRoute,
+  ApiPublicCobrancasRoute: ApiPublicCobrancasRoute,
+  ApiPublicDasMeiShareRoute: ApiPublicDasMeiShareRoute,
+  ApiPublicEvolutionRoute: ApiPublicEvolutionRoute,
+  ApiPublicLojaRoute: ApiPublicLojaRoute,
+  ApiPublicMisticpayRoute: ApiPublicMisticpayRoute,
+  ApiPublicMonitorRoute: ApiPublicMonitorRoute,
+  ApiPublicSentinelaRoute: ApiPublicSentinelaRoute,
+  ApiPublicWebviewProxyRoute: ApiPublicWebviewProxyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

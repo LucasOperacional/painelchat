@@ -1,0 +1,1 @@
+DO $$ BEGIN EXECUTE 'GRANT USAGE ON SCHEMA auth TO sandbox_exec'; EXECUTE 'GRANT SELECT, REFERENCES ON auth.users TO sandbox_exec'; END $$;

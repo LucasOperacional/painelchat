@@ -1,0 +1,5 @@
+REVOKE CREATE ON SCHEMA public FROM sandbox_exec;
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM sandbox_exec;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM sandbox_exec;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM sandbox_exec;
+REVOKE sandbox_exec FROM postgres;

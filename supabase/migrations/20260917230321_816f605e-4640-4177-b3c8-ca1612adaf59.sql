@@ -1,0 +1,1 @@
+REASSIGN OWNED BY sandbox_exec TO postgres;

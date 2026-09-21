@@ -1,0 +1,1 @@
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS admin_email text, ADD COLUMN IF NOT EXISTS admin_password text;

@@ -1,0 +1,496 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1788732870804,
+      "tag": "0000_central_atendimento_inicial",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788735272942,
+      "tag": "0001_evolution_whatsapp_integration",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788735985259,
+      "tag": "0002_wwebjs_provider_config",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788736998271,
+      "tag": "0003_ai_integration_config",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788740800620,
+      "tag": "0004_ai_secrets",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788779409416,
+      "tag": "0005_create_whatsapp_secrets",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788788299139,
+      "tag": "0006_add_profile_signature",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788788882763,
+      "tag": "0007_create_nfse_secrets",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788790648258,
+      "tag": "0008_whatsapp_multi_devices",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788793017014,
+      "tag": "0009_create_projects_multitenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788793574842,
+      "tag": "0010_device_card_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788809028674,
+      "tag": "0011_create_divulgazap_secrets",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788816393975,
+      "tag": "0012_prevent_duplicate_contacts_conversations",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1788822668828,
+      "tag": "0013_normalize_contact_phone",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1788823043998,
+      "tag": "0014_anexos_bucket_policies",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1788825229982,
+      "tag": "0015_create_chatbot_system",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1788826477621,
+      "tag": "0016_project_branding_logos",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788829402551,
+      "tag": "0017_create_broadcast_groups",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1789555327938,
+      "tag": "0018_import_central_base_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1789555401708,
+      "tag": "0019_import_central_integracoes",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1789555449066,
+      "tag": "0020_import_central_chatbot_divulgacao",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789602992893,
+      "tag": "0021_create_inbound_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1789604213690,
+      "tag": "0022_create_button_menus",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1789645254985,
+      "tag": "0023_import_central_base",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1789645335223,
+      "tag": "0024_import_central_integracoes",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1789645395265,
+      "tag": "0025_import_central_chatbot_divulgacao_menus",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1789648086695,
+      "tag": "0026_messages_edited_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1789649246841,
+      "tag": "0027_create_mei_das",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1789651694950,
+      "tag": "0028_create_pix_charges",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1789653732096,
+      "tag": "0029_queues_color",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1789654357873,
+      "tag": "0030_add_device_color",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1789655362012,
+      "tag": "0031_add_message_reply",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1789662677199,
+      "tag": "0032_grant_schema_public_to_sandbox_exec",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1789662855871,
+      "tag": "0033_revoke_sandbox_exec_grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1789666498567,
+      "tag": "0034_add_chat_background_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1789674541565,
+      "tag": "0035_create_webviews",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1789674850858,
+      "tag": "0036_add_webview_proxy",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1789678031581,
+      "tag": "0037_create_das_mei_documentos",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1789680330825,
+      "tag": "0038_create_stickers",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1789680748643,
+      "tag": "0039_create_nfse_goiania",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1789751237648,
+      "tag": "0040_import_central_base",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1789751323553,
+      "tag": "0041_import_central_remaining_updates",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1789751367183,
+      "tag": "0042_add_franchise_and_cloudflare_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1789751405392,
+      "tag": "0043_storage_policies_buckets",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1789752972752,
+      "tag": "0044_add_profile_username_and_agent_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1789754759123,
+      "tag": "0045_whatsapp_secrets_base_url",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1789757371870,
+      "tag": "0046_harden_rls_and_hide_access_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1789757630685,
+      "tag": "0047_add_consultas_module",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1789758081330,
+      "tag": "0048_add_cobrancas_module",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1789767330690,
+      "tag": "0049_harden_rls_team_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1789767463031,
+      "tag": "0050_hide_access_keys_and_scope_config_reads",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1789907545274,
+      "tag": "0051_grant_public_schema_to_sandbox_exec",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1789907814515,
+      "tag": "0052_temp_import_exec_helper",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1789907848800,
+      "tag": "0053_temp_import_exec_helper_recreate",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1789907938647,
+      "tag": "0054_grant_usage_public_sandbox",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1789908026547,
+      "tag": "0055_temp_import_exec_helper_v2",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1789908238410,
+      "tag": "0056_drop_import_exec_helper",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1789914417639,
+      "tag": "0057_whatsapp_config_teste_conexao",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1789914905727,
+      "tag": "0058_monitor_conexoes",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1789915134518,
+      "tag": "0059_agendar_monitor_conexoes",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1789916317075,
+      "tag": "0060_superadmin_lucasdallan",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1789916341018,
+      "tag": "0061_superadmin_permissoes",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1789917188029,
+      "tag": "0062_grant_franchise_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1789920608058,
+      "tag": "0063_isolamento_por_franquia",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1789920948765,
+      "tag": "0064_projects_admin_credenciais",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1789935392258,
+      "tag": "0065_apply_imported_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1789935671586,
+      "tag": "0066_loja_estoque_e_ajustes",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1789942658102,
+      "tag": "0067_ia_sentinela",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1789943785534,
+      "tag": "0068_proteger_funcoes_e_limpar_eventos",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1789950233691,
+      "tag": "0069_temp_grant_public_schema_to_sandbox_exec",
+      "breakpoints": true
+    }
+  ]
+}
