@@ -526,6 +526,13 @@
       "when": 1789951815167,
       "tag": "0074_whatsapp_webhook_events_column",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1789952660546,
+      "tag": "0075_create_system_control",
+      "breakpoints": true
     }
   ]
 }

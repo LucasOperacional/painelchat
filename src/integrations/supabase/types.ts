@@ -2485,6 +2485,27 @@ export type Database = {
           },
         ]
       }
+      system_control: {
+        Row: {
+          admin_phone: string
+          id: boolean
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          admin_phone?: string
+          id?: boolean
+          state?: string
+          updated_at?: string
+        }
+        Update: {
+          admin_phone?: string
+          id?: boolean
+          state?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       transfers: {
         Row: {
           conversation_id: string
