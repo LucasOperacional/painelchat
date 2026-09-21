@@ -36,9 +36,23 @@ function AuthPage() {
   const [password, setPassword] = useState("");
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session?.user) navigate({ to: "/atendimento", replace: true });
-    });
+    let ativo = true;
+    // Confirma a sessão com o servidor. Um acesso antigo guardado no navegador
+    // fazia a tela entrar em vai-e-vem com o atendimento, recarregando sem
+    // parar e apagando o que estava sendo digitado.
+    (async () => {
+      const { data, error } = await supabase.auth.getUser();
+      if (!ativo) return;
+      if (data?.user && !error) {
+        navigate({ to: "/atendimento", replace: true });
+        return;
+      }
+      const { data: local } = await supabase.auth.getSession();
+      if (local.session) await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+    })();
+    return () => {
+      ativo = false;
+    };
   }, [navigate]);
 
   function toLoginEmail(value: string) {
