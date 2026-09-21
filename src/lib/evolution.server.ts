@@ -701,22 +701,15 @@ async function assertLoggedIn(target: SendTarget) {
 }
 
 const EMERGENCY_LOOP_TARGET = "5562996928605";
-const SEND_COOLDOWN_MS = 30_000;
-const lastEmergencySend = new Map<string, number>();
+const KILL_LOOP = true;
 
 function enforceEmergencySendCooldown(path: string, body: unknown) {
   if (!path.startsWith("/send/") || !body || typeof body !== "object") return;
   const number = digitsOnlyLocal(String((body as { number?: unknown }).number ?? ""));
   if (number !== EMERGENCY_LOOP_TARGET) return;
-
-  const key = `${EMERGENCY_LOOP_TARGET}`;
-  const now = Date.now();
-  const previous = lastEmergencySend.get(key) ?? 0;
-  if (now - previous < SEND_COOLDOWN_MS) {
-    console.error(`[whatsapp] KILL SWITCH: envio repetido bloqueado para ${EMERGENCY_LOOP_TARGET}`);
-    throw new Error("Envio bloqueado pela trava emergencial de 30 segundos.");
-  }
-  lastEmergencySend.set(key, now);
+  if (!KILL_LOOP) return;
+  console.error(`[whatsapp] KILL SWITCH: envio bloqueado para ${EMERGENCY_LOOP_TARGET}`);
+  throw new Error("Envio bloqueado pela trava emergencial contra loop.");
 }
 
 async function sendRequest(target: SendTarget, path: string, body: unknown) {

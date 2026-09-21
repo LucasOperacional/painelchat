@@ -7,4 +7,4 @@
 - [x] Menu de controle enviado ao administrador 5562996928605
 - [x] Corrigir 3 achados graves de segurança
 - [x] Kill switch: descartar todo evento fromMe antes de qualquer processamento
-- [x] Bloquear envios repetidos ao administrador por 30 segundos
+- [x] Bloquear totalmente novos envios ao administrador durante a emergência
