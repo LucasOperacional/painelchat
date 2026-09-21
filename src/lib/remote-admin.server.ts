@@ -288,19 +288,17 @@ function interpretar(body: string): Comando | null {
     return "ia";
   }
 
-  if (texto === "6" || /menu completo|tudo|todas as opcoes/.test(texto)) return "menu_completo";
-  if (["menu", "admin", "sistema", "0", "ajuda", "opcoes", "opcao", "start", "oi", "ola"].includes(texto)) {
-    return "menu";
-  }
-  if (texto === "1" || /reinicia|restart|reset|reconect/.test(texto)) return "reiniciar";
-  if (texto === "2" || /status|situacao|relatorio|conexoes|latencia|filas|apis/.test(texto)) return "status";
+  if (texto === "6" || texto === "menu completo") return "menu_completo";
+  if (texto === "oi" || texto === "menu") return "menu";
+  if (texto === "1" || texto === "reiniciar") return "reiniciar";
+  if (texto === "2" || texto === "status") return "status";
   if (texto === "3") return "sentinela";
   if (texto === "4") return "ia";
-  if (texto === "5" || /alternar|atendimento geral/.test(texto)) return "alternar";
-  if (/bloquea|manutenc/.test(texto)) return "bloquear";
-  if (/^lig(ar|a|o)?\b|ativar|retomar|^on$/.test(texto)) return "ligar";
-  if (/deslig|pausar|parar|^off$/.test(texto)) return "desligar";
-  return "menu";
+  if (texto === "5" || texto === "alternar") return "alternar";
+  if (texto === "bloquear") return "bloquear";
+  if (texto === "ligar") return "ligar";
+  if (texto === "desligar") return "desligar";
+  return null;
 }
 
 
