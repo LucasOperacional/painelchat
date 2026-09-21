@@ -519,6 +519,13 @@ export async function executarCicloSentinela(
   let verificacoes = 0;
   let corrigidos = 0;
 
+  // Faxina do diário: sem ela o banco cresce sem limite e tudo fica lento.
+  try {
+    await db.rpc("sentinela_limpar_diario");
+  } catch (error) {
+    console.error("[sentinela] faxina do diário falhou:", (error as Error).message);
+  }
+
   /* 1. Conexões com as APIs de WhatsApp (religa sozinha quando cai). */
   try {
     const { verificarConexoes } = await import("@/lib/monitor.server");
