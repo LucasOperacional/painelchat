@@ -914,9 +914,12 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
         // O administrador pode comandar a partir do próprio aparelho (aí a
         // mensagem chega como fromMe, inclusive no "chat consigo mesmo"), por
         // isso todos os identificadores do evento entram na verificação.
-        const { processarComandoAdmin, sistemaAtivo, ehAdminRemoto } = await import(
-          "@/lib/remote-admin.server"
-        );
+        const { processarComandoAdmin, sistemaAtivo, ehAdminRemoto, ehEcoAutomatico } =
+          await import("@/lib/remote-admin.server");
+        // Eco de resposta automática: registra como mensagem nossa, sem comando.
+        if (fromMe && ehEcoAutomatico(body)) {
+          console.log(`[webhook] eco automatico ignorado como comando: ${body.slice(0, 40)}`);
+        }
         const adminCandidates = [
           phoneDigits,
           jidToPhone(String(info.Sender ?? "")),
