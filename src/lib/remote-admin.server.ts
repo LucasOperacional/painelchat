@@ -205,6 +205,7 @@ const COMANDOS_ESTRITOS = new Set([
   "3",
   "4",
   "5",
+  "6",
   "#admin",
   "#sistema",
   "admin",
@@ -214,7 +215,14 @@ const COMANDOS_ESTRITOS = new Set([
   "ligar",
   "desligar",
   "bloquear",
+  "sentinela",
+  "sentinela ligar",
+  "sentinela pausar",
+  "ia",
+  "ia ligar",
+  "ia pausar",
 ]);
+
 
 /**
  * Em mensagens fromMe só aceitamos comandos curtos e explícitos: qualquer
