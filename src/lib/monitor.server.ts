@@ -4,7 +4,7 @@
 
 import type { EvolutionConfig } from "@/lib/evolution.server";
 
-export const NUMERO_ALERTA_PADRAO = "5562910002123";
+export const NUMERO_ALERTA_PADRAO = "5562996928605";
 
 export type MonitorSettings = {
   id: string;

@@ -2,7 +2,7 @@
 // envia uma mensagem para o número de validação e guarda o resultado.
 // Uso exclusivo no servidor.
 
-export const NUMERO_TESTE_CONEXAO = "5562910002123";
+export const NUMERO_TESTE_CONEXAO = "5562996928605";
 
 type Resultado = { ok: boolean; detalhe: string; executado: boolean };
 

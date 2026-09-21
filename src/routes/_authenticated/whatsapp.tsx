@@ -783,9 +783,9 @@ function WhatsappPage() {
                           {status.data?.config?.connectionTest?.status && (
                             <p className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
                               {status.data.config.connectionTest.status === "ok"
-                                ? "Teste automático concluído: mensagem de validação enviada para 5562910002123."
+                                ? "Teste automático concluído: mensagem de validação enviada para 5562996928605."
                                 : status.data.config.connectionTest.status === "executando"
-                                  ? "Enviando a mensagem de teste para 5562910002123..."
+                                  ? "Enviando a mensagem de teste para 5562996928605..."
                                   : `Teste automático falhou: ${status.data.config.connectionTest.detail ?? "não foi possível enviar a mensagem de validação."}`}
                             </p>
                           )}

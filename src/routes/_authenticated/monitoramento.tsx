@@ -71,7 +71,7 @@ function MonitoramentoPage() {
 
   const [ativo, setAtivo] = useState(true);
   const [autoReconectar, setAutoReconectar] = useState(true);
-  const [numeroAlerta, setNumeroAlerta] = useState("5562910002123");
+  const [numeroAlerta, setNumeroAlerta] = useState("5562996928605");
   const [intervalo, setIntervalo] = useState(2);
 
   useEffect(() => {
@@ -167,7 +167,7 @@ function MonitoramentoPage() {
               id="numeroAlerta"
               value={numeroAlerta}
               onChange={(e) => setNumeroAlerta(e.target.value)}
-              placeholder="5562910002123"
+              placeholder="5562996928605"
             />
           </div>
           <div className="space-y-2">

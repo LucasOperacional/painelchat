@@ -387,7 +387,7 @@ function RemoteAdminSection() {
           <Input
             id="adminPhone"
             inputMode="numeric"
-            placeholder="5562910002123"
+            placeholder="5562996928605"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
           />

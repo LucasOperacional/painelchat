@@ -844,7 +844,7 @@ function EstoquePage() {
                 id="num-teste"
                 value={numeroTeste}
                 onChange={(e) => setNumeroTeste(e.target.value)}
-                placeholder="5562910002123"
+                placeholder="5562996928605"
               />
             </div>
             {(mutTeste.data?.resultados ?? []).map((r) => (
