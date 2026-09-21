@@ -247,6 +247,7 @@ export async function processarComandoAdmin(input: {
   requestUrl?: string | null;
 }): Promise<boolean> {
   if (!(await ehAdminRemoto(input.phoneDigits))) return false;
+  if (ehEcoAutomatico(input.body)) return true; // eco da nossa resposta: encerra sem reenviar
   const comando = interpretar(input.body ?? "");
   if (!comando) return false;
 
