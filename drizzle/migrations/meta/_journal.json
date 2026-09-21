@@ -519,6 +519,13 @@
       "when": 1789951582927,
       "tag": "0073_realtime_publish_central_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1789951815167,
+      "tag": "0074_whatsapp_webhook_events_column",
+      "breakpoints": true
     }
   ]
 }

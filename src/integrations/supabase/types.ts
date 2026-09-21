@@ -2742,6 +2742,7 @@ export type Database = {
           provider: string
           status: string
           updated_at: string
+          webhook_events: string | null
           webhook_synced_at: string | null
           webhook_token: string
           webhook_url: string | null
@@ -2773,6 +2774,7 @@ export type Database = {
           provider?: string
           status?: string
           updated_at?: string
+          webhook_events?: string | null
           webhook_synced_at?: string | null
           webhook_token?: string
           webhook_url?: string | null
@@ -2804,6 +2806,7 @@ export type Database = {
           provider?: string
           status?: string
           updated_at?: string
+          webhook_events?: string | null
           webhook_synced_at?: string | null
           webhook_token?: string
           webhook_url?: string | null

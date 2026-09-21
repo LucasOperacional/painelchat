@@ -381,6 +381,21 @@ const WUZAPI_EVENT: Record<string, string> = {
 };
 
 /**
+ * Nomes usados pelas versões da Evolution API baseadas em eventos
+ * (MESSAGES_UPSERT e companhia) convertidos para os já tratados aqui, para que
+ * nenhuma mensagem seja perdida quando o servidor usar essa nomenclatura.
+ */
+const EVENT_ALIAS: Record<string, string> = {
+  MESSAGES_UPSERT: "Message",
+  MESSAGES_SET: "Message",
+  MESSAGES_UPDATE: "Receipt",
+  SEND_MESSAGE: "SendMessage",
+  CONNECTION_UPDATE: "Connected",
+  STATUS_INSTANCE: "Connected",
+  QRCODE_UPDATED: "QRCode",
+};
+
+/**
  * A WuzAPI usa outro envelope: { type, event: { Info, Message }, base64, s3 }.
  * Aqui ele vira o mesmo formato da Evolution Go, sem tocar no resto do fluxo.
  */
@@ -464,7 +479,8 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
         }
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const event = String(payload.event ?? "");
+        const eventoBruto = String(payload.event ?? "");
+        const event = EVENT_ALIAS[eventoBruto] ?? eventoBruto;
         const instanceRef = payload.instanceId ?? null;
         console.log(`[webhook] recebido evento=${event} instancia=${instanceRef ?? "-"}`);
 
@@ -506,6 +522,10 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
           case "QRCode": {
             const qr = payload.data?.Qrcode ?? payload.data?.qrcode ?? null;
             await touch({ status: "connecting", ...(qr ? { last_qr: qr } : {}) });
+            // QR na tela: garante que os eventos desta central já estão firmados.
+            void (await import("@/lib/evolution.server")).ensureEvolutionWebhook(config.id, {
+              requestUrl: request.url,
+            });
             return Response.json({ received: true });
           }
           case "PairSuccess": {
@@ -514,6 +534,11 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
               status: "connected",
               last_qr: null,
               ...(jid ? { phone: jidToPhone(jid) } : {}),
+            });
+            // Número pareado: reconfigura o webhook com todos os eventos.
+            await (await import("@/lib/evolution.server")).ensureEvolutionWebhook(config.id, {
+              requestUrl: request.url,
+              force: true,
             });
             try {
               const { validarConexaoAposParear } = await import("@/lib/connection-test.server");
@@ -535,6 +560,9 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
                   ? { status: "connected", last_qr: null }
                   : { status: "connecting" },
             );
+            await (await import("@/lib/evolution.server")).ensureEvolutionWebhook(config.id, {
+              requestUrl: request.url,
+            });
             return Response.json({ received: true });
           }
           case "LoggedOut": {

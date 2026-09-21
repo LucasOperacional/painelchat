@@ -32,8 +32,30 @@ export const EVOLUTION_SUBSCRIBE = [
   "USER_ABOUT",
 ] as const;
 
+/**
+ * Nomes usados pelas versões da Evolution API baseadas em eventos
+ * (MESSAGES_UPSERT e companhia). Servidores que recusam a lista do Evolution Go
+ * costumam aceitar esta, então ela é a segunda tentativa.
+ */
+export const EVOLUTION_SUBSCRIBE_V2 = [
+  "MESSAGES_UPSERT",
+  "MESSAGES_UPDATE",
+  "SEND_MESSAGE",
+  "CONNECTION_UPDATE",
+  "STATUS_INSTANCE",
+  "QRCODE_UPDATED",
+  "CONTACTS_UPSERT",
+  "CHATS_UPSERT",
+  "GROUPS_UPSERT",
+] as const;
+
 /** Atalho aceito por servidores antigos caso a lista explícita seja recusada. */
 export const EVOLUTION_SUBSCRIBE_FALLBACK = ["ALL"] as const;
+
+/** Assinatura guardada no banco para saber se o webhook precisa ser refeito. */
+export function webhookEventsSignature(events: readonly string[]) {
+  return [...events].sort().join(",");
+}
 
 
 /** A mensagem de erro indica recusa da lista de eventos do webhook? */
@@ -393,13 +415,18 @@ export async function evolutionConnectInstance(
   target: InstanceTarget,
   input: { webhookUrl: string; phone?: string; immediate?: boolean },
 ): Promise<{ qrcode: string | null; pairingCode: string | null; jid: string }> {
-  const attempt = async (events: readonly string[]) => {
+  const attempt = async (events: readonly string[], byEvents: boolean) => {
     const body: Record<string, unknown> = {
       webhookUrl: input.webhookUrl,
       // Formato exato da documentação: apenas "subscribe" (array).
       subscribe: [...events],
-
     };
+    // Servidores baseados em eventos aceitam a entrega separada por evento.
+    if (byEvents) {
+      body["webhook_by_events"] = true;
+      body["webhookByEvents"] = true;
+      body["events"] = [...events];
+    }
     if (input.phone) body["phone"] = input.phone;
     if (input.immediate) body["immediate"] = true;
 
@@ -422,16 +449,25 @@ export async function evolutionConnectInstance(
     Qrcode?: string;
     Code?: string;
   }>;
+  // Tenta, em ordem: lista do Evolution Go → lista por eventos → "ALL".
+  let aceitos: readonly string[] = EVOLUTION_SUBSCRIBE;
   try {
-    res = await attempt(EVOLUTION_SUBSCRIBE);
+    res = await attempt(EVOLUTION_SUBSCRIBE, false);
   } catch (error) {
     // "Eventos para Webhook inválidos": o servidor recusou a lista completa.
     if (!isWebhookEventsError(error)) throw error;
-    res = await attempt(EVOLUTION_SUBSCRIBE_FALLBACK);
+    try {
+      aceitos = EVOLUTION_SUBSCRIBE_V2;
+      res = await attempt(EVOLUTION_SUBSCRIBE_V2, true);
+    } catch (erroV2) {
+      if (!isWebhookEventsError(erroV2)) throw erroV2;
+      aceitos = EVOLUTION_SUBSCRIBE_FALLBACK;
+      res = await attempt(EVOLUTION_SUBSCRIBE_FALLBACK, false);
+    }
   }
 
-  // Guarda o endereço confirmado do webhook: se a Evolution Go cair, a central
-  // sabe que precisa reafirmar os eventos na volta.
+  // Guarda o endereço e os eventos confirmados: se a Evolution Go cair ou a
+  // lista mudar, a central sabe que precisa reafirmar o webhook na volta.
   if (target.configId) {
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -439,6 +475,7 @@ export async function evolutionConnectInstance(
         .from("whatsapp_config")
         .update({
           webhook_url: res?.data?.webhookUrl || input.webhookUrl,
+          webhook_events: webhookEventsSignature(aceitos),
           webhook_synced_at: new Date().toISOString(),
         } as never)
         .eq("id", target.configId);
@@ -453,6 +490,59 @@ export async function evolutionConnectInstance(
     jid: res?.data?.jid ?? "",
   };
 }
+
+/** Endereço público e estável desta central para receber os eventos. */
+export function evolutionPublicOrigin(requestUrl?: string | null) {
+  if (requestUrl) {
+    try {
+      const origin = new URL(requestUrl).origin;
+      if (/^https:\/\//.test(origin) && !/\/\/id-preview--/.test(origin)) return origin;
+    } catch {
+      /* cai no domínio estável abaixo */
+    }
+  }
+  const projectId = process.env["LOVABLE_PROJECT_ID"] ?? "97ffdf59-274d-422b-93c2-4b8e8cb52bb4";
+  return `https://project--${projectId}-dev.lovable.app`;
+}
+
+/**
+ * Autocorreção do webhook: se o endereço registrado não for desta central ou a
+ * lista de eventos estiver faltando/desatualizada, reconfigura na hora.
+ */
+export async function ensureEvolutionWebhook(
+  configId: string,
+  options?: { requestUrl?: string | null; force?: boolean },
+): Promise<boolean> {
+  try {
+    const config = await loadEvolutionConfig(configId);
+    if (!config?.base_url || !config.instance_id) return false;
+    const origin = evolutionPublicOrigin(options?.requestUrl ?? null);
+    const inboundUrl = `${origin}/api/public/evolution?token=${config.webhook_token ?? ""}`;
+    const registrado = (config as { webhook_url?: string | null }).webhook_url ?? null;
+    const eventos = (config as { webhook_events?: string | null }).webhook_events ?? null;
+    const confirmadoEm = (config as { webhook_synced_at?: string | null }).webhook_synced_at;
+    const eventosOk = [
+      EVOLUTION_SUBSCRIBE,
+      EVOLUTION_SUBSCRIBE_V2,
+      EVOLUTION_SUBSCRIBE_FALLBACK,
+    ].some((lista) => webhookEventsSignature(lista) === eventos);
+    const idade = confirmadoEm ? Date.now() - new Date(confirmadoEm).getTime() : Infinity;
+    if (!options?.force && registrado === inboundUrl && eventosOk && idade < 6 * 60 * 60 * 1000) {
+      return false;
+    }
+    await evolutionConnectInstance(
+      { baseUrl: config.base_url, instanceId: config.instance_id, configId: config.id },
+      { webhookUrl: inboundUrl, immediate: true },
+    );
+    console.log(`[webhook] reconfigurado device=${config.id} url=${inboundUrl}`);
+    return true;
+  } catch (error) {
+    console.error("[webhook] falha ao reconfigurar na Evolution", error);
+    return false;
+  }
+}
+
+
 
 
 /** GET /instance/qr → { data: { Qrcode, Code } } */
