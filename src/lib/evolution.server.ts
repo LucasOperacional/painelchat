@@ -32,8 +32,30 @@ export const EVOLUTION_SUBSCRIBE = [
   "USER_ABOUT",
 ] as const;
 
+/**
+ * Nomes usados pelas versões da Evolution API baseadas em eventos
+ * (MESSAGES_UPSERT e companhia). Servidores que recusam a lista do Evolution Go
+ * costumam aceitar esta, então ela é a segunda tentativa.
+ */
+export const EVOLUTION_SUBSCRIBE_V2 = [
+  "MESSAGES_UPSERT",
+  "MESSAGES_UPDATE",
+  "SEND_MESSAGE",
+  "CONNECTION_UPDATE",
+  "STATUS_INSTANCE",
+  "QRCODE_UPDATED",
+  "CONTACTS_UPSERT",
+  "CHATS_UPSERT",
+  "GROUPS_UPSERT",
+] as const;
+
 /** Atalho aceito por servidores antigos caso a lista explícita seja recusada. */
 export const EVOLUTION_SUBSCRIBE_FALLBACK = ["ALL"] as const;
+
+/** Assinatura guardada no banco para saber se o webhook precisa ser refeito. */
+export function webhookEventsSignature(events: readonly string[]) {
+  return [...events].sort().join(",");
+}
 
 
 /** A mensagem de erro indica recusa da lista de eventos do webhook? */
