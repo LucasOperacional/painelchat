@@ -308,11 +308,19 @@ export async function processarComandoAdmin(input: {
   body: string;
   configId?: string | null;
   requestUrl?: string | null;
+  fromMe?: boolean;
 }): Promise<boolean> {
   if (!(await ehAdminRemoto(input.phoneDigits))) return false;
   if (ehEcoAutomatico(input.body)) return true; // eco da nossa resposta: encerra sem reenviar
+  // Do próprio aparelho, apenas comandos curtos e explícitos.
+  if (input.fromMe && !ehComandoEstrito(input.body)) return true;
+  if (!liberarComando(input.phoneDigits)) {
+    console.log("[admin-remoto] comando ignorado pela trava de 5s");
+    return true;
+  }
   const comando = interpretar(input.body ?? "");
   if (!comando) return false;
+
 
   const { sendWhatsappText } = await import("@/lib/inbound.server");
   const responder = async (text: string) => {
