@@ -876,11 +876,29 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
           const valor = field<unknown>(alvo, "base64", "fileBase64", "data");
           return typeof valor === "string" && valor ? valor : null;
         }, null);
-        const mediaUrl = [message, conteudoMidia].reduce<string | null>((achado, alvo) => {
+        const mediaUrlBruta = [message, conteudoMidia].reduce<string | null>((achado, alvo) => {
           if (achado || !alvo) return achado;
           const valor = field<unknown>(alvo, "mediaUrl", "mediaURL", "url", "URL");
           return typeof valor === "string" && valor ? valor : null;
         }, null);
+        // A WuzAPI informa o arquivo com o endereço interno dela (localhost).
+        // Troca pelo endereço público da conexão para o download funcionar.
+        const mediaUrl = (() => {
+          if (!mediaUrlBruta) return null;
+          try {
+            const alvo = new URL(mediaUrlBruta);
+            if (!/^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/i.test(alvo.hostname)) return mediaUrlBruta;
+            const base = String((config as { base_url?: string }).base_url ?? "");
+            if (!base) return mediaUrlBruta;
+            const publico = new URL(base);
+            alvo.protocol = publico.protocol;
+            alvo.host = publico.host;
+            return alvo.toString();
+          } catch {
+            return mediaUrlBruta;
+          }
+        })();
+
         // URLs S3/MinIO da WuzAPI já apontam para o arquivo descriptografado.
         // Somente referências do WhatsApp precisam passar por /chat/download*.
         const isEncryptedMediaUrl = (value: string | null) =>
