@@ -1,0 +1,1 @@
+ALTER TABLE public.system_control ALTER COLUMN admin_phone SET DEFAULT '5562996928605';
