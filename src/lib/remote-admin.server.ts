@@ -261,16 +261,34 @@ export { ADMIN_BOT_NAME } from "@/lib/admin-bot";
 function interpretar(body: string): Comando {
   const texto = limpar(body).replace(/^[#/*.\s-]+/, "").replace(/[.!?]+$/, "");
   if (!texto) return "menu";
+
+  // Sentinela e IA aceitam sub-comandos (ligar/pausar).
+  if (/^sentinela|^seguranca/.test(texto)) {
+    if (/lig|ativ|retom/.test(texto)) return "sentinela_ligar";
+    if (/paus|deslig|parar|off/.test(texto)) return "sentinela_pausar";
+    return "sentinela";
+  }
+  if (/^ia\b|^chatbot|^bot\b|^inteligencia/.test(texto)) {
+    if (/lig|ativ|retom/.test(texto)) return "ia_ligar";
+    if (/paus|deslig|parar|off/.test(texto)) return "ia_pausar";
+    return "ia";
+  }
+
+  if (texto === "6" || /menu completo|tudo|todas as opcoes/.test(texto)) return "menu_completo";
   if (["menu", "admin", "sistema", "0", "ajuda", "opcoes", "opcao", "start", "oi", "ola"].includes(texto)) {
     return "menu";
   }
   if (texto === "1" || /reinicia|restart|reset|reconect/.test(texto)) return "reiniciar";
-  if (texto === "2" || /^lig(ar|a|o)?\b|ativar|retomar|on$/.test(texto)) return "ligar";
-  if (texto === "3" || /deslig|pausar|parar|off$/.test(texto)) return "desligar";
-  if (texto === "4" || /bloquea|bloquear|manutenc/.test(texto)) return "bloquear";
-  if (texto === "5" || /status|situacao|relatorio|conexoes|filas/.test(texto)) return "status";
+  if (texto === "2" || /status|situacao|relatorio|conexoes|latencia|filas|apis/.test(texto)) return "status";
+  if (texto === "3") return "sentinela";
+  if (texto === "4") return "ia";
+  if (texto === "5" || /alternar|atendimento geral/.test(texto)) return "alternar";
+  if (/bloquea|manutenc/.test(texto)) return "bloquear";
+  if (/^lig(ar|a|o)?\b|ativar|retomar|^on$/.test(texto)) return "ligar";
+  if (/deslig|pausar|parar|^off$/.test(texto)) return "desligar";
   return "menu";
 }
+
 
 async function definirEstado(state: EstadoSistema) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
