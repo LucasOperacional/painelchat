@@ -242,7 +242,7 @@ export async function verificarConexoes(
 
     if (online) {
       // Autocorreção: garante que o webhook aponte para o endereço de produção.
-      await ensureEvolutionWebhook(device.id, { requestUrl });
+      await ensureEvolutionWebhook(device.id, { requestUrl: requestUrl ?? null });
       await marcarEstado(device.id, {
         monitor_estado: "online",
         monitor_tentativas: 0,
