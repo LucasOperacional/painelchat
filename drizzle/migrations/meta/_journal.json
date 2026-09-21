@@ -512,6 +512,13 @@
       "when": 1789950382209,
       "tag": "0072_drop_import_helper_and_revoke",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1789951582927,
+      "tag": "0073_realtime_publish_central_tables",
+      "breakpoints": true
     }
   ]
 }
