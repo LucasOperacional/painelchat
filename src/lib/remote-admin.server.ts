@@ -310,6 +310,8 @@ export async function processarComandoAdmin(input: {
   requestUrl?: string | null;
   fromMe?: boolean;
 }): Promise<boolean> {
+  // Segunda barreira do kill switch: nenhum caminho pode responder a fromMe.
+  if (input.fromMe) return true;
   if (!(await ehAdminRemoto(input.phoneDigits))) return false;
   if (ehEcoAutomatico(input.body)) return true; // eco da nossa resposta: encerra sem reenviar
   // Do próprio aparelho, apenas comandos curtos e explícitos.
