@@ -171,7 +171,25 @@ const MARCAS_DO_BOT = [
   "nao consegui executar",
   "modo manutenc",
   "nenhum dispositivo cadastrado",
+  "menu completo",
+  "*sentinela",
+  "sentinela e seguranca",
+  "*ia e chatbots*",
+  "*relatorio de mensagens*",
+  "*apis e conexoes*",
+  "*mensagens de hoje*",
+  "enviadas hoje:",
+  "recebidas hoje:",
+  "na fila:",
+  "erros:",
+  "latencia:",
+  "chatbots ativos",
+  "chatbots pausados",
+  "ultimo ciclo",
+  "alertas recentes",
+  "responda com o numero da opcao",
 ];
+
 
 export function ehEcoAutomatico(body: string | null | undefined) {
   const texto = limpar(body ?? "");
