@@ -496,13 +496,21 @@ export function evolutionPublicOrigin(requestUrl?: string | null) {
   if (requestUrl) {
     try {
       const origin = new URL(requestUrl).origin;
-      if (/^https:\/\//.test(origin) && !/\/\/id-preview--/.test(origin)) return origin;
+      // `id-preview--` exige sessão e `-dev` serve só a prévia: nesses casos
+      // usamos o domínio estável da versão publicada.
+      if (
+        /^https:\/\//.test(origin) &&
+        !/\/\/id-preview--/.test(origin) &&
+        !/-dev\.lovable\.app$/.test(origin)
+      ) {
+        return origin;
+      }
     } catch {
       /* cai no domínio estável abaixo */
     }
   }
-  const projectId = process.env["LOVABLE_PROJECT_ID"] ?? "97ffdf59-274d-422b-93c2-4b8e8cb52bb4";
-  return `https://project--${projectId}-dev.lovable.app`;
+  const projectId = process.env["LOVABLE_PROJECT_ID"] ?? "a3daa33e-35ce-4bc4-9ed0-fa0c79c7a779";
+  return `https://project--${projectId}.lovable.app`;
 }
 
 /**

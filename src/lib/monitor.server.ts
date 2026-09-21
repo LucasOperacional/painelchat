@@ -136,10 +136,10 @@ async function marcarEstado(
 }
 
 function origemPublica(): string {
-  const { evolutionPublicOrigin } = require("@/lib/evolution.server") as {
-    evolutionPublicOrigin: (url?: string | null) => string;
-  };
-  return evolutionPublicOrigin(null);
+  const projectId =
+    process.env["LOVABLE_PROJECT_ID"] ?? "a3daa33e-35ce-4bc4-9ed0-fa0c79c7a779";
+  // Domínio estável da versão publicada (é ele que a Evolution precisa alcançar).
+  return `https://project--${projectId}.lovable.app`;
 }
 
 /** Tenta religar a instância (reconecta e reassina o webhook). */
