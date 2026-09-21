@@ -540,6 +540,13 @@
       "when": 1789954461199,
       "tag": "0076_system_control_admin_phone_default",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1789954774141,
+      "tag": "0077_restringir_dados_sensiveis_e_anexos",
+      "breakpoints": true
     }
   ]
 }

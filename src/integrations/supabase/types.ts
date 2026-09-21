@@ -2881,6 +2881,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      anexo_do_meu_projeto: { Args: { _name: string }; Returns: boolean }
       bank_balance: {
         Args: never
         Returns: {
