@@ -39,6 +39,8 @@ function toPhone(value: unknown): string {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
   if (raw.includes("@g.us")) return raw;
+  // Status/Stories e canais usam JID especial e não podem virar dígitos.
+  if (/@(broadcast|newsletter)$/i.test(raw)) return raw;
   if (raw.includes("@")) return digits(raw.split("@")[0] ?? "");
   return digits(raw);
 }
