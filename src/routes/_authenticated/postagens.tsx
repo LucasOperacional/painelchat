@@ -154,6 +154,9 @@ function PostagensPage() {
     queryKey: ["postagens"],
     queryFn: () => listar(),
     refetchInterval: 15000,
+    retry: 3,
+    retryDelay: (tentativa) => Math.min(1000 * 2 ** tentativa, 8000),
+    throwOnError: false,
   });
   const devices = useQuery({ queryKey: ["wa-devices"], queryFn: () => listarDevices() });
 
