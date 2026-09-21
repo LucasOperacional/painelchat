@@ -333,16 +333,69 @@ export async function reiniciarConexoes(requestUrl?: string | null) {
   return linhas;
 }
 
-/** Resumo de conexões, instâncias e filas. */
-export async function resumoStatus() {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { listEvolutionConfigs, evolutionGetStatus } = await import("@/lib/evolution.server");
-  const { state, adminPhone } = await controleSistema();
+function nomeProvedor(provider: string | null | undefined) {
+  return provider === "wuzapi" ? "WuzAPI" : "Evolution Go";
+}
 
+/** Início do dia no horário de Brasília, em ISO. */
+function inicioDoDia() {
+  const agora = new Date();
+  const brasilia = new Date(agora.getTime() - 3 * 60 * 60 * 1000);
+  const dia = `${brasilia.getUTCFullYear()}-${String(brasilia.getUTCMonth() + 1).padStart(2, "0")}-${String(
+    brasilia.getUTCDate(),
+  ).padStart(2, "0")}`;
+  return new Date(`${dia}T03:00:00.000Z`).toISOString();
+}
+
+/** Relatório de mensagens do dia e da fila de eventos. */
+export async function relatorioMensagens() {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const desde = inicioDoDia();
+  const contar = async (build: (q: ReturnType<typeof contagemBase>) => unknown) => {
+    const query = contagemBase();
+    const { count } = (await (build(query) as never)) as { count: number | null };
+    return count ?? 0;
+  };
+  function contagemBase() {
+    return supabaseAdmin.from("messages").select("id", { count: "exact", head: true });
+  }
+
+  const enviadas = await contar((q) => q.eq("direction", "outbound").gte("created_at", desde));
+  const recebidas = await contar((q) => q.eq("direction", "inbound").gte("created_at", desde));
+
+  const { count: naFila } = await supabaseAdmin
+    .from("webhook_eventos")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "pendente");
+  const { count: erros } = await supabaseAdmin
+    .from("webhook_eventos")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "erro");
+
+  return {
+    enviadas,
+    recebidas,
+    naFila: naFila ?? 0,
+    erros: erros ?? 0,
+    linhas: [
+      "*Mensagens de hoje*",
+      `• enviadas hoje: ${enviadas}`,
+      `• recebidas hoje: ${recebidas}`,
+      `• na fila: ${naFila ?? 0}`,
+      `• erros: ${erros ?? 0}`,
+    ],
+  };
+}
+
+/** Saúde das APIs (Evolution Go e WuzAPI) com latência medida. */
+export async function relatorioApis() {
+  const { listEvolutionConfigs, evolutionGetStatus } = await import("@/lib/evolution.server");
   const devices = await listEvolutionConfigs(null);
-  const conexoes: string[] = [];
+  const linhas: string[] = [];
   for (const device of devices) {
     const nome = device.label || device.instance_name || device.id.slice(0, 8);
+    const marca = nomeProvedor(device.provider);
+    const inicio = Date.now();
     try {
       const status = await evolutionGetStatus({
         baseUrl: device.base_url,
@@ -350,12 +403,23 @@ export async function resumoStatus() {
         configId: device.id,
         provider: device.provider,
       });
-      conexoes.push(`• ${nome}: ${status.connected ? "conectado" : "desconectado"}`);
+      linhas.push(
+        `• ${nome} (${marca}): ${status.connected ? "conectado" : "desconectado"} — latencia: ${Date.now() - inicio}ms`,
+      );
     } catch (error) {
-      conexoes.push(`• ${nome}: erro — ${(error as Error).message}`);
+      linhas.push(`• ${nome} (${marca}): erro — ${(error as Error).message}`);
     }
   }
-  if (!devices.length) conexoes.push("• nenhum dispositivo cadastrado");
+  if (!devices.length) linhas.push("• nenhum dispositivo cadastrado");
+  return linhas;
+}
+
+/** Resumo de conexões, APIs, mensagens e filas. */
+export async function resumoStatus() {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { state, adminPhone } = await controleSistema();
+  const conexoes = await relatorioApis();
+  const mensagens = await relatorioMensagens();
 
   const { count: aguardando } = await supabaseAdmin
     .from("conversations")
@@ -371,14 +435,114 @@ export async function resumoStatus() {
     `Sistema: ${state}`,
     `Administrador: ${adminPhone}`,
     "",
-    "*Conexões*",
+    "*APIs e conexoes*",
     ...conexoes,
+    "",
+    ...mensagens.linhas,
     "",
     "*Filas*",
     `• aguardando: ${aguardando ?? 0}`,
     `• em atendimento: ${emAtendimento ?? 0}`,
   ].join("\n");
 }
+
+/** Situação da Sentinela: vigilância, segurança e alertas recentes. */
+export async function resumoSentinela() {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { carregarSentinelaSettings } = await import("@/lib/sentinela.server");
+  const cfg = await carregarSentinelaSettings();
+
+  const { data: ciclo } = await supabaseAdmin
+    .from("sentinela_ciclos")
+    .select("iniciado_em, resumo, severidade, problemas, corrigidos")
+    .order("iniciado_em", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { data: achados } = await supabaseAdmin
+    .from("sentinela_achados")
+    .select("titulo, severidade, status, created_at")
+    .eq("status", "aberto")
+    .order("created_at", { ascending: false })
+    .limit(5);
+
+  const { count: bloqueios } = await supabaseAdmin
+    .from("sentinela_trafego")
+    .select("id", { count: "exact", head: true })
+    .gte("created_at", inicioDoDia());
+
+  const linhas = [
+    "*Sentinela e seguranca*",
+    `Vigilancia: ${cfg.ativo ? "ativa" : "pausada"}`,
+    `Intervalo: ${cfg.intervalo_minutos} min`,
+    `Modo de seguranca: ${cfg.seguranca_modo}`,
+    `Limite por minuto: ${cfg.limite_req_minuto}`,
+    `Registros de trafego hoje: ${bloqueios ?? 0}`,
+    "",
+    "Ultimo ciclo:",
+    ciclo
+      ? `• ${new Date(ciclo.iniciado_em).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })} — ${ciclo.severidade} (${ciclo.problemas} problemas, ${ciclo.corrigidos} corrigidos)`
+      : "• nenhum ciclo registrado",
+    "",
+    "Alertas recentes:",
+    ...(achados?.length
+      ? achados.map((a) => `• [${a.severidade}] ${a.titulo}`)
+      : ["• nenhum alerta aberto"]),
+    "",
+    "Envie *sentinela ligar* ou *sentinela pausar*.",
+  ];
+  return linhas.join("\n");
+}
+
+export async function definirSentinela(ativo: boolean) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { carregarSentinelaSettings } = await import("@/lib/sentinela.server");
+  const cfg = await carregarSentinelaSettings();
+  const { error } = await supabaseAdmin
+    .from("sentinela_settings")
+    .update({ ativo } as never)
+    .eq("id", cfg.id);
+  if (error) throw new Error(error.message);
+}
+
+/** Situação da IA e dos chatbots de atendimento (o bot admin fica de fora). */
+export async function resumoIA() {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { ADMIN_BOT_NAME } = await import("@/lib/admin-bot");
+  const { data } = await supabaseAdmin
+    .from("chatbots")
+    .select("name, is_active, ai_enabled")
+    .neq("name", ADMIN_BOT_NAME)
+    .order("name");
+
+  const bots = data ?? [];
+  const ativos = bots.filter((b) => b.is_active);
+  const linhas = [
+    "*IA e chatbots*",
+    `Chatbots ativos: ${ativos.length}`,
+    `Chatbots pausados: ${bots.length - ativos.length}`,
+    "",
+    ...(bots.length
+      ? bots.map(
+          (b) => `• ${b.name}: ${b.is_active ? "ligado" : "pausado"}${b.ai_enabled ? " (IA ligada)" : ""}`,
+        )
+      : ["• nenhum chatbot de atendimento cadastrado"]),
+    "",
+    "Envie *ia ligar* ou *ia pausar*.",
+  ];
+  return linhas.join("\n");
+}
+
+export async function definirIA(ativo: boolean) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { ADMIN_BOT_NAME } = await import("@/lib/admin-bot");
+  const { error } = await supabaseAdmin
+    .from("chatbots")
+    .update({ is_active: ativo } as never)
+    .neq("name", ADMIN_BOT_NAME);
+  if (error) throw new Error(error.message);
+}
+
 
 /**
  * Intercepta a mensagem do administrador remoto.
