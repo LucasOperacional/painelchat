@@ -1,3 +1,4 @@
+import { ADMIN_BOT_NAME } from "@/lib/admin-bot";
 // Motor do chatbot de auto atendimento (menu numérico + IA).
 // Uso exclusivo no servidor.
 
@@ -39,7 +40,6 @@ export async function loadActiveChatbot(): Promise<{
   options: ChatbotOption[];
 } | null> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { ADMIN_BOT_NAME } = await import("@/lib/remote-admin.server");
   const { data } = await supabaseAdmin
     .from("chatbots")
     .select("*")

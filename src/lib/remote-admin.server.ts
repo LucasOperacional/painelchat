@@ -106,8 +106,7 @@ function limpar(text: string) {
 
 type Comando = "menu" | "reiniciar" | "ligar" | "desligar" | "bloquear" | "status";
 
-/** Nome do chatbot dedicado ao controle remoto (nunca atende clientes). */
-export const ADMIN_BOT_NAME = "Controle do Sistema (Admin)";
+export { ADMIN_BOT_NAME } from "@/lib/admin-bot";
 
 /**
  * Reconhecimento automático: qualquer mensagem do administrador vira comando.

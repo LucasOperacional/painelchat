@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { ADMIN_BOT_NAME } from "@/lib/admin-bot";
 
 async function requireAdmin(context: {
   supabase: { from: (t: string) => any };
