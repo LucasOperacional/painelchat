@@ -81,6 +81,7 @@ import {
   closeConversation,
   reopenConversation,
   transferConversation,
+  previewMensagem,
   type Conversation,
 } from "@/lib/central";
 import { Button } from "@/components/ui/button";
