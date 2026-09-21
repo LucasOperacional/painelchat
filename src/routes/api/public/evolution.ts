@@ -522,6 +522,10 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
           case "QRCode": {
             const qr = payload.data?.Qrcode ?? payload.data?.qrcode ?? null;
             await touch({ status: "connecting", ...(qr ? { last_qr: qr } : {}) });
+            // QR na tela: garante que os eventos desta central já estão firmados.
+            void (await import("@/lib/evolution.server")).ensureEvolutionWebhook(config.id, {
+              requestUrl: request.url,
+            });
             return Response.json({ received: true });
           }
           case "PairSuccess": {
@@ -530,6 +534,11 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
               status: "connected",
               last_qr: null,
               ...(jid ? { phone: jidToPhone(jid) } : {}),
+            });
+            // Número pareado: reconfigura o webhook com todos os eventos.
+            await (await import("@/lib/evolution.server")).ensureEvolutionWebhook(config.id, {
+              requestUrl: request.url,
+              force: true,
             });
             try {
               const { validarConexaoAposParear } = await import("@/lib/connection-test.server");
@@ -551,6 +560,9 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
                   ? { status: "connected", last_qr: null }
                   : { status: "connecting" },
             );
+            await (await import("@/lib/evolution.server")).ensureEvolutionWebhook(config.id, {
+              requestUrl: request.url,
+            });
             return Response.json({ received: true });
           }
           case "LoggedOut": {
