@@ -1,29 +1,26 @@
-# Welcome to your Lovable project
+# Central WhatsApp Atendimento
+
+crie um projeto aonde de uma central de multi atendimento aonde através dela vao fazer atendimento usando whatsapp com isso os atendimentos podera transferir para qualquer usuario cadastrado coloque a opção de cadastrar filas e departamentos
 
 This project was built with [Lovable](https://lovable.dev).
 
 ## Build with Lovable
 
-Open your project in the [Lovable editor](https://lovable.dev) and keep building.
+Continue developing this project in the [Lovable editor](https://lovable.dev/projects/14677b33-8954-40fb-bcc7-5e1be4359115).
 
 - **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
-- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
+- **Stay in sync**: every change made in Lovable is committed straight to this repository.
+- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
 
 ## Development
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+Prefer working locally? You need Bun installed: https://bun.sh/docs/installation
 
 ```sh
 git clone <this-repository-url>
 cd <repository-name>
-npm i
-npm run dev
+cp .env.example .env
+# Preencha as variáveis do Lovable Cloud no arquivo .env
+bun install
+bun run dev
 ```
-
-## Built with
-
-- TanStack Start
-- TypeScript
-- React
-- Tailwind CSS

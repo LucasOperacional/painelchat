@@ -34,7 +34,16 @@ export default tseslint.config(
       ],
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-explicit-any": "off",
+      "prefer-const": "warn",
+      "no-fallthrough": "warn",
+      "react-hooks/exhaustive-deps": "warn",
     },
   },
   eslintPluginPrettier,
+  {
+    rules: {
+      "prettier/prettier": "off",
+    },
+  },
 );

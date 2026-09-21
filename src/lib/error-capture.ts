@@ -49,18 +49,35 @@ function isErrorLike(value: unknown): value is Error {
   return value instanceof Error;
 }
 
-// Wrap console.error so errors logged by any layer — including h3's internal
-// unhandled-error logging, which this file cannot hook directly — are both
-// recorded for consumeLastCapturedError and expanded before serialization.
-const originalConsoleError = console.error.bind(console);
-console.error = (...args: unknown[]) => {
-  const expanded = args.map((arg) => {
-    if (!isErrorLike(arg)) return arg;
-    record(arg);
-    return describeError(arg);
-  });
-  originalConsoleError(...expanded);
-};
+// Wrap console.error once so errors logged by any layer are recorded for
+// consumeLastCapturedError and expanded before serialization. The re-entrancy
+// guard matters: the host dev server also hooks console.error, and two hooks
+// calling each other tears the SSR process down with no output at all.
+const wrapMarker = "__lovableErrorCaptureWrapped";
+const consoleWithMarker = console as unknown as Record<string, unknown>;
+if (!consoleWithMarker[wrapMarker]) {
+  consoleWithMarker[wrapMarker] = true;
+  const originalConsoleError = console.error.bind(console);
+  let inside = false;
+  console.error = (...args: unknown[]) => {
+    if (inside) {
+      originalConsoleError(...args);
+      return;
+    }
+    inside = true;
+    try {
+      const expanded = args.map((arg) => {
+        if (!isErrorLike(arg)) return arg;
+        record(arg);
+        return describeError(arg);
+      });
+      originalConsoleError(...expanded);
+    } finally {
+      inside = false;
+    }
+  };
+}
+
 
 if (typeof globalThis.addEventListener === "function") {
   globalThis.addEventListener("error", (event) => record((event as ErrorEvent).error ?? event));

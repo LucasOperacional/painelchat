@@ -1,0 +1,1 @@
+ALTER TABLE public.webviews ADD COLUMN IF NOT EXISTS use_proxy BOOLEAN NOT NULL DEFAULT true;

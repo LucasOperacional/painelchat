@@ -1,0 +1,3 @@
+CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA extensions;
+CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
+INSERT INTO public.broadcast_settings (id) VALUES (true) ON CONFLICT (id) DO NOTHING;

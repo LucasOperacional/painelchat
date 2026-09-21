@@ -1,0 +1,1 @@
+ALTER TABLE public.queues ADD COLUMN color text NOT NULL DEFAULT '#0ea5e9';
