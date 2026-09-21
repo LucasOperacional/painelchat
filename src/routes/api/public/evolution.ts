@@ -404,6 +404,33 @@ function fromWuzapi(raw: Record<string, any>): EvolutionWebhook {
   const inner = (raw["event"] ?? {}) as Record<string, any>;
   const data: Record<string, any> = { ...inner };
 
+  // A WuzAPI manda um bloco "contact" com o telefone real da conversa. Sem ele,
+  // chats no formato @lid (id interno, sem telefone) viravam números fantasmas
+  // e a mensagem ficava perdida fora da conversa certa.
+  const contact = (raw["contact"] ?? {}) as Record<string, any>;
+  const jidLimpo = (valor: unknown) => (typeof valor === "string" && valor.includes("@") ? valor : "");
+  const senderJid = jidLimpo(contact["sender_jid"]);
+  const chatJid = jidLimpo(contact["chat_jid"]);
+  const info = (inner["Info"] ?? undefined) as Record<string, any> | undefined;
+  if (info && typeof info === "object") {
+    const novoInfo: Record<string, any> = { ...info };
+    const atual = (nome: string) => jidLimpo(novoInfo[nome]);
+    if (senderJid && !atual("SenderAlt") && !atual("Sender").includes("@s.whatsapp.net")) {
+      novoInfo["SenderAlt"] = senderJid;
+    }
+    if (chatJid && !atual("RecipientAlt") && novoInfo["IsFromMe"] === true) {
+      novoInfo["RecipientAlt"] = chatJid;
+    }
+    // Chat individual entregue como @lid: usa o telefone informado no contato.
+    if (chatJid && atual("Chat").includes("@lid") && !chatJid.includes("@lid")) {
+      novoInfo["Chat"] = chatJid;
+    }
+    if (!novoInfo["PushName"] && typeof contact["display_name"] === "string") {
+      novoInfo["PushName"] = contact["display_name"];
+    }
+    data["Info"] = novoInfo;
+  }
+
   const message = inner["Message"] as Record<string, unknown> | undefined;
   if (message && typeof message === "object") {
     const base64 = field<unknown>(raw, "base64", "fileBase64", "data") ??
@@ -415,8 +442,8 @@ function fromWuzapi(raw: Record<string, any>): EvolutionWebhook {
     const url =
       (raw["s3"] as { url?: string } | undefined)?.url ??
       (inner["s3"] as { url?: string } | undefined)?.url ??
-      field<unknown>(raw, "mediaUrl", "mediaURL") ??
-      field<unknown>(inner, "mediaUrl", "mediaURL");
+      field<unknown>(raw, "mediaUrl", "mediaURL", "file_url", "fileUrl") ??
+      field<unknown>(inner, "mediaUrl", "mediaURL", "file_url", "fileUrl");
     data["Message"] = {
       ...message,
       ...(typeof base64 === "string" && base64 ? { base64 } : {}),
@@ -451,10 +478,24 @@ async function readWebhookBody(request: Request): Promise<EvolutionWebhook> {
     const form = await request.formData();
     const jsonData = form.get("jsonData");
     raw = JSON.parse(typeof jsonData === "string" ? jsonData : "{}");
+    // Os campos de fora do formulário (token, arquivo, tipo) também importam:
+    // sem eles a mídia da WuzAPI chegava sem endereço para download.
+    for (const [chave, valor] of form.entries()) {
+      if (chave === "jsonData" || typeof valor !== "string" || !valor) continue;
+      if (raw[chave] === undefined) raw[chave] = valor;
+    }
   } else {
     raw = (await request.json()) as Record<string, any>;
   }
-  if (raw && typeof raw["type"] === "string" && !("event" in raw && typeof raw["event"] === "string")) {
+  // Envelope da WuzAPI: { type, event: { Info, Message }, contact, ... }.
+  const pareceWuzapi =
+    !!raw &&
+    typeof raw["event"] === "object" &&
+    raw["event"] !== null &&
+    ("Info" in (raw["event"] as Record<string, unknown>) ||
+      "Message" in (raw["event"] as Record<string, unknown>) ||
+      "contact" in raw);
+  if (raw && ((typeof raw["type"] === "string" && typeof raw["event"] !== "string") || pareceWuzapi)) {
     return fromWuzapi(raw);
   }
   return raw as EvolutionWebhook;
@@ -835,11 +876,29 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
           const valor = field<unknown>(alvo, "base64", "fileBase64", "data");
           return typeof valor === "string" && valor ? valor : null;
         }, null);
-        const mediaUrl = [message, conteudoMidia].reduce<string | null>((achado, alvo) => {
+        const mediaUrlBruta = [message, conteudoMidia].reduce<string | null>((achado, alvo) => {
           if (achado || !alvo) return achado;
           const valor = field<unknown>(alvo, "mediaUrl", "mediaURL", "url", "URL");
           return typeof valor === "string" && valor ? valor : null;
         }, null);
+        // A WuzAPI informa o arquivo com o endereço interno dela (localhost).
+        // Troca pelo endereço público da conexão para o download funcionar.
+        const mediaUrl = (() => {
+          if (!mediaUrlBruta) return null;
+          try {
+            const alvo = new URL(mediaUrlBruta);
+            if (!/^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/i.test(alvo.hostname)) return mediaUrlBruta;
+            const base = String((config as { base_url?: string }).base_url ?? "");
+            if (!base) return mediaUrlBruta;
+            const publico = new URL(base);
+            alvo.protocol = publico.protocol;
+            alvo.host = publico.host;
+            return alvo.toString();
+          } catch {
+            return mediaUrlBruta;
+          }
+        })();
+
         // URLs S3/MinIO da WuzAPI já apontam para o arquivo descriptografado.
         // Somente referências do WhatsApp precisam passar por /chat/download*.
         const isEncryptedMediaUrl = (value: string | null) =>
