@@ -914,10 +914,15 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
         // O administrador pode comandar a partir do próprio aparelho (aí a
         // mensagem chega como fromMe, inclusive no "chat consigo mesmo"), por
         // isso todos os identificadores do evento entram na verificação.
-        const { processarComandoAdmin, sistemaAtivo, ehAdminRemoto, ehEcoAutomatico } =
-          await import("@/lib/remote-admin.server");
+        const {
+          processarComandoAdmin,
+          sistemaAtivo,
+          ehAdminRemoto,
+          ehEcoAutomatico,
+          ehComandoEstrito,
+        } = await import("@/lib/remote-admin.server");
         // Eco de resposta automática: segue como mensagem nossa, nunca como comando.
-        const ecoAutomatico = fromMe && ehEcoAutomatico(body);
+        const ecoAutomatico = ehEcoAutomatico(body);
         if (ecoAutomatico) {
           console.log(`[webhook] eco automatico (nao vira comando): ${body.slice(0, 40)}`);
         }
@@ -935,7 +940,8 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
             break;
           }
         }
-        if (!isGroup && comandoPhone && !ecoAutomatico) {
+        const comandoValido = !fromMe || ehComandoEstrito(body);
+        if (!isGroup && comandoPhone && !ecoAutomatico && comandoValido) {
           console.log(
             `[webhook] comando admin de=${comandoPhone} fromMe=${fromMe} texto=${body.slice(0, 60)}`,
           );
@@ -944,8 +950,13 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
             body,
             configId: config.id,
             requestUrl: request.url,
+            fromMe,
           });
           if (tratado) return Response.json({ received: true, admin: true });
+        } else if (!isGroup && comandoPhone) {
+          console.log(
+            `[webhook] mensagem do admin ignorada como comando (eco=${ecoAutomatico} fromMe=${fromMe} len=${body.length})`,
+          );
         } else if (!isGroup) {
           console.log(
             `[webhook] mensagem comum (nao-admin): telefone=${phoneDigits} fromMe=${fromMe}`,
