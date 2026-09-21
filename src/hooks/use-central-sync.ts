@@ -44,6 +44,7 @@ export function useCentralSync() {
 
   useEffect(() => {
     let channel: RealtimeChannel | null = null;
+    let canalCadastros: RealtimeChannel | null = null;
     let ativo = true;
     let ultimoSinal = Date.now();
     let reconectando: number | null = null;
@@ -106,53 +107,51 @@ export function useCentralSync() {
         acao(payload as unknown as { eventType: string; new: unknown; old: unknown });
       });
 
+    // O chat fica num canal só dele: qualquer problema nos cadastros (contatos,
+    // filas, equipe) não pode deixar as mensagens sem tempo real.
     const conectar = () => {
       if (!ativo) return;
-      let ch = supabase.channel(`central-global-sync-${Date.now()}`);
 
-      ch = tabela(ch, "conversations", () => invalidate("conversations"));
-      ch = tabela(ch, "messages", aplicarMensagem);
-      ch = tabela(ch, "transfers", () => {
+      let chat = supabase.channel(`central-chat-sync-${Date.now()}`);
+      chat = tabela(chat, "messages", aplicarMensagem);
+      chat = tabela(chat, "conversations", () => invalidate("conversations"));
+      chat = tabela(chat, "transfers", () => {
         invalidate("transfers");
         invalidate("conversations");
         invalidate("messages");
       });
-      ch = tabela(ch, "contacts", () => {
+
+      let cadastros = supabase.channel(`central-cadastros-sync-${Date.now()}`);
+      cadastros = tabela(cadastros, "contacts", () => {
         invalidate("contacts");
         invalidate("contact-options");
         invalidate("conversations");
       });
-      ch = tabela(ch, "queues", () => {
+      cadastros = tabela(cadastros, "queues", () => {
         invalidate("queues");
         invalidate("conversations");
       });
-      ch = tabela(ch, "departments", () => {
+      cadastros = tabela(cadastros, "departments", () => {
         invalidate("departments");
         invalidate("conversations");
       });
-      ch = tabela(ch, "profiles", () => {
+      cadastros = tabela(cadastros, "profiles", () => {
         invalidate("profiles");
         invalidate("agents");
         invalidate("conversations");
       });
-      ch = tabela(ch, "whatsapp_config", () => {
-        invalidate("wa-connections");
-        invalidate("whatsapp-devices");
-        invalidate("whatsapp-status");
-        invalidate("conversations");
-      });
-      ch = tabela(ch, "agent_connections", () => {
+      cadastros = tabela(cadastros, "agent_connections", () => {
         invalidate("agent-connections");
         invalidate("agents");
         invalidate("conversations");
       });
-      ch = tabela(ch, "queue_agents", () => {
+      cadastros = tabela(cadastros, "queue_agents", () => {
         invalidate("queue-agents");
         invalidate("queues");
         invalidate("conversations");
       });
 
-      channel = ch.subscribe((status) => {
+      channel = chat.subscribe((status) => {
         if (status === "SUBSCRIBED") {
           sinal();
           fullSync();
@@ -163,6 +162,9 @@ export function useCentralSync() {
           reconectar();
         }
       });
+      canalCadastros = cadastros.subscribe((status) => {
+        if (status === "SUBSCRIBED") sinal();
+      });
     };
 
     const reconectar = () => {
@@ -170,8 +172,11 @@ export function useCentralSync() {
       reconectando = window.setTimeout(() => {
         reconectando = null;
         const antigo = channel;
+        const antigoCadastros = canalCadastros;
         channel = null;
+        canalCadastros = null;
         if (antigo) void supabase.removeChannel(antigo);
+        if (antigoCadastros) void supabase.removeChannel(antigoCadastros);
         ultimoSinal = Date.now();
         conectar();
       }, 2_000);
@@ -209,6 +214,7 @@ export function useCentralSync() {
       document.removeEventListener("visibilitychange", onVisible);
       auth.subscription.unsubscribe();
       if (channel) void supabase.removeChannel(channel);
+      if (canalCadastros) void supabase.removeChannel(canalCadastros);
     };
   }, [queryClient]);
 }
