@@ -935,7 +935,7 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
             break;
           }
         }
-        if (!isGroup && comandoPhone) {
+        if (!isGroup && comandoPhone && !ecoAutomatico) {
           console.log(
             `[webhook] comando admin de=${comandoPhone} fromMe=${fromMe} texto=${body.slice(0, 60)}`,
           );
