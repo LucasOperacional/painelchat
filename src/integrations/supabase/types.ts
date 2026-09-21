@@ -1098,6 +1098,48 @@ export type Database = {
           },
         ]
       }
+      das_mei_documentos: {
+        Row: {
+          atualizado_em: string
+          competencia: string
+          criado_em: string
+          data_vencimento: string | null
+          id: string
+          nome_original: string
+          status: string
+          storage_path: string
+          tamanho_bytes: number
+          user_id: string
+          valor: number | null
+        }
+        Insert: {
+          atualizado_em?: string
+          competencia?: string
+          criado_em?: string
+          data_vencimento?: string | null
+          id?: string
+          nome_original: string
+          status?: string
+          storage_path: string
+          tamanho_bytes?: number
+          user_id: string
+          valor?: number | null
+        }
+        Update: {
+          atualizado_em?: string
+          competencia?: string
+          criado_em?: string
+          data_vencimento?: string | null
+          id?: string
+          nome_original?: string
+          status?: string
+          storage_path?: string
+          tamanho_bytes?: number
+          user_id?: string
+          valor?: number | null
+        }
+        Relationships: []
+      }
       departments: {
         Row: {
           color: string
@@ -1595,6 +1637,78 @@ export type Database = {
           default_payer_document?: string | null
           default_payer_name?: string | null
           provider?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      monitor_eventos: {
+        Row: {
+          alerta_detalhe: string | null
+          alerta_enviado: boolean
+          created_at: string
+          device_id: string | null
+          device_label: string
+          id: string
+          mensagem: string
+          provider: string
+          severidade: string
+          tipo: string
+        }
+        Insert: {
+          alerta_detalhe?: string | null
+          alerta_enviado?: boolean
+          created_at?: string
+          device_id?: string | null
+          device_label?: string
+          id?: string
+          mensagem?: string
+          provider?: string
+          severidade?: string
+          tipo: string
+        }
+        Update: {
+          alerta_detalhe?: string | null
+          alerta_enviado?: boolean
+          created_at?: string
+          device_id?: string | null
+          device_label?: string
+          id?: string
+          mensagem?: string
+          provider?: string
+          severidade?: string
+          tipo?: string
+        }
+        Relationships: []
+      }
+      monitor_settings: {
+        Row: {
+          ativo: boolean
+          auto_reconectar: boolean
+          created_at: string
+          cron_token: string
+          id: string
+          intervalo_minutos: number
+          numero_alerta: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          auto_reconectar?: boolean
+          created_at?: string
+          cron_token?: string
+          id?: string
+          intervalo_minutos?: number
+          numero_alerta?: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          auto_reconectar?: boolean
+          created_at?: string
+          cron_token?: string
+          id?: string
+          intervalo_minutos?: number
+          numero_alerta?: string
           updated_at?: string
         }
         Relationships: []
@@ -2148,6 +2262,188 @@ export type Database = {
           },
         ]
       }
+      sentinela_achados: {
+        Row: {
+          acao: string
+          alvo: string
+          ciclo_id: string | null
+          created_at: string
+          detalhe: string
+          id: string
+          severidade: string
+          status: string
+          tipo: string
+          titulo: string
+        }
+        Insert: {
+          acao?: string
+          alvo?: string
+          ciclo_id?: string | null
+          created_at?: string
+          detalhe?: string
+          id?: string
+          severidade?: string
+          status?: string
+          tipo: string
+          titulo?: string
+        }
+        Update: {
+          acao?: string
+          alvo?: string
+          ciclo_id?: string | null
+          created_at?: string
+          detalhe?: string
+          id?: string
+          severidade?: string
+          status?: string
+          tipo?: string
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sentinela_achados_ciclo_id_fkey"
+            columns: ["ciclo_id"]
+            isOneToOne: false
+            referencedRelation: "sentinela_ciclos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sentinela_ciclos: {
+        Row: {
+          corrigidos: number
+          detalhes: Json
+          duracao_ms: number
+          id: string
+          iniciado_em: string
+          problemas: number
+          resumo: string
+          severidade: string
+          verificacoes: number
+        }
+        Insert: {
+          corrigidos?: number
+          detalhes?: Json
+          duracao_ms?: number
+          id?: string
+          iniciado_em?: string
+          problemas?: number
+          resumo?: string
+          severidade?: string
+          verificacoes?: number
+        }
+        Update: {
+          corrigidos?: number
+          detalhes?: Json
+          duracao_ms?: number
+          id?: string
+          iniciado_em?: string
+          problemas?: number
+          resumo?: string
+          severidade?: string
+          verificacoes?: number
+        }
+        Relationships: []
+      }
+      sentinela_settings: {
+        Row: {
+          ativo: boolean
+          auto_limpar_duplicadas: boolean
+          auto_reconectar: boolean
+          auto_recuperar_midia: boolean
+          auto_reenviar: boolean
+          avisar_painel: boolean
+          avisar_whatsapp: boolean
+          bloqueio_minutos: number
+          created_at: string
+          cron_token: string
+          id: string
+          intervalo_minutos: number
+          limite_req_minuto: number
+          numero_alerta: string
+          resumo_ia: string
+          resumo_ia_em: string | null
+          seguranca_modo: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          auto_limpar_duplicadas?: boolean
+          auto_reconectar?: boolean
+          auto_recuperar_midia?: boolean
+          auto_reenviar?: boolean
+          avisar_painel?: boolean
+          avisar_whatsapp?: boolean
+          bloqueio_minutos?: number
+          created_at?: string
+          cron_token?: string
+          id?: string
+          intervalo_minutos?: number
+          limite_req_minuto?: number
+          numero_alerta?: string
+          resumo_ia?: string
+          resumo_ia_em?: string | null
+          seguranca_modo?: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          auto_limpar_duplicadas?: boolean
+          auto_reconectar?: boolean
+          auto_recuperar_midia?: boolean
+          auto_reenviar?: boolean
+          avisar_painel?: boolean
+          avisar_whatsapp?: boolean
+          bloqueio_minutos?: number
+          created_at?: string
+          cron_token?: string
+          id?: string
+          intervalo_minutos?: number
+          limite_req_minuto?: number
+          numero_alerta?: string
+          resumo_ia?: string
+          resumo_ia_em?: string | null
+          seguranca_modo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sentinela_trafego: {
+        Row: {
+          bloqueado_ate: string | null
+          id: string
+          ip: string
+          janela_inicio: string
+          motivo: string
+          requisicoes: number
+          rota: string
+          total_bloqueios: number
+          ultimo_em: string
+        }
+        Insert: {
+          bloqueado_ate?: string | null
+          id?: string
+          ip: string
+          janela_inicio?: string
+          motivo?: string
+          requisicoes?: number
+          rota?: string
+          total_bloqueios?: number
+          ultimo_em?: string
+        }
+        Update: {
+          bloqueado_ate?: string | null
+          id?: string
+          ip?: string
+          janela_inicio?: string
+          motivo?: string
+          requisicoes?: number
+          rota?: string
+          total_bloqueios?: number
+          ultimo_em?: string
+        }
+        Relationships: []
+      }
       stickers: {
         Row: {
           created_at: string
@@ -2326,6 +2622,51 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_eventos: {
+        Row: {
+          created_at: string
+          erro: string | null
+          evento: string
+          external_id: string | null
+          http_status: number | null
+          id: string
+          payload: Json
+          processado_em: string | null
+          status: string
+          tentativas: number
+          token: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          erro?: string | null
+          evento?: string
+          external_id?: string | null
+          http_status?: number | null
+          id?: string
+          payload?: Json
+          processado_em?: string | null
+          status?: string
+          tentativas?: number
+          token?: string
+          url?: string
+        }
+        Update: {
+          created_at?: string
+          erro?: string | null
+          evento?: string
+          external_id?: string | null
+          http_status?: number | null
+          id?: string
+          payload?: Json
+          processado_em?: string | null
+          status?: string
+          tentativas?: number
+          token?: string
+          url?: string
+        }
+        Relationships: []
+      }
       webviews: {
         Row: {
           created_at: string
@@ -2391,6 +2732,11 @@ export type Database = {
           label: string
           last_event: string | null
           last_qr: string | null
+          monitor_desde: string | null
+          monitor_estado: string | null
+          monitor_tentativas: number
+          monitor_ultimo_check: string | null
+          monitor_ultimo_erro: string | null
           phone: string
           project_id: string | null
           provider: string
@@ -2417,6 +2763,11 @@ export type Database = {
           label?: string
           last_event?: string | null
           last_qr?: string | null
+          monitor_desde?: string | null
+          monitor_estado?: string | null
+          monitor_tentativas?: number
+          monitor_ultimo_check?: string | null
+          monitor_ultimo_erro?: string | null
           phone?: string
           project_id?: string | null
           provider?: string
@@ -2443,6 +2794,11 @@ export type Database = {
           label?: string
           last_event?: string | null
           last_qr?: string | null
+          monitor_desde?: string | null
+          monitor_estado?: string | null
+          monitor_tentativas?: number
+          monitor_ultimo_check?: string | null
+          monitor_ultimo_erro?: string | null
           phone?: string
           project_id?: string | null
           provider?: string
@@ -2501,7 +2857,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      __import_exec: { Args: { p_sql: string }; Returns: undefined }
       bank_balance: {
         Args: never
         Returns: {
@@ -2526,6 +2881,7 @@ export type Database = {
           serie: string
         }[]
       }
+      sentinela_limpar_diario: { Args: never; Returns: undefined }
     }
     Enums: {
       agent_status: "available" | "away" | "offline"

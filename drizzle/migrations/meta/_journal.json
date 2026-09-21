@@ -505,6 +505,13 @@
       "when": 1789950352566,
       "tag": "0071_import_helper_search_path",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1789950382209,
+      "tag": "0072_drop_import_helper_and_revoke",
+      "breakpoints": true
     }
   ]
 }
