@@ -471,7 +471,7 @@ export async function resumoSentinela() {
   const { count: bloqueios } = await supabaseAdmin
     .from("sentinela_trafego")
     .select("id", { count: "exact", head: true })
-    .gte("created_at", inicioDoDia());
+    .gte("ultimo_em", inicioDoDia());
 
   const linhas = [
     "*Sentinela e seguranca*",
