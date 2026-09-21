@@ -614,12 +614,56 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
         const info = payload.data?.Info;
         const message = payload.data?.Message;
         if (!info) return Response.json({ received: true });
-        // KILL SWITCH: qualquer mensagem enviada pela própria conta conectada é
-        // descartada antes de comandos, mídia, banco, chatbot, IA ou respostas.
+        // Mensagens enviadas pela própria conta conectada são descartadas antes
+        // de mídia, banco, chatbot, IA ou respostas. Única exceção: comando
+        // curto e exato do administrador (permite usar o "chat consigo mesmo"),
+        // com proteção total contra eco e loop.
         const fromMe = !!info.IsFromMe || event === "SendMessage";
         if (fromMe) {
+          const textoProprio = extractText(message).trim();
+          const { ehComandoEstrito, ehEcoAutomatico, ehAdminRemoto, processarComandoAdmin } =
+            await import("@/lib/remote-admin.server");
+          const chatProprio = String(info.Chat ?? info.Sender ?? "");
+          const grupoProprio = !!info.IsGroup || chatProprio.includes("@g.us");
+          const recordFromMe = info as Record<string, unknown>;
+          const candidatosProprios = [
+            chatProprio,
+            String(info.SenderAlt ?? ""),
+            String(recordFromMe["RecipientAlt"] ?? recordFromMe["ReceiverAlt"] ?? ""),
+            String(info.Sender ?? ""),
+          ]
+            .filter((jid) => jid && !jid.includes("@lid"))
+            .map(jidToPhone)
+            .filter(Boolean);
+          let adminProprio = "";
+          if (
+            !grupoProprio &&
+            textoProprio &&
+            !ehEcoAutomatico(textoProprio) &&
+            ehComandoEstrito(textoProprio)
+          ) {
+            for (const cand of candidatosProprios) {
+              if (await ehAdminRemoto(cand)) {
+                adminProprio = cand;
+                break;
+              }
+            }
+          }
+          if (adminProprio) {
+            console.log(
+              `[webhook] comando do proprio aparelho aceito: de=${adminProprio} texto=${textoProprio.slice(0, 30)}`,
+            );
+            const tratado = await processarComandoAdmin({
+              phoneDigits: adminProprio,
+              body: textoProprio,
+              configId: config.id,
+              requestUrl: request.url,
+              fromMe: true,
+            });
+            return Response.json({ received: true, admin: true, tratado });
+          }
           console.warn(
-            `[webhook] KILL SWITCH fromMe: evento=${event} device=${config.id} id=${info.ID ?? "-"}`,
+            `[webhook] fromMe descartado: evento=${event} device=${config.id} id=${info.ID ?? "-"} len=${textoProprio.length}`,
           );
           return Response.json({ received: true, ignored: "from-me" });
         }
