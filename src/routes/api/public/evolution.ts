@@ -655,10 +655,10 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
         const info = payload.data?.Info;
         const message = payload.data?.Message;
         if (!info) return Response.json({ received: true });
-        // Mensagens enviadas pela própria conta conectada são descartadas antes
-        // de mídia, banco, chatbot, IA ou respostas. Única exceção: comando
-        // curto e exato do administrador (permite usar o "chat consigo mesmo"),
-        // com proteção total contra eco e loop.
+        // Mensagens enviadas pela própria conta conectada NÃO disparam chatbot,
+        // IA ou respostas (proteção total contra loop), mas são sempre gravadas
+        // no histórico da conversa. Única exceção de comando: texto curto e
+        // exato do administrador no "chat consigo mesmo".
         const fromMe = !!info.IsFromMe || event === "SendMessage";
         if (fromMe) {
           const textoProprio = extractText(message).trim();
@@ -694,19 +694,23 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
             console.log(
               `[webhook] comando do proprio aparelho aceito: de=${adminProprio} texto=${textoProprio.slice(0, 30)}`,
             );
-            const tratado = await processarComandoAdmin({
-              phoneDigits: adminProprio,
-              body: textoProprio,
-              configId: config.id,
-              requestUrl: request.url,
-              fromMe: true,
-            });
+            let tratado = false;
+            try {
+              tratado = await processarComandoAdmin({
+                phoneDigits: adminProprio,
+                body: textoProprio,
+                configId: config.id,
+                requestUrl: request.url,
+                fromMe: true,
+              });
+            } catch (error) {
+              console.error("[webhook] falha no comando admin:", (error as Error).message);
+            }
             return Response.json({ received: true, admin: true, tratado });
           }
-          console.warn(
-            `[webhook] fromMe descartado: evento=${event} device=${config.id} id=${info.ID ?? "-"} len=${textoProprio.length}`,
+          console.log(
+            `[webhook] fromMe registrado no historico: evento=${event} device=${config.id} id=${info.ID ?? "-"} len=${textoProprio.length}`,
           );
-          return Response.json({ received: true, ignored: "from-me" });
         }
 
         // Chegou mensagem externa: a sessão está viva. Desfaz qualquer queda falsa.
