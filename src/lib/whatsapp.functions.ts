@@ -393,8 +393,20 @@ export const getWhatsappStatus = createServerFn({ method: "GET" })
         // ("Eventos para Webhook" em excesso).
         const registrado = (config as { webhook_url?: string | null }).webhook_url ?? null;
         const confirmadoEm = (config as { webhook_synced_at?: string | null }).webhook_synced_at;
+        const eventosRegistrados =
+          (config as { webhook_events?: string | null }).webhook_events ?? null;
+        const { EVOLUTION_SUBSCRIBE, EVOLUTION_SUBSCRIBE_V2, EVOLUTION_SUBSCRIBE_FALLBACK, webhookEventsSignature } =
+          await import("@/lib/evolution.server");
+        // Qualquer uma das três listas aceitas serve; nenhuma delas registrada
+        // (ou lista incompleta) significa webhook sem eventos → refaz na hora.
+        const eventosOk = [
+          EVOLUTION_SUBSCRIBE,
+          EVOLUTION_SUBSCRIBE_V2,
+          EVOLUTION_SUBSCRIBE_FALLBACK,
+        ].some((lista) => webhookEventsSignature(lista) === eventosRegistrados);
         const idade = confirmadoEm ? Date.now() - new Date(confirmadoEm).getTime() : Infinity;
-        const precisaReafirmar = registrado !== inboundUrl || idade > 6 * 60 * 60 * 1000;
+        const precisaReafirmar =
+          registrado !== inboundUrl || !eventosOk || idade > 6 * 60 * 60 * 1000;
         // O webhook precisa apontar para esta central mesmo antes do pareamento,
         // senão os eventos de conexão/QR chegam em outro lugar e a sessão
         // nunca é confirmada aqui.
@@ -404,11 +416,6 @@ export const getWhatsappStatus = createServerFn({ method: "GET" })
               { baseUrl: config.base_url, instanceId: config.instance_id, configId: config.id },
               { webhookUrl: inboundUrl, immediate: true },
             );
-            const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-            await supabaseAdmin
-              .from("whatsapp_config")
-              .update({ webhook_url: inboundUrl, webhook_synced_at: new Date().toISOString() })
-              .eq("id", config.id);
           } catch {
             /* o número segue pareado mesmo sem reconfirmar o webhook */
           }
