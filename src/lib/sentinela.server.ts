@@ -574,7 +574,7 @@ export async function executarCicloSentinela(
   try {
     const { data: pendentes } = await db
       .from("webhook_eventos")
-      .select("*")
+      .select("id, url, token, evento, external_id, tentativas, erro, created_at")
       .in("status", ["erro", "processando", "pendente"])
       .lt("tentativas", MAX_TENTATIVAS_EVENTO)
       .lt("created_at", new Date(Date.now() - 60_000).toISOString())
