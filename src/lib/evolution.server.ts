@@ -491,6 +491,59 @@ export async function evolutionConnectInstance(
   };
 }
 
+/** Endereço público e estável desta central para receber os eventos. */
+export function evolutionPublicOrigin(requestUrl?: string | null) {
+  if (requestUrl) {
+    try {
+      const origin = new URL(requestUrl).origin;
+      if (/^https:\/\//.test(origin) && !/\/\/id-preview--/.test(origin)) return origin;
+    } catch {
+      /* cai no domínio estável abaixo */
+    }
+  }
+  const projectId = process.env["LOVABLE_PROJECT_ID"] ?? "97ffdf59-274d-422b-93c2-4b8e8cb52bb4";
+  return `https://project--${projectId}-dev.lovable.app`;
+}
+
+/**
+ * Autocorreção do webhook: se o endereço registrado não for desta central ou a
+ * lista de eventos estiver faltando/desatualizada, reconfigura na hora.
+ */
+export async function ensureEvolutionWebhook(
+  configId: string,
+  options?: { requestUrl?: string | null; force?: boolean },
+): Promise<boolean> {
+  try {
+    const config = await loadEvolutionConfig(configId);
+    if (!config?.base_url || !config.instance_id) return false;
+    const origin = evolutionPublicOrigin(options?.requestUrl ?? null);
+    const inboundUrl = `${origin}/api/public/evolution?token=${config.webhook_token ?? ""}`;
+    const registrado = (config as { webhook_url?: string | null }).webhook_url ?? null;
+    const eventos = (config as { webhook_events?: string | null }).webhook_events ?? null;
+    const confirmadoEm = (config as { webhook_synced_at?: string | null }).webhook_synced_at;
+    const eventosOk = [
+      EVOLUTION_SUBSCRIBE,
+      EVOLUTION_SUBSCRIBE_V2,
+      EVOLUTION_SUBSCRIBE_FALLBACK,
+    ].some((lista) => webhookEventsSignature(lista) === eventos);
+    const idade = confirmadoEm ? Date.now() - new Date(confirmadoEm).getTime() : Infinity;
+    if (!options?.force && registrado === inboundUrl && eventosOk && idade < 6 * 60 * 60 * 1000) {
+      return false;
+    }
+    await evolutionConnectInstance(
+      { baseUrl: config.base_url, instanceId: config.instance_id, configId: config.id },
+      { webhookUrl: inboundUrl, immediate: true },
+    );
+    console.log(`[webhook] reconfigurado device=${config.id} url=${inboundUrl}`);
+    return true;
+  } catch (error) {
+    console.error("[webhook] falha ao reconfigurar na Evolution", error);
+    return false;
+  }
+}
+
+
+
 
 /** GET /instance/qr → { data: { Qrcode, Code } } */
 export async function evolutionGetQr(
