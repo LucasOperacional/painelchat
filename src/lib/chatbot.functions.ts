@@ -46,6 +46,7 @@ export const getChatbot = createServerFn({ method: "GET" })
     const { data: bots, error } = await supabaseAdmin
       .from("chatbots")
       .select("*")
+      .neq("name", ADMIN_BOT_NAME)
       .order("created_at")
       .limit(1);
     if (error) throw new Error(error.message);
@@ -117,6 +118,7 @@ export const saveChatbot = createServerFn({ method: "POST" })
     const { data: existing } = await supabaseAdmin
       .from("chatbots")
       .select("id")
+      .neq("name", ADMIN_BOT_NAME)
       .order("created_at")
       .limit(1)
       .maybeSingle();
@@ -154,6 +156,7 @@ export const saveChatbotOption = createServerFn({ method: "POST" })
     const { data: bot } = await supabaseAdmin
       .from("chatbots")
       .select("id")
+      .neq("name", ADMIN_BOT_NAME)
       .order("created_at")
       .limit(1)
       .maybeSingle();
