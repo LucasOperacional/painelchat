@@ -484,6 +484,13 @@
       "when": 1789943785534,
       "tag": "0068_proteger_funcoes_e_limpar_eventos",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1789950233691,
+      "tag": "0069_temp_grant_public_schema_to_sandbox_exec",
+      "breakpoints": true
     }
   ]
 }
