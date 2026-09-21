@@ -199,19 +199,18 @@ export function ehEcoAutomatico(body: string | null | undefined) {
 
 /** Comandos aceitos quando a mensagem vem do próprio aparelho (fromMe). */
 const COMANDOS_ESTRITOS = new Set([
+  "oi",
   "menu",
+  "menu completo",
+  "status",
   "1",
   "2",
   "3",
   "4",
   "5",
   "6",
-  "#admin",
-  "#sistema",
-  "admin",
-  "sistema",
-  "status",
   "reiniciar",
+  "alternar",
   "ligar",
   "desligar",
   "bloquear",
