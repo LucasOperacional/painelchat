@@ -19,7 +19,7 @@ export const Route = createFileRoute("/api/public/monitor")({
         if (!timingSafeEqual(a, b)) return new Response("Unauthorized", { status: 401 });
 
         try {
-          return Response.json(await verificarConexoes());
+          return Response.json(await verificarConexoes(request.url));
         } catch (error) {
           const detalhe = error instanceof Error ? error.message : "Falha na verificação.";
           return Response.json({ erro: detalhe }, { status: 500 });

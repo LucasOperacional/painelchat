@@ -190,7 +190,9 @@ export type ResultadoVerificacao = {
 };
 
 /** Passa por todos os aparelhos, religa o que caiu e avisa o número de plantão. */
-export async function verificarConexoes(): Promise<ResultadoVerificacao> {
+export async function verificarConexoes(
+  requestUrl?: string | null,
+): Promise<ResultadoVerificacao> {
   const settings = await carregarMonitorSettings();
   const resultado: ResultadoVerificacao = {
     verificados: 0,
@@ -200,9 +202,12 @@ export async function verificarConexoes(): Promise<ResultadoVerificacao> {
   };
   if (!settings.ativo) return resultado;
 
-  const { listEvolutionConfigs, ensureEvolutionInstance, evolutionGetStatus } = await import(
-    "@/lib/evolution.server"
-  );
+  const {
+    listEvolutionConfigs,
+    ensureEvolutionInstance,
+    evolutionGetStatus,
+    ensureEvolutionWebhook,
+  } = await import("@/lib/evolution.server");
   const devices = await listEvolutionConfigs();
 
   for (const device of devices) {
@@ -236,6 +241,8 @@ export async function verificarConexoes(): Promise<ResultadoVerificacao> {
     }
 
     if (online) {
+      // Autocorreção: garante que o webhook aponte para o endereço de produção.
+      await ensureEvolutionWebhook(device.id, { requestUrl });
       await marcarEstado(device.id, {
         monitor_estado: "online",
         monitor_tentativas: 0,
