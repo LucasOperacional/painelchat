@@ -5,7 +5,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
 /** Sincronização de segurança: mesmo sem tempo real, tudo atualiza neste intervalo. */
-const FULL_SYNC_INTERVAL_MS = 20 * 1000;
+const FULL_SYNC_INTERVAL_MS = 45 * 1000;
 /** Se o canal ficar mudo por este tempo, reconectamos do zero. */
 const CANAL_MUDO_MS = 60 * 1000;
 

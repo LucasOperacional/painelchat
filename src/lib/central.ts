@@ -169,7 +169,7 @@ export async function fetchConversations() {
     .select("id, conversation_id, body, direction, created_at")
     .in("conversation_id", ids)
     .order("created_at", { ascending: false })
-    .limit(3000);
+    .limit(900);
 
   const ultimas = new Map<string, LastMessage>();
   for (const row of (recentes ?? []) as (LastMessage & { conversation_id: string })[]) {

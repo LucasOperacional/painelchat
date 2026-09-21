@@ -227,6 +227,36 @@ function eventoDoPayload(payload: unknown): string {
   return String(raw?.["event"] ?? raw?.["type"] ?? "");
 }
 
+/** Eventos sem conteúdo para recuperar: guardá-los só enche o banco. */
+const EVENTOS_SEM_DIARIO = new Set([
+  "receipt",
+  "chatpresence",
+  "presence",
+  "pushname",
+  "historysync",
+  "groupinfo",
+  "connected",
+]);
+
+/** Limite de texto por campo: arquivos em base64 não entram no diário. */
+const LIMITE_CAMPO = 4_000;
+
+/** Remove anexos gigantes (base64) antes de guardar o evento. */
+function enxugarPayload(valor: unknown, profundidade = 0): unknown {
+  if (typeof valor === "string") {
+    return valor.length > LIMITE_CAMPO ? `[conteúdo grande removido: ${valor.length} caracteres]` : valor;
+  }
+  if (profundidade > 8 || valor === null || typeof valor !== "object") return valor;
+  if (Array.isArray(valor)) {
+    return valor.slice(0, 50).map((item) => enxugarPayload(item, profundidade + 1));
+  }
+  const saida: Record<string, unknown> = {};
+  for (const [chave, item] of Object.entries(valor as Record<string, unknown>)) {
+    saida[chave] = enxugarPayload(item, profundidade + 1);
+  }
+  return saida;
+}
+
 /**
  * Envelope de segurança do webhook: protege contra enxurrada, grava o evento
  * recebido e só então processa. Se o processamento falhar, o evento fica
