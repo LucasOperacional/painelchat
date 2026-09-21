@@ -70,7 +70,34 @@ export type Conversation = {
   department: { id: string; name: string; color: string } | null;
   whatsapp_config_id?: string | null;
   connection?: { id: string; label: string; instance_name: string; color: string } | null;
+  /** Última mensagem trocada no chat (enviada ou recebida), para a prévia na lista. */
+  last_message?: LastMessage | null;
 };
+
+export type LastMessage = {
+  id: string;
+  body: string;
+  direction: "inbound" | "outbound" | "system";
+  created_at: string;
+};
+
+/** Texto curto da última mensagem: mídia vira rótulo legível em vez de link. */
+export function previewMensagem(message: LastMessage | null | undefined) {
+  if (!message) return "";
+  const body = (message.body ?? "").trim();
+  if (!body) return "";
+  const semLabel = body
+    .replace(/🖼\s*Figurinha:\s*https?:\/\/\S+/g, "Figurinha")
+    .replace(/🖼\s*Imagem:\s*https?:\/\/\S+/g, "📷 Foto")
+    .replace(/🎵\s*(?:Áudio|Audio):\s*https?:\/\/\S+/g, "🎵 Áudio")
+    .replace(/🎬\s*(?:Vídeo|Video):\s*https?:\/\/\S+/g, "🎬 Vídeo")
+    .replace(/📍\s*Localização:\s*[^\n]+/g, "📍 Localização")
+    .replace(/📎\s*(.+?):\s*https?:\/\/\S+/g, "📎 $1")
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/\s*\n+\s*/g, " ")
+    .trim();
+  return semLabel || "Mensagem";
+}
 
 export type Transfer = {
   id: string;
