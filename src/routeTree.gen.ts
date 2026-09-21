@@ -39,6 +39,7 @@ import { Route as AuthenticatedMonitoramentoRouteImport } from './routes/_authen
 import { Route as AuthenticatedNfseRouteImport } from './routes/_authenticated/nfse'
 import { Route as AuthenticatedNfseGoianiaRouteImport } from './routes/_authenticated/nfse-goiania'
 import { Route as AuthenticatedNotasRouteImport } from './routes/_authenticated/notas'
+import { Route as AuthenticatedPostagensRouteImport } from './routes/_authenticated/postagens'
 import { Route as AuthenticatedProcessosRouteImport } from './routes/_authenticated/processos'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedSentinelaRouteImport } from './routes/_authenticated/sentinela'
@@ -215,6 +216,11 @@ const AuthenticatedNotasRoute = AuthenticatedNotasRouteImport.update({
   path: '/notas',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedPostagensRoute = AuthenticatedPostagensRouteImport.update({
+  id: '/postagens',
+  path: '/postagens',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedProcessosRoute = AuthenticatedProcessosRouteImport.update({
   id: '/processos',
   path: '/processos',
@@ -349,6 +355,7 @@ export interface FileRoutesByFullPath {
   '/nfse': typeof AuthenticatedNfseRoute
   '/nfse-goiania': typeof AuthenticatedNfseGoianiaRoute
   '/notas': typeof AuthenticatedNotasRoute
+  '/postagens': typeof AuthenticatedPostagensRoute
   '/processos': typeof AuthenticatedProcessosRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/sentinela': typeof AuthenticatedSentinelaRoute
@@ -400,6 +407,7 @@ export interface FileRoutesByTo {
   '/nfse': typeof AuthenticatedNfseRoute
   '/nfse-goiania': typeof AuthenticatedNfseGoianiaRoute
   '/notas': typeof AuthenticatedNotasRoute
+  '/postagens': typeof AuthenticatedPostagensRoute
   '/processos': typeof AuthenticatedProcessosRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/sentinela': typeof AuthenticatedSentinelaRoute
@@ -453,6 +461,7 @@ export interface FileRoutesById {
   '/_authenticated/nfse': typeof AuthenticatedNfseRoute
   '/_authenticated/nfse-goiania': typeof AuthenticatedNfseGoianiaRoute
   '/_authenticated/notas': typeof AuthenticatedNotasRoute
+  '/_authenticated/postagens': typeof AuthenticatedPostagensRoute
   '/_authenticated/processos': typeof AuthenticatedProcessosRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/sentinela': typeof AuthenticatedSentinelaRoute
@@ -506,6 +515,7 @@ export interface FileRouteTypes {
     | '/nfse'
     | '/nfse-goiania'
     | '/notas'
+    | '/postagens'
     | '/processos'
     | '/relatorios'
     | '/sentinela'
@@ -557,6 +567,7 @@ export interface FileRouteTypes {
     | '/nfse'
     | '/nfse-goiania'
     | '/notas'
+    | '/postagens'
     | '/processos'
     | '/relatorios'
     | '/sentinela'
@@ -609,6 +620,7 @@ export interface FileRouteTypes {
     | '/_authenticated/nfse'
     | '/_authenticated/nfse-goiania'
     | '/_authenticated/notas'
+    | '/_authenticated/postagens'
     | '/_authenticated/processos'
     | '/_authenticated/relatorios'
     | '/_authenticated/sentinela'
@@ -861,6 +873,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedNotasRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/postagens': {
+      id: '/_authenticated/postagens'
+      path: '/postagens'
+      fullPath: '/postagens'
+      preLoaderRoute: typeof AuthenticatedPostagensRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/processos': {
       id: '/_authenticated/processos'
       path: '/processos'
@@ -1031,6 +1050,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedNfseRoute: typeof AuthenticatedNfseRoute
   AuthenticatedNfseGoianiaRoute: typeof AuthenticatedNfseGoianiaRoute
   AuthenticatedNotasRoute: typeof AuthenticatedNotasRoute
+  AuthenticatedPostagensRoute: typeof AuthenticatedPostagensRoute
   AuthenticatedProcessosRoute: typeof AuthenticatedProcessosRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
   AuthenticatedSentinelaRoute: typeof AuthenticatedSentinelaRoute
@@ -1069,6 +1089,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedNfseRoute: AuthenticatedNfseRoute,
   AuthenticatedNfseGoianiaRoute: AuthenticatedNfseGoianiaRoute,
   AuthenticatedNotasRoute: AuthenticatedNotasRoute,
+  AuthenticatedPostagensRoute: AuthenticatedPostagensRoute,
   AuthenticatedProcessosRoute: AuthenticatedProcessosRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
   AuthenticatedSentinelaRoute: AuthenticatedSentinelaRoute,
