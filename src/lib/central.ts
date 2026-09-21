@@ -152,13 +152,38 @@ const CONVERSATION_SELECT =
   "*, contact:contacts(id, name, phone, notes, avatar_url, wa_jid), queue:queues(id, name, department_id, color), department:departments(id, name, color), connection:whatsapp_config(id, label, instance_name, color)";
 
 export async function fetchConversations() {
-  return unwrap<Conversation[]>(
+  const conversations = unwrap<Conversation[]>(
     await supabase
       .from("conversations")
       .select(CONVERSATION_SELECT)
       .order("last_message_at", { ascending: false })
       .limit(300),
   ) as Conversation[];
+
+  if (conversations.length === 0) return conversations;
+
+  // Regra: a lista sempre mostra a última mensagem (enviada ou recebida) de cada chat.
+  const ids = conversations.map((c) => c.id);
+  const { data: recentes } = await supabase
+    .from("messages")
+    .select("id, conversation_id, body, direction, created_at")
+    .in("conversation_id", ids)
+    .order("created_at", { ascending: false })
+    .limit(3000);
+
+  const ultimas = new Map<string, LastMessage>();
+  for (const row of (recentes ?? []) as (LastMessage & { conversation_id: string })[]) {
+    if (!ultimas.has(row.conversation_id)) {
+      ultimas.set(row.conversation_id, {
+        id: row.id,
+        body: row.body,
+        direction: row.direction,
+        created_at: row.created_at,
+      });
+    }
+  }
+
+  return conversations.map((c) => ({ ...c, last_message: ultimas.get(c.id) ?? null }));
 }
 
 
