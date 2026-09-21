@@ -574,12 +574,14 @@ export async function processarComandoAdmin(input: {
   if (ehEcoAutomatico(input.body)) return true; // eco da nossa resposta: encerra sem reenviar
   // Do próprio aparelho, apenas comandos curtos e explícitos.
   if (input.fromMe && !ehComandoEstrito(input.body)) return true;
+  // Somente comandos conhecidos ("oi", "menu", "status" e as opções do menu).
+  // Qualquer outra conversa segue como mensagem comum, sem abrir o menu.
+  const comando = interpretar(input.body ?? "");
+  if (!comando) return false;
   if (!liberarComando(input.phoneDigits)) {
     console.log("[admin-remoto] comando ignorado pela trava de 5s");
     return true;
   }
-  const comando = interpretar(input.body ?? "");
-  if (!comando) return false;
 
 
   const { sendWhatsappText } = await import("@/lib/inbound.server");
