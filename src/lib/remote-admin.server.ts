@@ -127,7 +127,22 @@ function limpar(text: string) {
     .toLowerCase();
 }
 
-type Comando = "menu" | "reiniciar" | "ligar" | "desligar" | "bloquear" | "status";
+type Comando =
+  | "menu"
+  | "menu_completo"
+  | "reiniciar"
+  | "ligar"
+  | "desligar"
+  | "bloquear"
+  | "alternar"
+  | "status"
+  | "sentinela"
+  | "sentinela_ligar"
+  | "sentinela_pausar"
+  | "ia"
+  | "ia_ligar"
+  | "ia_pausar";
+
 
 /**
  * Detecta o eco das nossas próprias respostas automáticas. Sem isso, uma
