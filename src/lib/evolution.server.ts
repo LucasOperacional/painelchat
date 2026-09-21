@@ -415,13 +415,18 @@ export async function evolutionConnectInstance(
   target: InstanceTarget,
   input: { webhookUrl: string; phone?: string; immediate?: boolean },
 ): Promise<{ qrcode: string | null; pairingCode: string | null; jid: string }> {
-  const attempt = async (events: readonly string[]) => {
+  const attempt = async (events: readonly string[], byEvents: boolean) => {
     const body: Record<string, unknown> = {
       webhookUrl: input.webhookUrl,
       // Formato exato da documentação: apenas "subscribe" (array).
       subscribe: [...events],
-
     };
+    // Servidores baseados em eventos aceitam a entrega separada por evento.
+    if (byEvents) {
+      body["webhook_by_events"] = true;
+      body["webhookByEvents"] = true;
+      body["events"] = [...events];
+    }
     if (input.phone) body["phone"] = input.phone;
     if (input.immediate) body["immediate"] = true;
 
@@ -444,16 +449,25 @@ export async function evolutionConnectInstance(
     Qrcode?: string;
     Code?: string;
   }>;
+  // Tenta, em ordem: lista do Evolution Go → lista por eventos → "ALL".
+  let aceitos: readonly string[] = EVOLUTION_SUBSCRIBE;
   try {
-    res = await attempt(EVOLUTION_SUBSCRIBE);
+    res = await attempt(EVOLUTION_SUBSCRIBE, false);
   } catch (error) {
     // "Eventos para Webhook inválidos": o servidor recusou a lista completa.
     if (!isWebhookEventsError(error)) throw error;
-    res = await attempt(EVOLUTION_SUBSCRIBE_FALLBACK);
+    try {
+      aceitos = EVOLUTION_SUBSCRIBE_V2;
+      res = await attempt(EVOLUTION_SUBSCRIBE_V2, true);
+    } catch (erroV2) {
+      if (!isWebhookEventsError(erroV2)) throw erroV2;
+      aceitos = EVOLUTION_SUBSCRIBE_FALLBACK;
+      res = await attempt(EVOLUTION_SUBSCRIBE_FALLBACK, false);
+    }
   }
 
-  // Guarda o endereço confirmado do webhook: se a Evolution Go cair, a central
-  // sabe que precisa reafirmar os eventos na volta.
+  // Guarda o endereço e os eventos confirmados: se a Evolution Go cair ou a
+  // lista mudar, a central sabe que precisa reafirmar o webhook na volta.
   if (target.configId) {
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -461,6 +475,7 @@ export async function evolutionConnectInstance(
         .from("whatsapp_config")
         .update({
           webhook_url: res?.data?.webhookUrl || input.webhookUrl,
+          webhook_events: webhookEventsSignature(aceitos),
           webhook_synced_at: new Date().toISOString(),
         } as never)
         .eq("id", target.configId);
