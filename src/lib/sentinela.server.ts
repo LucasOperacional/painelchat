@@ -255,6 +255,29 @@ export async function guardarWebhook(
     payload = null;
   }
 
+  // A WuzAPI envia formulário (jsonData + arquivo). Sem esta leitura o evento
+  // não entrava no diário e não podia ser reprocessado — mensagens se perdiam.
+  const tipoConteudo = request.headers.get("content-type") ?? "";
+  if (!payload && corpo && /multipart\/form-data|application\/x-www-form-urlencoded/i.test(tipoConteudo)) {
+    try {
+      const form = await new Request(request.url, {
+        method: "POST",
+        headers: request.headers,
+        body: corpo,
+      }).formData();
+      const jsonData = form.get("jsonData");
+      const base = typeof jsonData === "string" && jsonData ? JSON.parse(jsonData) : {};
+      const bruto = base as Record<string, unknown>;
+      for (const [chave, valor] of form.entries()) {
+        if (chave === "jsonData" || typeof valor !== "string" || !valor) continue;
+        if (bruto[chave] === undefined) bruto[chave] = valor;
+      }
+      payload = bruto;
+    } catch (error) {
+      console.error("[sentinela] formulário de webhook ilegível:", (error as Error).message);
+    }
+  }
+
   let registroId: string | null = null;
   if (payload) {
     try {
