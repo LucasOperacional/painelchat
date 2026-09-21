@@ -106,6 +106,25 @@ function limpar(text: string) {
 
 type Comando = "menu" | "reiniciar" | "ligar" | "desligar" | "bloquear" | "status";
 
+/**
+ * Detecta o eco das nossas próprias respostas automáticas. Sem isso, uma
+ * resposta enviada ao administrador voltaria como mensagem "fromMe" e seria
+ * interpretada como novo comando, gerando respostas em loop.
+ */
+export function ehEcoAutomatico(body: string | null | undefined) {
+  const texto = limpar(body ?? "");
+  if (!texto) return false;
+  return (
+    texto.includes("controle do sistema") ||
+    texto.includes("reiniciando o sistema") ||
+    texto.includes("reinicio concluido") ||
+    texto.includes("sistema *ligado*") ||
+    texto.includes("sistema *desligado*") ||
+    texto.includes("sistema *bloqueado*") ||
+    texto.includes("nao consegui executar")
+  );
+}
+
 export { ADMIN_BOT_NAME } from "@/lib/admin-bot";
 
 /**
@@ -228,6 +247,7 @@ export async function processarComandoAdmin(input: {
   requestUrl?: string | null;
 }): Promise<boolean> {
   if (!(await ehAdminRemoto(input.phoneDigits))) return false;
+  if (ehEcoAutomatico(input.body)) return true; // eco da nossa resposta: encerra sem reenviar
   const comando = interpretar(input.body ?? "");
   if (!comando) return false;
 
