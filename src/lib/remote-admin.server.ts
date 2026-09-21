@@ -255,12 +255,26 @@ export function liberarComando(chave: string) {
 export { ADMIN_BOT_NAME } from "@/lib/admin-bot";
 
 /**
- * Reconhecimento automático: qualquer mensagem do administrador vira comando.
- * O que não for reconhecido devolve o menu, então ele nunca fica sem resposta.
+ * Palavras que abrem o menu. Somente estas (além dos números das opções já
+ * exibidas) são aceitas; qualquer outra conversa é ignorada.
  */
-function interpretar(body: string): Comando {
+const ABERTURA_MENU = new Set(["oi", "menu", "status"]);
+
+export function ehAberturaMenu(body: string | null | undefined) {
+  const texto = limpar(body ?? "")
+    .replace(/^[#/*.\s-]+/, "")
+    .replace(/[.!?]+$/, "")
+    .trim();
+  return ABERTURA_MENU.has(texto);
+}
+
+/**
+ * Reconhecimento de comandos do administrador. Retorna `null` quando o texto
+ * não é um comando conhecido — nesse caso nada é respondido.
+ */
+function interpretar(body: string): Comando | null {
   const texto = limpar(body).replace(/^[#/*.\s-]+/, "").replace(/[.!?]+$/, "");
-  if (!texto) return "menu";
+  if (!texto) return null;
 
   // Sentinela e IA aceitam sub-comandos (ligar/pausar).
   if (/^sentinela|^seguranca/.test(texto)) {
