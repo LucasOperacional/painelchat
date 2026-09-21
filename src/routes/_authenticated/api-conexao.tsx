@@ -13,6 +13,11 @@ import {
   salvarChaveDivulgaZap,
   statusChaveDivulgaZap,
 } from "@/lib/divulgazap.functions";
+import {
+  getSystemControl,
+  restartSystemConnections,
+  saveSystemControl,
+} from "@/lib/system-control.functions";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -294,6 +299,8 @@ function ApiConnectionPage() {
         </div>
       </section>
 
+      <RemoteAdminSection />
+
       <DivulgaZapKeySection />
 
       <section className="space-y-3 rounded-lg border border-border bg-card p-4">
@@ -314,6 +321,117 @@ function ApiConnectionPage() {
         </ul>
       </section>
     </div>
+  );
+}
+
+function RemoteAdminSection() {
+  const queryClient = useQueryClient();
+  const controlFn = useServerFn(getSystemControl);
+  const saveFn = useServerFn(saveSystemControl);
+  const restartFn = useServerFn(restartSystemConnections);
+  const [phone, setPhone] = useState("");
+
+  const control = useQuery({ queryKey: ["system-control"], queryFn: () => controlFn({}) });
+
+  useEffect(() => {
+    if (control.data?.adminPhone) setPhone(control.data.adminPhone);
+  }, [control.data?.adminPhone]);
+
+  const savePhone = useMutation({
+    mutationFn: () => saveFn({ data: { adminPhone: phone } }),
+    onSuccess: () => {
+      toast.success("Número do administrador atualizado");
+      void queryClient.invalidateQueries({ queryKey: ["system-control"] });
+    },
+    onError: (e: Error) => toast.error("Não foi possível salvar", { description: e.message }),
+  });
+
+  const setState = useMutation({
+    mutationFn: (state: "ligado" | "desligado" | "bloqueado") => saveFn({ data: { state } }),
+    onSuccess: () => {
+      toast.success("Situação do sistema atualizada");
+      void queryClient.invalidateQueries({ queryKey: ["system-control"] });
+    },
+    onError: (e: Error) => toast.error("Não foi possível alterar", { description: e.message }),
+  });
+
+  const restart = useMutation({
+    mutationFn: () => restartFn({}),
+    onSuccess: (res) => {
+      toast.success("Conexões reiniciadas", {
+        description: (res as { linhas: string[] }).linhas.join("\n"),
+      });
+      void queryClient.invalidateQueries({ queryKey: ["whatsapp-status"] });
+      void queryClient.invalidateQueries({ queryKey: ["whatsapp-devices"] });
+    },
+    onError: (e: Error) => toast.error("Falha ao reiniciar", { description: e.message }),
+  });
+
+  const state = control.data?.state ?? "ligado";
+
+  return (
+    <section className="space-y-4 rounded-lg border border-border bg-card p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">Controle do sistema</h2>
+          <p className="text-xs text-muted-foreground">
+            Reinicie as conexões e defina o número que pode comandar a central pelo WhatsApp.
+          </p>
+        </div>
+        <Badge variant={state === "ligado" ? "default" : "secondary"}>{state}</Badge>
+      </div>
+
+      <div className="space-y-2 md:max-w-md">
+        <Label htmlFor="adminPhone">Número do administrador (só ele pode comandar)</Label>
+        <div className="flex items-center gap-2">
+          <Input
+            id="adminPhone"
+            inputMode="numeric"
+            placeholder="5562910002123"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+          />
+          <Button
+            variant="outline"
+            onClick={() => savePhone.mutate()}
+            disabled={savePhone.isPending || phone.replace(/\D/g, "").length < 10}
+          >
+            <Save className="mr-1.5 size-4" /> Salvar
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Esse número recebe o menu ao enviar “menu”, “#admin” ou “#sistema”. Nenhum outro número
+          consegue executar as ações.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button onClick={() => restart.mutate()} disabled={restart.isPending}>
+          <PlugZap className="mr-1.5 size-4" /> Reiniciar conexões e APIs
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => setState.mutate("ligado")}
+          disabled={setState.isPending || state === "ligado"}
+        >
+          Ligar sistema
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => setState.mutate("desligado")}
+          disabled={setState.isPending || state === "desligado"}
+        >
+          Desligar
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => setState.mutate("bloqueado")}
+          disabled={setState.isPending || state === "bloqueado"}
+        >
+          Bloquear (manutenção)
+        </Button>
+      </div>
+    </section>
   );
 }
 

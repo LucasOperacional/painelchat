@@ -910,6 +910,23 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
           return Response.json({ received: true, ignored: "unsupported" });
         }
 
+        // Controle remoto: só o número autorizado dispara o menu do sistema.
+        const { processarComandoAdmin, sistemaAtivo } = await import("@/lib/remote-admin.server");
+        if (!isGroup && !fromMe) {
+          const tratado = await processarComandoAdmin({
+            phoneDigits,
+            body,
+            configId: config.id,
+            requestUrl: request.url,
+          });
+          if (tratado) return Response.json({ received: true, admin: true });
+        }
+
+        // Sistema desligado ou em manutenção: nada entra no atendimento.
+        if (!(await sistemaAtivo())) {
+          return Response.json({ received: true, ignored: "sistema-pausado" });
+        }
+
         // Fluxo único de entrada: contato, conversa, saudação, chatbot e IA.
         const { recordInboundMessage } = await import("@/lib/inbound.server");
         const { withRetry } = await import("@/lib/retry.server");

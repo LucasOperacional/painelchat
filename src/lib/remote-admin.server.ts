@@ -1,0 +1,252 @@
+/**
+ * Controle remoto da central pelo WhatsApp.
+ *
+ * Somente o número de administrador cadastrado em `system_control.admin_phone`
+ * pode abrir o menu e executar as ações. Qualquer outro número é tratado como
+ * um contato comum e nunca dispara comandos.
+ */
+
+import { toBrazilPhone, digitsOnly } from "@/lib/phone";
+
+export const ADMIN_PHONE_PADRAO = "5562910002123";
+
+export type EstadoSistema = "ligado" | "desligado" | "bloqueado";
+
+export type ControleSistema = {
+  adminPhone: string;
+  state: EstadoSistema;
+  updatedAt: string | null;
+};
+
+let cache: { value: ControleSistema; at: number } | null = null;
+
+/** Estado atual do sistema (cache curto para não pesar no webhook). */
+export async function controleSistema(): Promise<ControleSistema> {
+  if (cache && Date.now() - cache.at < 10_000) return cache.value;
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data } = await supabaseAdmin
+    .from("system_control")
+    .select("admin_phone, state, updated_at")
+    .eq("id", true)
+    .maybeSingle();
+  const value: ControleSistema = {
+    adminPhone: normalizarNumero(data?.admin_phone) ?? ADMIN_PHONE_PADRAO,
+    state: (data?.state as EstadoSistema) ?? "ligado",
+    updatedAt: data?.updated_at ?? null,
+  };
+  cache = { value, at: Date.now() };
+  return value;
+}
+
+export function invalidarControleSistema() {
+  cache = null;
+}
+
+/** Normaliza para 55DDDNÚMERO quando possível; senão, só os dígitos. */
+export function normalizarNumero(value: string | null | undefined) {
+  const brasil = toBrazilPhone(value);
+  if (brasil) return brasil;
+  const digits = digitsOnly(value ?? "");
+  return digits || null;
+}
+
+/** O sistema aceita atender/registrar mensagens agora? */
+export async function sistemaAtivo() {
+  return (await controleSistema()).state === "ligado";
+}
+
+/** É exatamente o número autorizado do administrador? */
+export async function ehAdminRemoto(phoneDigits: string | null | undefined) {
+  const numero = normalizarNumero(phoneDigits);
+  if (!numero) return false;
+  const { adminPhone } = await controleSistema();
+  return numero === adminPhone;
+}
+
+const MENU = [
+  "*Central — Controle do sistema*",
+  "",
+  "1 - Reiniciar sistema completo e APIs",
+  "2 - Ligar sistema",
+  "3 - Desligar sistema",
+  "4 - Bloquear sistema (manutenção)",
+  "5 - Status do sistema",
+  "",
+  "Responda com o número da opção.",
+].join("\n");
+
+function limpar(text: string) {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+type Comando = "menu" | "reiniciar" | "ligar" | "desligar" | "bloquear" | "status" | null;
+
+function interpretar(body: string): Comando {
+  const texto = limpar(body);
+  if (!texto) return null;
+  if (["menu", "#admin", "#sistema", "0", "admin", "sistema"].includes(texto)) return "menu";
+  if (texto === "1" || /^reiniciar/.test(texto)) return "reiniciar";
+  if (texto === "2" || /^ligar/.test(texto)) return "ligar";
+  if (texto === "3" || /^desligar/.test(texto)) return "desligar";
+  if (texto === "4" || /^bloquear/.test(texto)) return "bloquear";
+  if (texto === "5" || /^status/.test(texto)) return "status";
+  return null;
+}
+
+async function definirEstado(state: EstadoSistema) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { error } = await supabaseAdmin
+    .from("system_control")
+    .upsert({ id: true, state, updated_at: new Date().toISOString() });
+  if (error) throw new Error(error.message);
+  invalidarControleSistema();
+}
+
+/** Reinicia conexões e instâncias: reaponta webhook e refaz a sessão. */
+export async function reiniciarConexoes(requestUrl?: string | null) {
+  const {
+    listEvolutionConfigs,
+    ensureEvolutionWebhook,
+    evolutionGetStatus,
+    invalidateProviderCache,
+    invalidateEvolutionSessionCache,
+  } = await import("@/lib/evolution.server");
+
+  invalidateProviderCache();
+  invalidateEvolutionSessionCache();
+
+  const devices = await listEvolutionConfigs(null);
+  const linhas: string[] = [];
+  for (const device of devices) {
+    const nome = device.label || device.instance_name || device.id.slice(0, 8);
+    try {
+      await ensureEvolutionWebhook(device.id, { requestUrl: requestUrl ?? null, force: true });
+      const status = await evolutionGetStatus({
+        baseUrl: device.base_url,
+        instanceId: device.instance_id,
+        configId: device.id,
+        provider: device.provider,
+      });
+      linhas.push(`• ${nome}: ${status.connected ? "conectado" : "aguardando conexão"}`);
+    } catch (error) {
+      linhas.push(`• ${nome}: falha — ${(error as Error).message}`);
+    }
+  }
+  if (!devices.length) linhas.push("• nenhum dispositivo cadastrado");
+  return linhas;
+}
+
+/** Resumo de conexões, instâncias e filas. */
+export async function resumoStatus() {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { listEvolutionConfigs, evolutionGetStatus } = await import("@/lib/evolution.server");
+  const { state, adminPhone } = await controleSistema();
+
+  const devices = await listEvolutionConfigs(null);
+  const conexoes: string[] = [];
+  for (const device of devices) {
+    const nome = device.label || device.instance_name || device.id.slice(0, 8);
+    try {
+      const status = await evolutionGetStatus({
+        baseUrl: device.base_url,
+        instanceId: device.instance_id,
+        configId: device.id,
+        provider: device.provider,
+      });
+      conexoes.push(`• ${nome}: ${status.connected ? "conectado" : "desconectado"}`);
+    } catch (error) {
+      conexoes.push(`• ${nome}: erro — ${(error as Error).message}`);
+    }
+  }
+  if (!devices.length) conexoes.push("• nenhum dispositivo cadastrado");
+
+  const { count: aguardando } = await supabaseAdmin
+    .from("conversations")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "waiting");
+  const { count: emAtendimento } = await supabaseAdmin
+    .from("conversations")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "open");
+
+  return [
+    "*Status da central*",
+    `Sistema: ${state}`,
+    `Administrador: ${adminPhone}`,
+    "",
+    "*Conexões*",
+    ...conexoes,
+    "",
+    "*Filas*",
+    `• aguardando: ${aguardando ?? 0}`,
+    `• em atendimento: ${emAtendimento ?? 0}`,
+  ].join("\n");
+}
+
+/**
+ * Intercepta a mensagem do administrador remoto.
+ * Devolve `true` quando a mensagem foi tratada como comando (e não deve virar
+ * conversa de atendimento).
+ */
+export async function processarComandoAdmin(input: {
+  phoneDigits: string;
+  body: string;
+  configId?: string | null;
+  requestUrl?: string | null;
+}): Promise<boolean> {
+  if (!(await ehAdminRemoto(input.phoneDigits))) return false;
+  const comando = interpretar(input.body ?? "");
+  if (!comando) return false;
+
+  const { sendWhatsappText } = await import("@/lib/inbound.server");
+  const responder = async (text: string) => {
+    try {
+      await sendWhatsappText({
+        phoneDigits: input.phoneDigits,
+        text,
+        configId: input.configId ?? null,
+      });
+    } catch (error) {
+      console.error("[admin-remoto] falha ao responder:", (error as Error).message);
+    }
+  };
+
+  try {
+    if (comando === "menu") {
+      const { state } = await controleSistema();
+      await responder(`${MENU}\n\nSituação atual: *${state}*`);
+      return true;
+    }
+    if (comando === "reiniciar") {
+      await responder("Reiniciando o sistema e as APIs...");
+      const linhas = await reiniciarConexoes(input.requestUrl ?? null);
+      await responder(["*Reinício concluído*", ...linhas].join("\n"));
+      return true;
+    }
+    if (comando === "ligar") {
+      await definirEstado("ligado");
+      await responder("✅ Sistema *ligado*. Atendimento e chatbots ativos.");
+      return true;
+    }
+    if (comando === "desligar") {
+      await definirEstado("desligado");
+      await responder("⏸️ Sistema *desligado*. Recebimento, atendimento e chatbots pausados.");
+      return true;
+    }
+    if (comando === "bloquear") {
+      await definirEstado("bloqueado");
+      await responder("🔒 Sistema *bloqueado* (modo manutenção).");
+      return true;
+    }
+    await responder(await resumoStatus());
+    return true;
+  } catch (error) {
+    console.error("[admin-remoto] falha no comando:", (error as Error).message);
+    await responder(`Não consegui executar: ${(error as Error).message}`);
+    return true;
+  }
+}
