@@ -916,9 +916,10 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
         // isso todos os identificadores do evento entram na verificação.
         const { processarComandoAdmin, sistemaAtivo, ehAdminRemoto, ehEcoAutomatico } =
           await import("@/lib/remote-admin.server");
-        // Eco de resposta automática: registra como mensagem nossa, sem comando.
-        if (fromMe && ehEcoAutomatico(body)) {
-          console.log(`[webhook] eco automatico ignorado como comando: ${body.slice(0, 40)}`);
+        // Eco de resposta automática: segue como mensagem nossa, nunca como comando.
+        const ecoAutomatico = fromMe && ehEcoAutomatico(body);
+        if (ecoAutomatico) {
+          console.log(`[webhook] eco automatico (nao vira comando): ${body.slice(0, 40)}`);
         }
         const adminCandidates = [
           phoneDigits,
