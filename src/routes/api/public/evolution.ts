@@ -1116,6 +1116,7 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
               participantName: isGroup && !fromMe ? (info.PushName ?? null) : null,
               participantPhone: isGroup && !fromMe ? participantPhone : null,
               fromMe,
+              skipAutomations: semAutomacoes,
               mentionsMe:
                 isGroup && !fromMe
                   ? mentionsOwnNumber(message, body, (config as { phone?: string }).phone ?? "")
