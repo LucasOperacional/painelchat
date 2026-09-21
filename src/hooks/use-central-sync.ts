@@ -44,6 +44,7 @@ export function useCentralSync() {
 
   useEffect(() => {
     let channel: RealtimeChannel | null = null;
+    let canalCadastros: RealtimeChannel | null = null;
     let ativo = true;
     let ultimoSinal = Date.now();
     let reconectando: number | null = null;
@@ -171,8 +172,11 @@ export function useCentralSync() {
       reconectando = window.setTimeout(() => {
         reconectando = null;
         const antigo = channel;
+        const antigoCadastros = canalCadastros;
         channel = null;
+        canalCadastros = null;
         if (antigo) void supabase.removeChannel(antigo);
+        if (antigoCadastros) void supabase.removeChannel(antigoCadastros);
         ultimoSinal = Date.now();
         conectar();
       }, 2_000);
@@ -210,6 +214,7 @@ export function useCentralSync() {
       document.removeEventListener("visibilitychange", onVisible);
       auth.subscription.unsubscribe();
       if (channel) void supabase.removeChannel(channel);
+      if (canalCadastros) void supabase.removeChannel(canalCadastros);
     };
   }, [queryClient]);
 }
