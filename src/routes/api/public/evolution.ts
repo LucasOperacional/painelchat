@@ -1018,14 +1018,16 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
           } else body = failedMediaBody("document");
         }
 
-        // Nunca registra o aviso genérico na conversa: se nada pôde ser lido,
-        // o evento é apenas descartado.
+        // Nada legível no evento: registra o motivo para rastreio e encerra.
         if (!body || isUnsupportedText(body)) {
+          console.warn(
+            `[webhook] conteudo nao legivel: evento=${event} device=${config.id} id=${info.ID ?? "-"} telefone=${phoneDigits}`,
+          );
           return Response.json({ received: true, ignored: "unsupported" });
         }
 
         // Controle remoto: só mensagens externas do número autorizado disparam
-        // o menu. Mensagens fromMe já foram encerradas pelo kill switch acima.
+        // o menu. Mensagens do próprio aparelho nunca viram comando aqui.
         const {
           processarComandoAdmin,
           sistemaAtivo,
@@ -1045,23 +1047,34 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
           jidToPhone(chatRaw),
         ].filter(Boolean);
         let comandoPhone = "";
-        for (const cand of adminCandidates) {
-          if (await ehAdminRemoto(cand)) {
-            comandoPhone = cand;
-            break;
+        if (!fromMe) {
+          for (const cand of adminCandidates) {
+            try {
+              if (await ehAdminRemoto(cand)) {
+                comandoPhone = cand;
+                break;
+              }
+            } catch (error) {
+              console.error("[webhook] falha ao checar admin:", (error as Error).message);
+            }
           }
         }
         if (!isGroup && comandoPhone && !ecoAutomatico) {
           console.log(
             `[webhook] comando admin de=${comandoPhone} fromMe=${fromMe} texto=${body.slice(0, 60)}`,
           );
-          const tratado = await processarComandoAdmin({
-            phoneDigits: comandoPhone,
-            body,
-            configId: config.id,
-            requestUrl: request.url,
-          });
-          if (tratado) return Response.json({ received: true, admin: true });
+          try {
+            const tratado = await processarComandoAdmin({
+              phoneDigits: comandoPhone,
+              body,
+              configId: config.id,
+              requestUrl: request.url,
+            });
+            if (tratado) return Response.json({ received: true, admin: true });
+          } catch (error) {
+            // Uma falha do controle remoto nunca impede o registro da mensagem.
+            console.error("[webhook] falha no comando admin:", (error as Error).message);
+          }
         } else if (!isGroup && comandoPhone) {
           console.log(
             `[webhook] mensagem do admin ignorada como comando (eco=${ecoAutomatico} fromMe=${fromMe} len=${body.length})`,
@@ -1072,10 +1085,17 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
           );
         }
 
-        // Sistema desligado ou em manutenção: nada entra no atendimento.
-        if (!(await sistemaAtivo())) {
-          return Response.json({ received: true, ignored: "sistema-pausado" });
+        // Sistema desligado ou em manutenção: a mensagem continua sendo gravada
+        // no histórico (perda zero), apenas sem saudação, chatbot ou IA.
+        let ativo = true;
+        try {
+          ativo = await sistemaAtivo();
+        } catch (error) {
+          console.error("[webhook] falha ao ler estado do sistema:", (error as Error).message);
         }
+        // Mensagens do próprio aparelho e mensagens com o sistema pausado entram
+        // apenas no histórico, sem automações.
+        const semAutomacoes = fromMe || !ativo;
 
         // Fluxo único de entrada: contato, conversa, saudação, chatbot e IA.
         const { recordInboundMessage } = await import("@/lib/inbound.server");
