@@ -417,7 +417,7 @@ function PostagensPage() {
                     <SelectItem value="auto">Automático (primeiro conectado)</SelectItem>
                     {(devices.data ?? []).map((d) => (
                       <SelectItem key={d.id} value={d.id}>
-                        {d.label || d.instanceName || "WhatsApp"} —{" "}
+                        {d.label || d.phone || "WhatsApp"} —{" "}
                         {d.provider === "wuzapi" ? "WuzAPI" : "Evolution Go"}
                       </SelectItem>
                     ))}
