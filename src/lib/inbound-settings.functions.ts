@@ -28,7 +28,7 @@ export const saveInboundSettings = createServerFn({ method: "POST" })
       .select("role")
       .eq("user_id", ctx.userId);
     if (rolesError) throw new Error(rolesError.message);
-    if (!((roles ?? []) as { role: string }[]).some((r) => r.role === "admin")) {
+    if (!((roles ?? []) as { role: string }[]).some((r) => (r.role === "admin" || r.role === "superadmin"))) {
       throw new Error("Apenas administradores podem alterar esta configuração.");
     }
 

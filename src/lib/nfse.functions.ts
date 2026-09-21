@@ -14,7 +14,7 @@ async function requireAdmin(context: {
     .select("role")
     .eq("user_id", context.userId);
   if (error) throw new Error(error.message);
-  if (!((data ?? []) as { role: string }[]).some((r) => r.role === "admin")) {
+  if (!((data ?? []) as { role: string }[]).some((r) => (r.role === "admin" || r.role === "superadmin"))) {
     throw new Error("Apenas administradores podem configurar a emissão de notas fiscais.");
   }
 }

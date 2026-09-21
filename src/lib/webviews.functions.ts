@@ -26,7 +26,7 @@ async function assertAdmin(ctx: Ctx) {
     .select("role")
     .eq("user_id", ctx.userId);
   if (error) throw new Error(error.message);
-  if (!((roles ?? []) as { role: string }[]).some((r) => r.role === "admin")) {
+  if (!((roles ?? []) as { role: string }[]).some((r) => (r.role === "admin" || r.role === "superadmin"))) {
     throw new Error("Apenas administradores podem gerenciar os sites.");
   }
 }

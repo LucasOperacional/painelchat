@@ -51,7 +51,7 @@ async function requireAdmin(context: { supabase: AnyClient; userId: string }) {
     .select("role")
     .eq("user_id", context.userId);
   if (error) throw new Error(error.message);
-  if (!((data ?? []) as { role: string }[]).some((r) => r.role === "admin")) {
+  if (!((data ?? []) as { role: string }[]).some((r) => (r.role === "admin" || r.role === "superadmin"))) {
     throw new Error("Apenas administradores podem usar o backup.");
   }
 }
