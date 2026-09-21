@@ -520,6 +520,10 @@ export async function recordInboundMessage(input: {
       configId: activeDeviceId,
     });
   }
+  } catch (error) {
+    // A mensagem permanece gravada; apenas a automação falhou.
+    console.error("[inbound] automação pós-registro falhou:", (error as Error).message);
+  }
 
   return { conversationId, contactId };
 }
