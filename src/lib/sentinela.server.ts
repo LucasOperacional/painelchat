@@ -385,22 +385,36 @@ async function reprocessarEvento(linha: Record<string, unknown>): Promise<boolea
   const { processarWebhookEvolution } = await import("@/routes/api/public/evolution");
   const url = String(linha["url"] || "https://central.local/api/public/evolution");
   const token = String(linha["token"] ?? "");
+  const db = await admin();
+
+  // A fila carrega apenas os campos leves; o conteúdo vem só na hora de reprocessar.
+  let payload = linha["payload"];
+  if (payload === undefined) {
+    const { data } = await db
+      .from("webhook_eventos")
+      .select("payload")
+      .eq("id", String(linha["id"]))
+      .maybeSingle();
+    payload = (data as { payload?: unknown } | null)?.payload ?? {};
+  }
+
   const request = new Request(url, {
     method: "POST",
     headers: { "content-type": "application/json", "x-webhook-token": token },
-    body: JSON.stringify(linha["payload"] ?? {}),
+    body: JSON.stringify(payload ?? {}),
   });
 
-  const db = await admin();
   const tentativas = Number(linha["tentativas"] ?? 0) + 1;
   try {
     const resposta = await processarWebhookEvolution(request);
     const ok = resposta.status < 400;
+    // Token recusado (401/403) nunca vai funcionar numa nova tentativa: encerra a fila.
+    const definitivo = resposta.status === 401 || resposta.status === 403;
     await db
       .from("webhook_eventos")
       .update({
         status: ok ? "ok" : "erro",
-        tentativas,
+        tentativas: definitivo ? 5 : tentativas,
         http_status: resposta.status,
         erro: ok ? null : `HTTP ${resposta.status}`,
         processado_em: new Date().toISOString(),
