@@ -1,3 +1,4 @@
+import { ADMIN_BOT_NAME } from "@/lib/admin-bot";
 // Motor do chatbot de auto atendimento (menu numérico + IA).
 // Uso exclusivo no servidor.
 
@@ -43,6 +44,7 @@ export async function loadActiveChatbot(): Promise<{
     .from("chatbots")
     .select("*")
     .eq("is_active", true)
+    .neq("name", ADMIN_BOT_NAME)
     .order("created_at")
     .limit(1)
     .maybeSingle();
