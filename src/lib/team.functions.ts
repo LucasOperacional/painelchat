@@ -23,7 +23,7 @@ export const createTeamUser = createServerFn({ method: "POST" })
       .select("role")
       .eq("user_id", context.userId);
     if (roleError) throw new Error(roleError.message);
-    if (!(myRoles ?? []).some((r) => r.role === "admin")) {
+    if (!(myRoles ?? []).some((r) => (r.role === "admin" || r.role === "superadmin"))) {
       throw new Error("Apenas administradores podem cadastrar usuários.");
     }
 
@@ -94,7 +94,7 @@ export const updateTeamUser = createServerFn({ method: "POST" })
       .select("role")
       .eq("user_id", context.userId);
     if (roleError) throw new Error(roleError.message);
-    if (!(myRoles ?? []).some((r) => r.role === "admin")) {
+    if (!(myRoles ?? []).some((r) => (r.role === "admin" || r.role === "superadmin"))) {
       throw new Error("Apenas administradores podem editar usuários.");
     }
 
