@@ -199,19 +199,18 @@ export function ehEcoAutomatico(body: string | null | undefined) {
 
 /** Comandos aceitos quando a mensagem vem do próprio aparelho (fromMe). */
 const COMANDOS_ESTRITOS = new Set([
+  "oi",
   "menu",
+  "menu completo",
+  "status",
   "1",
   "2",
   "3",
   "4",
   "5",
   "6",
-  "#admin",
-  "#sistema",
-  "admin",
-  "sistema",
-  "status",
   "reiniciar",
+  "alternar",
   "ligar",
   "desligar",
   "bloquear",
@@ -255,12 +254,26 @@ export function liberarComando(chave: string) {
 export { ADMIN_BOT_NAME } from "@/lib/admin-bot";
 
 /**
- * Reconhecimento automático: qualquer mensagem do administrador vira comando.
- * O que não for reconhecido devolve o menu, então ele nunca fica sem resposta.
+ * Palavras que abrem o menu. Somente estas (além dos números das opções já
+ * exibidas) são aceitas; qualquer outra conversa é ignorada.
  */
-function interpretar(body: string): Comando {
+const ABERTURA_MENU = new Set(["oi", "menu", "status"]);
+
+export function ehAberturaMenu(body: string | null | undefined) {
+  const texto = limpar(body ?? "")
+    .replace(/^[#/*.\s-]+/, "")
+    .replace(/[.!?]+$/, "")
+    .trim();
+  return ABERTURA_MENU.has(texto);
+}
+
+/**
+ * Reconhecimento de comandos do administrador. Retorna `null` quando o texto
+ * não é um comando conhecido — nesse caso nada é respondido.
+ */
+function interpretar(body: string): Comando | null {
   const texto = limpar(body).replace(/^[#/*.\s-]+/, "").replace(/[.!?]+$/, "");
-  if (!texto) return "menu";
+  if (!texto) return null;
 
   // Sentinela e IA aceitam sub-comandos (ligar/pausar).
   if (/^sentinela|^seguranca/.test(texto)) {
@@ -274,19 +287,17 @@ function interpretar(body: string): Comando {
     return "ia";
   }
 
-  if (texto === "6" || /menu completo|tudo|todas as opcoes/.test(texto)) return "menu_completo";
-  if (["menu", "admin", "sistema", "0", "ajuda", "opcoes", "opcao", "start", "oi", "ola"].includes(texto)) {
-    return "menu";
-  }
-  if (texto === "1" || /reinicia|restart|reset|reconect/.test(texto)) return "reiniciar";
-  if (texto === "2" || /status|situacao|relatorio|conexoes|latencia|filas|apis/.test(texto)) return "status";
+  if (texto === "6" || texto === "menu completo") return "menu_completo";
+  if (texto === "oi" || texto === "menu") return "menu";
+  if (texto === "1" || texto === "reiniciar") return "reiniciar";
+  if (texto === "2" || texto === "status") return "status";
   if (texto === "3") return "sentinela";
   if (texto === "4") return "ia";
-  if (texto === "5" || /alternar|atendimento geral/.test(texto)) return "alternar";
-  if (/bloquea|manutenc/.test(texto)) return "bloquear";
-  if (/^lig(ar|a|o)?\b|ativar|retomar|^on$/.test(texto)) return "ligar";
-  if (/deslig|pausar|parar|^off$/.test(texto)) return "desligar";
-  return "menu";
+  if (texto === "5" || texto === "alternar") return "alternar";
+  if (texto === "bloquear") return "bloquear";
+  if (texto === "ligar") return "ligar";
+  if (texto === "desligar") return "desligar";
+  return null;
 }
 
 
@@ -562,12 +573,14 @@ export async function processarComandoAdmin(input: {
   if (ehEcoAutomatico(input.body)) return true; // eco da nossa resposta: encerra sem reenviar
   // Do próprio aparelho, apenas comandos curtos e explícitos.
   if (input.fromMe && !ehComandoEstrito(input.body)) return true;
+  // Somente comandos conhecidos ("oi", "menu", "status" e as opções do menu).
+  // Qualquer outra conversa segue como mensagem comum, sem abrir o menu.
+  const comando = interpretar(input.body ?? "");
+  if (!comando) return false;
   if (!liberarComando(input.phoneDigits)) {
     console.log("[admin-remoto] comando ignorado pela trava de 5s");
     return true;
   }
-  const comando = interpretar(input.body ?? "");
-  if (!comando) return false;
 
 
   const { sendWhatsappText } = await import("@/lib/inbound.server");
