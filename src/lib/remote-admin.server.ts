@@ -8,7 +8,7 @@
 
 import { toBrazilPhone, digitsOnly } from "@/lib/phone";
 
-export const ADMIN_PHONE_PADRAO = "5562910002123";
+export const ADMIN_PHONE_PADRAO = "5562996928605";
 
 export type EstadoSistema = "ligado" | "desligado" | "bloqueado";
 

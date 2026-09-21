@@ -78,7 +78,7 @@ function SentinelaPage() {
   const [bloqueio, setBloqueio] = useState(15);
   const [avisarPainel, setAvisarPainel] = useState(true);
   const [avisarWhatsapp, setAvisarWhatsapp] = useState(true);
-  const [numero, setNumero] = useState("5562910002123");
+  const [numero, setNumero] = useState("5562996928605");
 
   useEffect(() => {
     const s = status.data?.settings;
