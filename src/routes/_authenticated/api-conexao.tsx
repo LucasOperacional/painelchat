@@ -294,6 +294,8 @@ function ApiConnectionPage() {
         </div>
       </section>
 
+      <RemoteAdminSection />
+
       <DivulgaZapKeySection />
 
       <section className="space-y-3 rounded-lg border border-border bg-card p-4">
