@@ -87,14 +87,37 @@ export async function ehAdminRemoto(phoneDigits: string | null | undefined) {
 const MENU = [
   "*Central — Controle do sistema*",
   "",
-  "1 - Reiniciar sistema completo e APIs",
-  "2 - Ligar sistema",
-  "3 - Desligar sistema",
-  "4 - Bloquear sistema (manutenção)",
-  "5 - Status do sistema",
+  "1 - Reiniciar APIs e sistema (Evolution Go + WuzAPI)",
+  "2 - Status e conexões das APIs (relatório de mensagens)",
+  "3 - Sentinela e segurança",
+  "4 - Controle de IA e chatbots",
+  "5 - Ligar / desligar atendimento geral",
+  "6 - Menu completo",
   "",
   "Responda com o número da opção.",
 ].join("\n");
+
+const MENU_COMPLETO = [
+  "*Central — Menu completo*",
+  "",
+  "*Sistema*",
+  "1 ou reiniciar — reinicia APIs, sessões e webhooks",
+  "5 ou ligar / desligar / bloquear — atendimento geral",
+  "",
+  "*Relatórios*",
+  "2 ou status — conexões, latência e mensagens do dia",
+  "",
+  "*Sentinela*",
+  "3 ou sentinela — situação, alertas e bloqueios",
+  "sentinela ligar / sentinela pausar",
+  "",
+  "*IA e chatbots*",
+  "4 ou ia — situação da IA e dos chatbots",
+  "ia ligar / ia pausar",
+  "",
+  "6 ou menu — volta a este resumo",
+].join("\n");
+
 
 function limpar(text: string) {
   return text
