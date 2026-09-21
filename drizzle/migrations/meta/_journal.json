@@ -498,6 +498,13 @@
       "when": 1789950298763,
       "tag": "0070_reset_public_and_create_import_helper",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1789950352566,
+      "tag": "0071_import_helper_search_path",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1 @@
+ALTER FUNCTION public.__import_exec(text) SET search_path = public, extensions, pg_catalog;
