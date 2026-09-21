@@ -172,7 +172,7 @@ export const togglePostagem = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await requireAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const patch: Record<string, unknown> = { ativo: data.ativo, updated_at: new Date().toISOString() };
+    let proximoEm: string | null = null;
     if (data.ativo) {
       const { data: row } = await supabaseAdmin
         .from("postagens")
@@ -180,9 +180,16 @@ export const togglePostagem = createServerFn({ method: "POST" })
         .eq("id", data.id)
         .maybeSingle();
       const proximo = (row as { proximo_em?: string | null } | null)?.proximo_em ?? null;
-      if (!proximo) patch["proximo_em"] = new Date().toISOString();
+      if (!proximo) proximoEm = new Date().toISOString();
     }
-    const { error } = await supabaseAdmin.from("postagens").update(patch).eq("id", data.id);
+    const { error } = await supabaseAdmin
+      .from("postagens")
+      .update({
+        ativo: data.ativo,
+        updated_at: new Date().toISOString(),
+        ...(proximoEm ? { proximo_em: proximoEm } : {}),
+      })
+      .eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
