@@ -70,7 +70,34 @@ export type Conversation = {
   department: { id: string; name: string; color: string } | null;
   whatsapp_config_id?: string | null;
   connection?: { id: string; label: string; instance_name: string; color: string } | null;
+  /** Última mensagem trocada no chat (enviada ou recebida), para a prévia na lista. */
+  last_message?: LastMessage | null;
 };
+
+export type LastMessage = {
+  id: string;
+  body: string;
+  direction: "inbound" | "outbound" | "system";
+  created_at: string;
+};
+
+/** Texto curto da última mensagem: mídia vira rótulo legível em vez de link. */
+export function previewMensagem(message: LastMessage | null | undefined) {
+  if (!message) return "";
+  const body = (message.body ?? "").trim();
+  if (!body) return "";
+  const semLabel = body
+    .replace(/🖼\s*Figurinha:\s*https?:\/\/\S+/g, "Figurinha")
+    .replace(/🖼\s*Imagem:\s*https?:\/\/\S+/g, "📷 Foto")
+    .replace(/🎵\s*(?:Áudio|Audio):\s*https?:\/\/\S+/g, "🎵 Áudio")
+    .replace(/🎬\s*(?:Vídeo|Video):\s*https?:\/\/\S+/g, "🎬 Vídeo")
+    .replace(/📍\s*Localização:\s*[^\n]+/g, "📍 Localização")
+    .replace(/📎\s*(.+?):\s*https?:\/\/\S+/g, "📎 $1")
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/\s*\n+\s*/g, " ")
+    .trim();
+  return semLabel || "Mensagem";
+}
 
 export type Transfer = {
   id: string;
@@ -125,13 +152,38 @@ const CONVERSATION_SELECT =
   "*, contact:contacts(id, name, phone, notes, avatar_url, wa_jid), queue:queues(id, name, department_id, color), department:departments(id, name, color), connection:whatsapp_config(id, label, instance_name, color)";
 
 export async function fetchConversations() {
-  return unwrap<Conversation[]>(
+  const conversations = unwrap<Conversation[]>(
     await supabase
       .from("conversations")
       .select(CONVERSATION_SELECT)
       .order("last_message_at", { ascending: false })
       .limit(300),
   ) as Conversation[];
+
+  if (conversations.length === 0) return conversations;
+
+  // Regra: a lista sempre mostra a última mensagem (enviada ou recebida) de cada chat.
+  const ids = conversations.map((c) => c.id);
+  const { data: recentes } = await supabase
+    .from("messages")
+    .select("id, conversation_id, body, direction, created_at")
+    .in("conversation_id", ids)
+    .order("created_at", { ascending: false })
+    .limit(3000);
+
+  const ultimas = new Map<string, LastMessage>();
+  for (const row of (recentes ?? []) as (LastMessage & { conversation_id: string })[]) {
+    if (!ultimas.has(row.conversation_id)) {
+      ultimas.set(row.conversation_id, {
+        id: row.id,
+        body: row.body,
+        direction: row.direction,
+        created_at: row.created_at,
+      });
+    }
+  }
+
+  return conversations.map((c) => ({ ...c, last_message: ultimas.get(c.id) ?? null }));
 }
 
 

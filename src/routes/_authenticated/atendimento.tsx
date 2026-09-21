@@ -36,6 +36,7 @@ import {
   X,
   PhoneCall,
   Archive,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -80,6 +81,7 @@ import {
   closeConversation,
   reopenConversation,
   transferConversation,
+  previewMensagem,
   type Conversation,
 } from "@/lib/central";
 import { Button } from "@/components/ui/button";
@@ -1213,6 +1215,24 @@ function AtendimentoPage() {
                       ? `Grupo · ${c.contact?.name ?? ""}`
                       : c.contact?.phone}
                   </span>
+                  {previewMensagem(c.last_message) && (
+                    <span
+                      className={cn(
+                        "flex min-w-0 items-center gap-1 text-xs",
+                        (unreadMap[c.id] ?? 0) > 0
+                          ? "font-medium text-foreground"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      {c.last_message?.direction === "outbound" && (
+                        <Check className="size-3 shrink-0 text-primary" />
+                      )}
+                      <span className="truncate">
+                        {c.last_message?.direction === "outbound" ? "Você: " : ""}
+                        {previewMensagem(c.last_message)}
+                      </span>
+                    </span>
+                  )}
                   <div className="flex flex-wrap gap-1 pt-1">
                     {c.contact?.wa_jid?.includes("@g.us") && (
                       <Badge variant="secondary" className="text-[10px]">

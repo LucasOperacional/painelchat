@@ -31,6 +31,18 @@ type RealtimeMessage = {
   conversation_id?: string;
   body?: string;
   direction?: string;
+  created_at?: string;
+};
+
+type ConversationRow = {
+  id: string;
+  last_message_at?: string;
+  last_message?: {
+    id: string;
+    body: string;
+    direction: string;
+    created_at: string;
+  } | null;
 };
 
 // A prévia otimista some assim que a mensagem real chega do servidor.
@@ -94,6 +106,31 @@ export function useCentralSync() {
       } else {
         invalidate("messages");
       }
+
+      // A lista lateral já mostra a última mensagem e sobe a conversa na hora,
+      // sem esperar a próxima recarga.
+      if (conversationId && fresh?.id && payload.eventType !== "DELETE") {
+        const quando = fresh.created_at ?? new Date().toISOString();
+        queryClient.setQueriesData<ConversationRow[]>({ queryKey: ["conversations"] }, (current) => {
+          if (!Array.isArray(current)) return current;
+          const index = current.findIndex((conv) => conv.id === conversationId);
+          if (index < 0) return current;
+          const atual = current[index]!;
+          const atualizada: ConversationRow = {
+            ...atual,
+            last_message_at: quando,
+            last_message: {
+              id: fresh.id!,
+              body: fresh.body ?? "",
+              direction: fresh.direction ?? "inbound",
+              created_at: quando,
+            },
+          };
+          const resto = current.filter((_, i) => i !== index);
+          return [atualizada, ...resto];
+        });
+      }
+
       invalidate("conversations");
     };
 
