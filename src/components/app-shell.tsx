@@ -21,6 +21,7 @@ const TITULOS: Record<string, string> = {
   chatbot: "Automações",
   divulgazap: "DivulgaZap",
   divulgacao: "Divulgação em grupos",
+  postagens: "Postagens e Stories",
   chamadas: "Chamadas",
   ia: "IA",
   "das-mei": "DAS MEI",

@@ -8,3 +8,4 @@
 - [x] Corrigir 3 achados graves de segurança
 - [x] Kill switch: descartar todo evento fromMe antes de qualquer processamento
 - [x] Bloquear totalmente novos envios ao administrador durante a emergência
+- [x] Modulo Postagens & Stories: tabelas, motor, tela /postagens, menu e agendador (*/5 min)

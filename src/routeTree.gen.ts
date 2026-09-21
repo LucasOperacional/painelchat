@@ -39,6 +39,7 @@ import { Route as AuthenticatedMonitoramentoRouteImport } from './routes/_authen
 import { Route as AuthenticatedNfseRouteImport } from './routes/_authenticated/nfse'
 import { Route as AuthenticatedNfseGoianiaRouteImport } from './routes/_authenticated/nfse-goiania'
 import { Route as AuthenticatedNotasRouteImport } from './routes/_authenticated/notas'
+import { Route as AuthenticatedPostagensRouteImport } from './routes/_authenticated/postagens'
 import { Route as AuthenticatedProcessosRouteImport } from './routes/_authenticated/processos'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedSentinelaRouteImport } from './routes/_authenticated/sentinela'
@@ -56,6 +57,7 @@ import { Route as ApiPublicEvolutionRouteImport } from './routes/api/public/evol
 import { Route as ApiPublicLojaRouteImport } from './routes/api/public/loja'
 import { Route as ApiPublicMisticpayRouteImport } from './routes/api/public/misticpay'
 import { Route as ApiPublicMonitorRouteImport } from './routes/api/public/monitor'
+import { Route as ApiPublicPostagensRouteImport } from './routes/api/public/postagens'
 import { Route as ApiPublicSentinelaRouteImport } from './routes/api/public/sentinela'
 import { Route as ApiPublicWebviewProxyRouteImport } from './routes/api/public/webview-proxy'
 
@@ -214,6 +216,11 @@ const AuthenticatedNotasRoute = AuthenticatedNotasRouteImport.update({
   path: '/notas',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedPostagensRoute = AuthenticatedPostagensRouteImport.update({
+  id: '/postagens',
+  path: '/postagens',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedProcessosRoute = AuthenticatedProcessosRouteImport.update({
   id: '/processos',
   path: '/processos',
@@ -302,6 +309,11 @@ const ApiPublicMonitorRoute = ApiPublicMonitorRouteImport.update({
   path: '/api/public/monitor',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicPostagensRoute = ApiPublicPostagensRouteImport.update({
+  id: '/api/public/postagens',
+  path: '/api/public/postagens',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicSentinelaRoute = ApiPublicSentinelaRouteImport.update({
   id: '/api/public/sentinela',
   path: '/api/public/sentinela',
@@ -343,6 +355,7 @@ export interface FileRoutesByFullPath {
   '/nfse': typeof AuthenticatedNfseRoute
   '/nfse-goiania': typeof AuthenticatedNfseGoianiaRoute
   '/notas': typeof AuthenticatedNotasRoute
+  '/postagens': typeof AuthenticatedPostagensRoute
   '/processos': typeof AuthenticatedProcessosRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/sentinela': typeof AuthenticatedSentinelaRoute
@@ -358,6 +371,7 @@ export interface FileRoutesByFullPath {
   '/api/public/loja': typeof ApiPublicLojaRoute
   '/api/public/misticpay': typeof ApiPublicMisticpayRoute
   '/api/public/monitor': typeof ApiPublicMonitorRoute
+  '/api/public/postagens': typeof ApiPublicPostagensRoute
   '/api/public/sentinela': typeof ApiPublicSentinelaRoute
   '/api/public/webview-proxy': typeof ApiPublicWebviewProxyRoute
   '/das-mei/': typeof AuthenticatedDasMeiIndexRoute
@@ -393,6 +407,7 @@ export interface FileRoutesByTo {
   '/nfse': typeof AuthenticatedNfseRoute
   '/nfse-goiania': typeof AuthenticatedNfseGoianiaRoute
   '/notas': typeof AuthenticatedNotasRoute
+  '/postagens': typeof AuthenticatedPostagensRoute
   '/processos': typeof AuthenticatedProcessosRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/sentinela': typeof AuthenticatedSentinelaRoute
@@ -408,6 +423,7 @@ export interface FileRoutesByTo {
   '/api/public/loja': typeof ApiPublicLojaRoute
   '/api/public/misticpay': typeof ApiPublicMisticpayRoute
   '/api/public/monitor': typeof ApiPublicMonitorRoute
+  '/api/public/postagens': typeof ApiPublicPostagensRoute
   '/api/public/sentinela': typeof ApiPublicSentinelaRoute
   '/api/public/webview-proxy': typeof ApiPublicWebviewProxyRoute
   '/das-mei': typeof AuthenticatedDasMeiIndexRoute
@@ -445,6 +461,7 @@ export interface FileRoutesById {
   '/_authenticated/nfse': typeof AuthenticatedNfseRoute
   '/_authenticated/nfse-goiania': typeof AuthenticatedNfseGoianiaRoute
   '/_authenticated/notas': typeof AuthenticatedNotasRoute
+  '/_authenticated/postagens': typeof AuthenticatedPostagensRoute
   '/_authenticated/processos': typeof AuthenticatedProcessosRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/sentinela': typeof AuthenticatedSentinelaRoute
@@ -460,6 +477,7 @@ export interface FileRoutesById {
   '/api/public/loja': typeof ApiPublicLojaRoute
   '/api/public/misticpay': typeof ApiPublicMisticpayRoute
   '/api/public/monitor': typeof ApiPublicMonitorRoute
+  '/api/public/postagens': typeof ApiPublicPostagensRoute
   '/api/public/sentinela': typeof ApiPublicSentinelaRoute
   '/api/public/webview-proxy': typeof ApiPublicWebviewProxyRoute
   '/_authenticated/das-mei/': typeof AuthenticatedDasMeiIndexRoute
@@ -497,6 +515,7 @@ export interface FileRouteTypes {
     | '/nfse'
     | '/nfse-goiania'
     | '/notas'
+    | '/postagens'
     | '/processos'
     | '/relatorios'
     | '/sentinela'
@@ -512,6 +531,7 @@ export interface FileRouteTypes {
     | '/api/public/loja'
     | '/api/public/misticpay'
     | '/api/public/monitor'
+    | '/api/public/postagens'
     | '/api/public/sentinela'
     | '/api/public/webview-proxy'
     | '/das-mei/'
@@ -547,6 +567,7 @@ export interface FileRouteTypes {
     | '/nfse'
     | '/nfse-goiania'
     | '/notas'
+    | '/postagens'
     | '/processos'
     | '/relatorios'
     | '/sentinela'
@@ -562,6 +583,7 @@ export interface FileRouteTypes {
     | '/api/public/loja'
     | '/api/public/misticpay'
     | '/api/public/monitor'
+    | '/api/public/postagens'
     | '/api/public/sentinela'
     | '/api/public/webview-proxy'
     | '/das-mei'
@@ -598,6 +620,7 @@ export interface FileRouteTypes {
     | '/_authenticated/nfse'
     | '/_authenticated/nfse-goiania'
     | '/_authenticated/notas'
+    | '/_authenticated/postagens'
     | '/_authenticated/processos'
     | '/_authenticated/relatorios'
     | '/_authenticated/sentinela'
@@ -613,6 +636,7 @@ export interface FileRouteTypes {
     | '/api/public/loja'
     | '/api/public/misticpay'
     | '/api/public/monitor'
+    | '/api/public/postagens'
     | '/api/public/sentinela'
     | '/api/public/webview-proxy'
     | '/_authenticated/das-mei/'
@@ -632,6 +656,7 @@ export interface RootRouteChildren {
   ApiPublicLojaRoute: typeof ApiPublicLojaRoute
   ApiPublicMisticpayRoute: typeof ApiPublicMisticpayRoute
   ApiPublicMonitorRoute: typeof ApiPublicMonitorRoute
+  ApiPublicPostagensRoute: typeof ApiPublicPostagensRoute
   ApiPublicSentinelaRoute: typeof ApiPublicSentinelaRoute
   ApiPublicWebviewProxyRoute: typeof ApiPublicWebviewProxyRoute
 }
@@ -848,6 +873,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedNotasRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/postagens': {
+      id: '/_authenticated/postagens'
+      path: '/postagens'
+      fullPath: '/postagens'
+      preLoaderRoute: typeof AuthenticatedPostagensRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/processos': {
       id: '/_authenticated/processos'
       path: '/processos'
@@ -967,6 +999,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicMonitorRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/postagens': {
+      id: '/api/public/postagens'
+      path: '/api/public/postagens'
+      fullPath: '/api/public/postagens'
+      preLoaderRoute: typeof ApiPublicPostagensRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/sentinela': {
       id: '/api/public/sentinela'
       path: '/api/public/sentinela'
@@ -1011,6 +1050,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedNfseRoute: typeof AuthenticatedNfseRoute
   AuthenticatedNfseGoianiaRoute: typeof AuthenticatedNfseGoianiaRoute
   AuthenticatedNotasRoute: typeof AuthenticatedNotasRoute
+  AuthenticatedPostagensRoute: typeof AuthenticatedPostagensRoute
   AuthenticatedProcessosRoute: typeof AuthenticatedProcessosRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
   AuthenticatedSentinelaRoute: typeof AuthenticatedSentinelaRoute
@@ -1049,6 +1089,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedNfseRoute: AuthenticatedNfseRoute,
   AuthenticatedNfseGoianiaRoute: AuthenticatedNfseGoianiaRoute,
   AuthenticatedNotasRoute: AuthenticatedNotasRoute,
+  AuthenticatedPostagensRoute: AuthenticatedPostagensRoute,
   AuthenticatedProcessosRoute: AuthenticatedProcessosRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
   AuthenticatedSentinelaRoute: AuthenticatedSentinelaRoute,
@@ -1076,6 +1117,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicLojaRoute: ApiPublicLojaRoute,
   ApiPublicMisticpayRoute: ApiPublicMisticpayRoute,
   ApiPublicMonitorRoute: ApiPublicMonitorRoute,
+  ApiPublicPostagensRoute: ApiPublicPostagensRoute,
   ApiPublicSentinelaRoute: ApiPublicSentinelaRoute,
   ApiPublicWebviewProxyRoute: ApiPublicWebviewProxyRoute,
 }
