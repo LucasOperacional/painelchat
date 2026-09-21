@@ -363,6 +363,9 @@ export async function recordInboundMessage(input: {
   // Em grupos não roda saudação, chatbot nem resposta automática da IA.
   if (isGroup) return { conversationId, contactId };
 
+  // A mensagem já está gravada. A partir daqui é só automação: qualquer falha
+  // de chatbot, IA, loja ou menu é registrada, mas nunca desfaz a gravação.
+  try {
   // Regra: conversa com atendente humano (ou encerrada) é dele. Nenhuma
   // automação — menu, loja, chatbot ou IA — mexe na fila, no responsável nem
   // no status depois disso.
@@ -516,6 +519,10 @@ export async function recordInboundMessage(input: {
       phoneDigits: input.phoneDigits,
       configId: activeDeviceId,
     });
+  }
+  } catch (error) {
+    // A mensagem permanece gravada; apenas a automação falhou.
+    console.error("[inbound] automação pós-registro falhou:", (error as Error).message);
   }
 
   return { conversationId, contactId };
