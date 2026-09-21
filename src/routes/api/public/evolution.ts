@@ -381,6 +381,21 @@ const WUZAPI_EVENT: Record<string, string> = {
 };
 
 /**
+ * Nomes usados pelas versões da Evolution API baseadas em eventos
+ * (MESSAGES_UPSERT e companhia) convertidos para os já tratados aqui, para que
+ * nenhuma mensagem seja perdida quando o servidor usar essa nomenclatura.
+ */
+const EVENT_ALIAS: Record<string, string> = {
+  MESSAGES_UPSERT: "Message",
+  MESSAGES_SET: "Message",
+  MESSAGES_UPDATE: "Receipt",
+  SEND_MESSAGE: "SendMessage",
+  CONNECTION_UPDATE: "Connected",
+  STATUS_INSTANCE: "Connected",
+  QRCODE_UPDATED: "QRCode",
+};
+
+/**
  * A WuzAPI usa outro envelope: { type, event: { Info, Message }, base64, s3 }.
  * Aqui ele vira o mesmo formato da Evolution Go, sem tocar no resto do fluxo.
  */
