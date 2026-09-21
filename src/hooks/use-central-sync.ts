@@ -31,6 +31,18 @@ type RealtimeMessage = {
   conversation_id?: string;
   body?: string;
   direction?: string;
+  created_at?: string;
+};
+
+type ConversationRow = {
+  id: string;
+  last_message_at?: string;
+  last_message?: {
+    id: string;
+    body: string;
+    direction: string;
+    created_at: string;
+  } | null;
 };
 
 // A prévia otimista some assim que a mensagem real chega do servidor.
