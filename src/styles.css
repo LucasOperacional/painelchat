@@ -75,6 +75,15 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+@utility scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 :root {
   --radius: 0.875rem;
   --background: oklch(0.985 0.002 260);
