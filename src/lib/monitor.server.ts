@@ -264,27 +264,11 @@ export async function verificarConexoes(
     const tentativas =
       (device as unknown as { monitor_tentativas?: number }).monitor_tentativas ?? 0;
 
-    let online = false;
-    let erro = "";
-    let telefone = device.phone ?? "";
-    let nomeConta = "";
-    try {
-      const instanceId = await ensureEvolutionInstance(device);
-      const status = await evolutionGetStatus({
-        baseUrl: device.base_url,
-        instanceId,
-        configId: device.id,
-        provider: device.provider ?? undefined,
-        timeoutMs: 15_000,
-      });
-      online = status.connected && status.loggedIn;
-      telefone = status.phone || telefone;
-      nomeConta = status.name || "";
-      if (!online) erro = "A API respondeu, mas o aparelho está desconectado do WhatsApp.";
-    } catch (error) {
-      online = false;
-      erro = error instanceof Error ? error.message : "A API não respondeu.";
-    }
+    const conferido = await conferirComTentativas(device);
+    const online = conferido.online;
+    const erro = conferido.erro;
+    const telefone = conferido.telefone;
+    const nomeConta = conferido.nomeConta;
 
     if (online) {
       // Autocorreção: garante que o webhook aponte para o endereço de produção.
