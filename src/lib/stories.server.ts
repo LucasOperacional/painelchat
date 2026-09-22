@@ -5,7 +5,26 @@ export type CanalApi = {
   nome: string;
   descricao: string;
   inscritos: number | null;
+  /** Papel do número conectado no canal: owner, admin ou subscriber. */
+  papel: string;
+  /** Verdadeiro quando o número conectado pode publicar no canal. */
+  podeEnviar: boolean;
 };
+
+/** Papel do número conectado, vindo de viewer_metadata.role. */
+function papelDoCanal(bag: Record<string, unknown>): string {
+  const viewer = bag["viewer_metadata"] ?? bag["viewerMetadata"] ?? bag["ViewerMetadata"];
+  if (viewer && typeof viewer === "object" && !Array.isArray(viewer)) {
+    const papel = texto(viewer as Record<string, unknown>, "role", "Role", "papel");
+    if (papel) return papel.toLowerCase();
+  }
+  const direto = texto(bag, "role", "Role");
+  return direto ? direto.toLowerCase() : "";
+}
+
+function podePublicar(papel: string): boolean {
+  return papel === "owner" || papel === "admin";
+}
 
 function texto(bag: Record<string, unknown>, ...chaves: string[]): string {
   for (const chave of chaves) {
