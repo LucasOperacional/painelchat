@@ -376,8 +376,7 @@ export const sendMisticpayCharge = createServerFn({ method: "POST" })
     const transactionId = `conv-${data.conversationId.slice(0, 8)}-${Date.now()}`;
     const webhookToken = process.env["MISTICPAY_WEBHOOK_TOKEN"] ?? "";
     const publicBase = (
-      process.env["PUBLIC_SITE_URL"] ??
-      "https://project--7735c9b1-51e5-4325-8317-f1e55fa697f4.lovable.app"
+      process.env["PUBLIC_SITE_URL"] ?? "https://painelchat.lovable.app"
     ).replace(/\/+$/, "");
 
     const charge = await misticpayCreateCharge({
