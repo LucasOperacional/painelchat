@@ -573,9 +573,13 @@ export async function executarCicloSentinela(
   /* 0. Agendador: garante que as rotinas automáticas chamem o endereço atual.
         Sem isso, um endereço antigo derruba vigilância, monitoramento,
         postagens e limpeza sem qualquer aviso. */
-  if (opcoes.baseUrl) {
+  const baseValida =
+    opcoes.baseUrl &&
+    /^https:\/\//i.test(opcoes.baseUrl) &&
+    !/localhost|127\.0\.0\.1|\[::1\]/i.test(opcoes.baseUrl);
+  if (baseValida) {
     try {
-      const { data } = await db.rpc("cron_corrigir_urls", { _base: opcoes.baseUrl });
+      const { data } = await db.rpc("cron_corrigir_urls", { _base: opcoes.baseUrl as string });
       const ajustados = Number(data ?? 0);
       verificacoes += 1;
       if (ajustados > 0) {
