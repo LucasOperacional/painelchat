@@ -416,9 +416,12 @@ export async function wuzapiDispatch(options: WuzapiCall): Promise<unknown> {
         return sentEnvelope(data);
       }
       if (type === "audio") {
+        // A WuzAPI só aceita áudio com o rótulo exato "data:audio/ogg;base64,".
+        const bruto = await toDataUri(url, "audio/ogg");
+        const base64 = bruto.slice(bruto.indexOf(",") + 1);
         const data = await run("/chat/send/audio", "POST", {
           Phone: phone,
-          Audio: await toDataUri(url, "audio/ogg; codecs=opus"),
+          Audio: `data:audio/ogg;base64,${base64}`,
           PTT: true,
         });
         return sentEnvelope(data);
