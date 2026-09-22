@@ -171,6 +171,20 @@ async function toDataUri(url: string, fallbackMime: string): Promise<string> {
   return `data:${mime};base64,${Buffer.from(buffer).toString("base64")}`;
 }
 
+/**
+ * A WuzAPI valida literalmente o prefixo do áudio antes de decodificar o
+ * conteúdo. Recriamos a URI em vez de apenas reaproveitar o MIME do navegador
+ * (Chrome normalmente grava Opus dentro de WebM).
+ */
+async function toWuzapiAudioDataUri(url: string): Promise<string> {
+  const source = await toDataUri(url, "audio/ogg");
+  const separator = source.indexOf(",");
+  if (separator < 0) throw new Error("O arquivo de áudio não pôde ser preparado para envio.");
+  const base64 = source.slice(separator + 1).replace(/\s/g, "");
+  if (!base64) throw new Error("O arquivo de áudio está vazio.");
+  return `data:audio/ogg;base64,${base64}`;
+}
+
 function sentEnvelope(data: unknown) {
   const record = (data ?? {}) as Record<string, unknown>;
   const id = record["Id"] ?? record["ID"] ?? record["id"] ?? null;
@@ -417,11 +431,9 @@ export async function wuzapiDispatch(options: WuzapiCall): Promise<unknown> {
       }
       if (type === "audio") {
         // A WuzAPI só aceita áudio com o rótulo exato "data:audio/ogg;base64,".
-        const bruto = await toDataUri(url, "audio/ogg");
-        const base64 = bruto.slice(bruto.indexOf(",") + 1);
         const data = await run("/chat/send/audio", "POST", {
           Phone: phone,
-          Audio: `data:audio/ogg;base64,${base64}`,
+          Audio: await toWuzapiAudioDataUri(url),
           PTT: true,
         });
         return sentEnvelope(data);
