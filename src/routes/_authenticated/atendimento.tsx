@@ -2171,7 +2171,7 @@ function AtendimentoPage() {
                     <Label htmlFor="mp-doc">
                       {pixProvider === "efi" || pixProvider === "altispay"
                         ? "CPF/CNPJ do pagador (opcional)"
-                        : "CPF do cliente que vai pagar"}
+                        : "CPF do cliente (opcional)"}
                     </Label>
                     <Input
                       id="mp-doc"
