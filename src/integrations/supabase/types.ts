@@ -1946,6 +1946,7 @@ export type Database = {
       otimizacao_settings: {
         Row: {
           ativo: boolean
+          cron_token: string
           id: boolean
           intervalo_horas: number
           limpar_anexos_orfaos: boolean
@@ -1958,6 +1959,7 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean
+          cron_token?: string
           id?: boolean
           intervalo_horas?: number
           limpar_anexos_orfaos?: boolean
@@ -1970,6 +1972,7 @@ export type Database = {
         }
         Update: {
           ativo?: boolean
+          cron_token?: string
           id?: boolean
           intervalo_horas?: number
           limpar_anexos_orfaos?: boolean
