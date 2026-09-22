@@ -257,11 +257,14 @@ export async function listarCanais(deviceId: string | null): Promise<{
           texto(bag, "JID", "jid", "id", "Id", "ID", "remoteJid") ||
           texto(bag, "name", "Name");
         if (!id || !/^\d+@/.test(id)) continue;
+        const papel = papelDoCanal(bag);
         encontrados.set(id, {
           id,
           nome: nomeDoCanal(bag),
           descricao: descricaoDoCanal(bag),
           inscritos: inscritosDoCanal(bag),
+          papel,
+          podeEnviar: podePublicar(papel),
         });
       }
     } catch (error) {
