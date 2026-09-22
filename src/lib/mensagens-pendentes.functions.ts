@@ -29,6 +29,23 @@ function texto(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+/**
+ * Só avisos de mensagem individual entram na conta. Sincronizações de histórico,
+ * confirmações de leitura, presença e afins não geram mensagem no chat e, se
+ * reenviados, trariam conversas antigas de volta.
+ */
+const EVENTOS_DE_MENSAGEM = new Set(["message", "sendmessage", "messages.upsert"]);
+
+function eventoDeMensagem(nome: string, payload: unknown): boolean {
+  const limpo = nome.trim().toLowerCase();
+  if (EVENTOS_DE_MENSAGEM.has(limpo)) return true;
+  if (limpo && limpo !== "[object object]") return false;
+  // Avisos antigos guardaram "[object Object]": o tipo real está no conteúdo.
+  const raiz = obj(payload);
+  const tipo = (texto(raiz["type"]) || texto(raiz["event_type"])).toLowerCase();
+  return EVENTOS_DE_MENSAGEM.has(tipo);
+}
+
 /** Tenta achar quem enviou e o conteúdo dentro de qualquer formato de aviso. */
 function resumirPayload(payload: unknown): {
   de: string;
@@ -127,11 +144,26 @@ export const mensagensNaoEntregues = createServerFn({ method: "GET" })
       }
     }
 
+    const agora = Date.now();
+    let descartados = 0;
+
     const pendentes = lista
       .filter((e) => {
-        const id = texto(e["external_id"]);
         const status = texto(e["status"]);
-        if (status === "erro" || status === "processando") return true;
+        // Avisos descartados de propósito (canal, grupo desligado, número de
+        // controle, evento sem suporte) não são mensagens perdidas.
+        if (status === "ignorado") {
+          descartados += 1;
+          return false;
+        }
+        const nome = texto(e["evento"]);
+        if (!eventoDeMensagem(nome, e["payload"])) return false;
+        if (status === "erro") return true;
+        if (status === "processando") {
+          // ainda pode estar sendo gravado agora
+          return agora - new Date(String(e["created_at"])).getTime() > 120_000;
+        }
+        const id = texto(e["external_id"]);
         if (!id) return false;
         return !salvos.has(id);
       })
@@ -149,14 +181,13 @@ export const mensagensNaoEntregues = createServerFn({ method: "GET" })
         };
       });
 
-    const comMensagem = pendentes.filter(
-      (p) => p.evento === "Message" || p.evento === "SendMessage" || p.conteudo,
-    );
+    const comMensagem = pendentes.filter((p) => p.conteudo.length > 0);
 
     return {
       horas,
       totalEventos: lista.length,
       totalPendentes: pendentes.length,
+      totalDescartados: descartados,
       pendentes: pendentes.slice(0, 300),
       pendentesComConteudo: comMensagem.length,
     };
@@ -242,10 +273,16 @@ export const reprocessarTodos = createServerFn({ method: "POST" })
       }
     }
 
+    const agora = Date.now();
     const pendentes = lista.filter((e) => {
-      const id = texto(e["external_id"]);
       const status = texto(e["status"]);
-      if (status === "erro" || status === "processando") return true;
+      if (status === "ignorado") return false;
+      if (!eventoDeMensagem(texto(e["evento"]), e["payload"])) return false;
+      if (status === "erro") return true;
+      if (status === "processando") {
+        return agora - new Date(String(e["created_at"])).getTime() > 120_000;
+      }
+      const id = texto(e["external_id"]);
       if (!id) return false;
       return !salvos.has(id);
     });
