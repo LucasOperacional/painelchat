@@ -178,7 +178,12 @@ function ContactAvatar({
   );
 }
 
+import { z } from "zod";
+
 export const Route = createFileRoute("/_authenticated/atendimento")({
+  validateSearch: z.object({
+    conversation: z.string().optional(),
+  }).parse,
   head: () => ({
     meta: [
       { title: "Painel de atendimento — Central" },
@@ -198,6 +203,7 @@ export const Route = createFileRoute("/_authenticated/atendimento")({
   }),
   component: AtendimentoPage,
 });
+
 
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
