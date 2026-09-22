@@ -12,6 +12,21 @@ import {
 
 let ignoreGroupsCache: { value: boolean; at: number } | null = null;
 
+const FAILED_MEDIA_RE = /arquivo indisponível|Arquivo recebido — não foi possível baixar/i;
+const MEDIA_LINK_RE = /(🖼\s*(?:Imagem|Figurinha)|🎬\s*(?:Vídeo|Video)|🎵\s*(?:Áudio|Audio)|📎\s*[^:\n]+):\s*https?:\/\//i;
+const WHATSAPP_MEDIA_RE = /https?:\/\/(?:[^/\s]+\.)?mmg\.whatsapp\.net/i;
+const STORED_MEDIA_RE = /\/storage\/v1\/object\/sign\/anexos\//i;
+
+function recoveredMediaBody(previousBody: string | null | undefined, incomingBody: string) {
+  const current = previousBody ?? "";
+  const precisaTrocar = FAILED_MEDIA_RE.test(current) || WHATSAPP_MEDIA_RE.test(current);
+  if (!precisaTrocar || FAILED_MEDIA_RE.test(incomingBody)) return null;
+  if (!MEDIA_LINK_RE.test(incomingBody)) return null;
+  if (WHATSAPP_MEDIA_RE.test(current) && !STORED_MEDIA_RE.test(incomingBody)) return null;
+  const prefix = current.match(/^([\s\S]*?)(?=🖼|🎬|🎵|📎)/)?.[1] ?? "";
+  return `${prefix}${incomingBody}`;
+}
+
 /** Preferência da central: ignorar mensagens recebidas de grupos. */
 export async function shouldIgnoreGroups() {
   if (ignoreGroupsCache && Date.now() - ignoreGroupsCache.at < 30_000) {
@@ -81,11 +96,15 @@ export async function recordInboundMessage(input: {
   if (input.externalId) {
     const { data: duplicated } = await supabaseAdmin
       .from("messages")
-      .select("id, conversation_id")
+      .select("id, conversation_id, body")
       .eq("external_id", input.externalId)
       .limit(1)
       .maybeSingle();
     if (duplicated) {
+      const recovered = recoveredMediaBody(duplicated.body, input.body);
+      if (recovered) {
+        await supabaseAdmin.from("messages").update({ body: recovered }).eq("id", duplicated.id);
+      }
       return { conversationId: duplicated.conversation_id, contactId: null };
     }
   }

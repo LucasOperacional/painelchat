@@ -87,6 +87,20 @@ function isUnsupportedText(value: string) {
   ].includes(normalized);
 }
 
+function mediaBase64Valido(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const raw = value.trim();
+  if (!raw || /^\[conteúdo grande removido:/i.test(raw)) return null;
+  const clean = (raw.includes(",") ? raw.slice(raw.indexOf(",") + 1) : raw)
+    .replace(/\s/g, "")
+    .replace(/-/g, "+")
+    .replace(/_/g, "/");
+  if (clean.length < 16 || !/^[A-Za-z0-9+/]+={0,2}$/.test(clean)) return null;
+  const semPadding = clean.replace(/=+$/, "");
+  if (semPadding.length % 4 === 1) return null;
+  return raw;
+}
+
 function failedMediaBody(kind: "image" | "sticker" | "video" | "audio" | "document") {
   const labels = {
     image: "🖼 Imagem recebida — arquivo indisponível",
@@ -940,7 +954,7 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
           const eventoBase64 = [message, envelopeMidia].reduce<string | null>((achado, alvo) => {
             if (achado || !alvo) return achado;
             const valor = field<unknown>(alvo, "base64", "fileBase64", "data");
-            return typeof valor === "string" && valor ? valor : null;
+            return mediaBase64Valido(valor);
           }, null);
           const obterBase64Story = async (
             kind: "image" | "sticker" | "video" | "audio" | "document",
@@ -1220,7 +1234,7 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
         const eventoBase64 = [message, conteudoMidia].reduce<string | null>((achado, alvo) => {
           if (achado || !alvo) return achado;
           const valor = field<unknown>(alvo, "base64", "fileBase64", "data");
-          return typeof valor === "string" && valor ? valor : null;
+          return mediaBase64Valido(valor);
         }, null);
         const mediaUrlBruta = [message, conteudoMidia].reduce<string | null>((achado, alvo) => {
           if (achado || !alvo) return achado;
