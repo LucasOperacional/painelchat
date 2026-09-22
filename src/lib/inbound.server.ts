@@ -14,7 +14,7 @@ let ignoreGroupsCache: { value: boolean; at: number } | null = null;
 
 const FAILED_MEDIA_RE = /arquivo indisponível|Arquivo recebido — não foi possível baixar/i;
 const MEDIA_LINK_RE = /(🖼\s*(?:Imagem|Figurinha)|🎬\s*(?:Vídeo|Video)|🎵\s*(?:Áudio|Audio)|📎\s*[^:\n]+):\s*https?:\/\//i;
-const WHATSAPP_MEDIA_RE = /https?:\/\/[^\s]+mmg\.whatsapp\.net/i;
+const WHATSAPP_MEDIA_RE = /https?:\/\/(?:[^/\s]+\.)?mmg\.whatsapp\.net/i;
 const STORED_MEDIA_RE = /\/storage\/v1\/object\/sign\/anexos\//i;
 
 function recoveredMediaBody(previousBody: string | null | undefined, incomingBody: string) {
