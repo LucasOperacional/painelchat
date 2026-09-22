@@ -48,6 +48,7 @@ export type Message = {
   body: string;
   created_at: string;
   edited_at?: string | null;
+  deleted_at?: string | null;
   external_id?: string | null;
   reply_to_external_id?: string | null;
   reply_body?: string | null;

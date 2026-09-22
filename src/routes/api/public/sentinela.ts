@@ -25,7 +25,8 @@ export const Route = createFileRoute("/api/public/sentinela")({
         if (!timingSafeEqual(a, b)) return new Response("Unauthorized", { status: 401 });
 
         try {
-          return Response.json(await executarCicloSentinela());
+          const origem = new URL(request.url).origin;
+          return Response.json(await executarCicloSentinela({ baseUrl: origem }));
         } catch (error) {
           const detalhe = error instanceof Error ? error.message : "Falha no ciclo da Sentinela.";
           return Response.json({ erro: detalhe }, { status: 500 });

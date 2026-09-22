@@ -266,6 +266,22 @@ function extractEdit(
   return { targetId: typeof targetId === "string" && targetId ? targetId : null, text };
 }
 
+/**
+ * Mensagem apagada pelo contato ("apagar para todos"): o WhatsApp envia um
+ * protocolMessage do tipo REVOKE com a chave da mensagem original. Devolve o
+ * identificador da mensagem que deve ser marcada como apagada no chat.
+ */
+function extractRevoke(message: Record<string, unknown> | undefined): string | null {
+  if (!message) return null;
+  const protocol = field<Record<string, unknown>>(message, "protocolMessage");
+  if (!protocol) return null;
+  const tipo = String(field<unknown>(protocol, "type", "Type") ?? "").toUpperCase();
+  if (tipo && !/REVOKE/.test(tipo)) return null;
+  const key = field<Record<string, unknown>>(protocol, "key", "Key");
+  const alvo = key ? field<unknown>(key, "id", "ID", "Id") : null;
+  return typeof alvo === "string" && alvo.trim() ? alvo.trim() : null;
+}
+
 function editTargetFromInfo(info: EvolutionWebhook["data"] extends infer Data
   ? Data extends { Info?: infer Info }
     ? Info
@@ -392,6 +408,9 @@ const EVENT_ALIAS: Record<string, string> = {
   MESSAGES_HISTORY_SET: "HistorySync",
   MESSAGING_HISTORY_SET: "HistorySync",
   MESSAGES_UPDATE: "Receipt",
+  MESSAGES_DELETE: "Message",
+  MESSAGE_REVOKE: "Message",
+  MESSAGE_REVOKED: "Message",
   SEND_MESSAGE: "SendMessage",
   SEND_MESSAGE_UPDATE: "SendMessage",
   MESSAGE_SENT: "SendMessage",
@@ -784,6 +803,27 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
         // IA ou respostas (proteção total contra loop), mas são sempre gravadas
         // no histórico da conversa. Única exceção de comando: texto curto e
         // exato do administrador no "chat consigo mesmo".
+        // Mensagem apagada ("apagar para todos"): marca a original como
+        // apagada, tanto quando o contato apaga como quando você apaga no
+        // celular. Nunca dispara chatbot, IA ou resposta automática.
+        const revokedId = extractRevoke(message as Record<string, unknown> | undefined);
+        if (revokedId) {
+          const { data: alvoApagado } = await supabaseAdmin
+            .from("messages")
+            .select("id")
+            .eq("external_id", revokedId)
+            .limit(1)
+            .maybeSingle();
+          if (alvoApagado) {
+            await supabaseAdmin
+              .from("messages")
+              .update({ deleted_at: new Date().toISOString() })
+              .eq("id", alvoApagado.id);
+            return Response.json({ received: true, deleted: true });
+          }
+          return Response.json({ received: true, ignored: "revoke-sem-original" });
+        }
+
         const fromMe = !!info.IsFromMe || event === "SendMessage";
         if (fromMe) {
           const textoProprio = extractText(message).trim();

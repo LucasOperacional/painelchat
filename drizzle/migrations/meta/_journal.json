@@ -596,6 +596,20 @@
       "when": 1790045663135,
       "tag": "0084_stories_recebidos",
       "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1790084755137,
+      "tag": "0085_corrigir_seguranca_e_autocorrecao_cron",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1790084952140,
+      "tag": "0086_mensagens_apagadas",
+      "breakpoints": true
     }
   ]
 }

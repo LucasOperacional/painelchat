@@ -1679,7 +1679,12 @@ export const deleteWhatsappMessage = createServerFn({ method: "POST" })
       }
     }
 
-    const removed = await supabase.from("messages").delete().eq("id", data.messageId);
+    // A mensagem não sai do histórico: fica marcada como apagada para que o
+    // atendimento veja que ela existiu e foi removida.
+    const removed = await supabase
+      .from("messages")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", data.messageId);
     if (removed.error) throw new Error(removed.error.message);
 
     return { ok: true, removedOnWhatsapp, warning };

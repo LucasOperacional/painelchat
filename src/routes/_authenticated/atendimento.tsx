@@ -37,6 +37,7 @@ import {
   PhoneCall,
   Archive,
   Check,
+  Ban,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -1572,12 +1573,19 @@ function AtendimentoPage() {
                           </span>
                         </div>
                       )}
-                      <MessageBody
-                        body={displayedBody}
-                        mine={mine}
-                        contactName={groupParticipant?.name ?? selected.contact?.name ?? null}
-                        avatarUrl={groupParticipant ? null : selected.contact?.avatar_url ?? null}
-                      />
+                      {m.deleted_at ? (
+                        <p className="flex items-center gap-1.5 text-sm italic opacity-70">
+                          <Ban className="size-3.5 shrink-0" />
+                          {mine ? "Você apagou esta mensagem" : "Esta mensagem foi apagada"}
+                        </p>
+                      ) : (
+                        <MessageBody
+                          body={displayedBody}
+                          mine={mine}
+                          contactName={groupParticipant?.name ?? selected.contact?.name ?? null}
+                          avatarUrl={groupParticipant ? null : selected.contact?.avatar_url ?? null}
+                        />
+                      )}
                       <p
                         className={cn(
                           "mt-1 flex items-center justify-end gap-1 text-[10px] leading-none tabular-nums",
@@ -1586,7 +1594,23 @@ function AtendimentoPage() {
                             : "text-message-received-foreground/60",
                         )}
                       >
-                        {m.edited_at ? <span className="italic">editada</span> : null}
+                        {m.deleted_at ? (
+                          <span className="italic">
+                            apagada às{" "}
+                            {new Date(m.deleted_at).toLocaleTimeString("pt-BR", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        ) : m.edited_at ? (
+                          <span className="italic">
+                            editada às{" "}
+                            {new Date(m.edited_at).toLocaleTimeString("pt-BR", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        ) : null}
                         {new Date(m.created_at).toLocaleTimeString("pt-BR", {
                           hour: "2-digit",
                           minute: "2-digit",

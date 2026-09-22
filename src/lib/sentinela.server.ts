@@ -542,7 +542,7 @@ export type ResultadoCiclo = {
 };
 
 export async function executarCicloSentinela(
-  opcoes: { forcado?: boolean } = {},
+  opcoes: { forcado?: boolean; baseUrl?: string } = {},
 ): Promise<ResultadoCiclo> {
   const cfg = await carregarSentinelaSettings();
   if (!cfg.ativo && !opcoes.forcado) {
@@ -568,6 +568,35 @@ export async function executarCicloSentinela(
     await db.rpc("sentinela_limpar_diario");
   } catch (error) {
     console.error("[sentinela] faxina do diário falhou:", (error as Error).message);
+  }
+
+  /* 0. Agendador: garante que as rotinas automáticas chamem o endereço atual.
+        Sem isso, um endereço antigo derruba vigilância, monitoramento,
+        postagens e limpeza sem qualquer aviso. */
+  const baseValida =
+    opcoes.baseUrl &&
+    /^https:\/\//i.test(opcoes.baseUrl) &&
+    !/localhost|127\.0\.0\.1|\[::1\]/i.test(opcoes.baseUrl);
+  if (baseValida) {
+    try {
+      const { data } = await db.rpc("cron_corrigir_urls", { _base: opcoes.baseUrl as string });
+      const ajustados = Number(data ?? 0);
+      verificacoes += 1;
+      if (ajustados > 0) {
+        corrigidos += ajustados;
+        achados.push({
+          tipo: "sistema",
+          severidade: "aviso",
+          titulo: `Agendador apontava para endereço antigo (${ajustados} rotina(s))`,
+          detalhe:
+            "As rotinas automáticas chamavam um endereço fora do ar; o endereço atual foi regravado.",
+          acao: "Corrigido automaticamente.",
+          status: "corrigido",
+        });
+      }
+    } catch (error) {
+      console.error("[sentinela] não foi possível conferir o agendador:", (error as Error).message);
+    }
   }
 
   /* 1. Conexões com as APIs de WhatsApp (religa sozinha quando cai). */

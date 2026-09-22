@@ -1543,6 +1543,7 @@ export type Database = {
           body: string
           conversation_id: string
           created_at: string
+          deleted_at: string | null
           direction: Database["public"]["Enums"]["message_direction"]
           edited_at: string | null
           external_id: string | null
@@ -1557,6 +1558,7 @@ export type Database = {
           body: string
           conversation_id: string
           created_at?: string
+          deleted_at?: string | null
           direction?: Database["public"]["Enums"]["message_direction"]
           edited_at?: string | null
           external_id?: string | null
@@ -1571,6 +1573,7 @@ export type Database = {
           body?: string
           conversation_id?: string
           created_at?: string
+          deleted_at?: string | null
           direction?: Database["public"]["Enums"]["message_direction"]
           edited_at?: string | null
           external_id?: string | null
@@ -3147,6 +3150,7 @@ export type Database = {
           total_out: number
         }[]
       }
+      cron_corrigir_urls: { Args: { _base: string }; Returns: number }
       current_project_id: { Args: never; Returns: string }
       has_role: {
         Args: {
