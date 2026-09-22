@@ -126,7 +126,13 @@ export async function recordInboundMessage(input: {
   const precisaFoto = !avatarInformado && !existingContact?.avatar_url;
   const currentName = (existingContact?.name ?? "").trim();
   const grupoSemNome =
-    isGroup && !(currentName && !isGroupIdLike(currentName) && currentName !== phone);
+    isGroup &&
+    !(
+      currentName &&
+      currentName !== GRUPO_SEM_NOME &&
+      !isGroupIdLike(currentName) &&
+      currentName !== phone
+    );
   const precisaNomeGrupo = grupoSemNome && !exactGroupName(input.name);
 
   const [fotoBuscada, nomeGrupoBuscado] = await Promise.all([
