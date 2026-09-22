@@ -266,8 +266,19 @@ export async function verificarConexoes(
     const nomeConta = conferido.nomeConta;
 
     if (online) {
-      // Autocorreção: garante que o webhook aponte para o endereço de produção.
-      await ensureEvolutionWebhook(device.id, { requestUrl: requestUrl ?? null });
+      // Sincronização do webhook: confere na própria API e reassina se preciso.
+      const sync = await sincronizarWebhook(device.id, { requestUrl: requestUrl ?? null });
+      if (sync.corrigido) {
+        await registrarOcorrencia({
+          tipo: "Webhook sincronizado",
+          mensagem: `O endereço de recebimento do aparelho ${nome} estava diferente e foi reajustado. ${sync.detalhe}`,
+          severidade: sync.ok ? "ok" : "aviso",
+          deviceId: device.id,
+          deviceLabel: nome,
+          provider: device.provider,
+          avisar: !sync.ok,
+        });
+      }
       await marcarEstado(device.id, {
         monitor_estado: "online",
         monitor_tentativas: 0,
