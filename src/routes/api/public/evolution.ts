@@ -1113,6 +1113,19 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
         // Somente referências do WhatsApp precisam passar por /chat/download*.
         const isEncryptedMediaUrl = (value: string | null) =>
           !!value && (/\.enc(?:\?|$)/i.test(value) || /(?:^|\.)mmg\.whatsapp\.net/i.test(value));
+        // Endereço interno do servidor da WuzAPI (localhost/IP privado): ninguém
+        // de fora consegue baixar, então o arquivo precisa vir pelo conector.
+        const isInternalMediaUrl = (value: string | null) => {
+          if (!value) return false;
+          try {
+            const host = new URL(value).hostname;
+            return /^(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|\[?::1\]?|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)$/i.test(
+              host,
+            );
+          } catch {
+            return false;
+          }
+        };
         const obterBase64 = async (
           kind: "image" | "sticker" | "video" | "audio" | "document",
           media: Record<string, unknown> | undefined,
@@ -1124,8 +1137,15 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
           // áudios e vídeos chegavam como "arquivo indisponível".
           const urlDaMidia = media ? textField(media, "url", "URL", "mediaUrl", "mediaURL") : "";
           const temChave = !!media && !!textField(media, "mediaKey", "media_key");
-          const precisaConector = temChave && isEncryptedMediaUrl(urlDaMidia || null);
-          if (!precisaConector && mediaUrl && !isEncryptedMediaUrl(mediaUrl)) return null;
+          const precisaConector =
+            temChave && (isEncryptedMediaUrl(urlDaMidia || null) || isInternalMediaUrl(mediaUrl));
+          if (
+            !precisaConector &&
+            mediaUrl &&
+            !isEncryptedMediaUrl(mediaUrl) &&
+            !isInternalMediaUrl(mediaUrl)
+          )
+            return null;
           const { downloadInboundMedia } = await import("@/lib/evolution.server");
           // Alguns webhooks colocam a URL criptografada no envelope da mensagem,
           // separada da mediaKey que fica dentro de imageMessage/videoMessage.
