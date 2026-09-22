@@ -1,13 +1,25 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, RefreshCw, Radio, Images, CheckCircle2, XCircle } from "lucide-react";
+import { toast } from "sonner";
+import { Loader2, RefreshCw, Radio, Images, CheckCircle2, XCircle, Send } from "lucide-react";
 
 import {
   listStoriesRecebidos,
   listCanaisConectados,
   listStoriesPublicados,
+  enviarNoCanal,
 } from "@/lib/stories.functions";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { listWhatsappDevices } from "@/lib/whatsapp.functions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
