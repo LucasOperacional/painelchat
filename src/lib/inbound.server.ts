@@ -160,13 +160,16 @@ export async function recordInboundMessage(input: {
     );
   const precisaNomeGrupo = grupoSemNome && !exactGroupName(input.name);
 
+  // Com prazo curto: contato novo aparece no chat na hora, mesmo se a API
+  // do WhatsApp estiver lenta para devolver foto e nome do grupo.
   const [fotoBuscada, nomeGrupoBuscado] = await Promise.all([
     // Grupos usam o JID completo (…@g.us); contatos, o número.
     precisaFoto
-      ? fetchProfilePicture(isGroup ? chatJid : input.phoneDigits, deviceId)
+      ? comPrazo(fetchProfilePicture(isGroup ? chatJid : input.phoneDigits, deviceId))
       : Promise.resolve(null),
-    precisaNomeGrupo ? fetchGroupName(chatJid, deviceId) : Promise.resolve(null),
+    precisaNomeGrupo ? comPrazo(fetchGroupName(chatJid, deviceId)) : Promise.resolve(null),
   ]);
+
 
   const avatarUrl = avatarInformado ?? fotoBuscada;
 
