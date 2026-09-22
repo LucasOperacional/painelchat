@@ -1154,6 +1154,15 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
             !isEncryptedMediaUrl(mediaUrl) &&
             !isInternalMediaUrl(mediaUrl)
           )
+          console.log(
+            `[dbg] kind=${kind} urlMidia=${urlDaMidia.slice(0, 40)} chave=${temChave} conector=${precisaConector} mediaUrl=${mediaUrl ?? "-"}`,
+          );
+          if (
+            !precisaConector &&
+            mediaUrl &&
+            !isEncryptedMediaUrl(mediaUrl) &&
+            !isInternalMediaUrl(mediaUrl)
+          )
             return null;
           const { downloadInboundMedia } = await import("@/lib/evolution.server");
           // Alguns webhooks colocam a URL criptografada no envelope da mensagem,
