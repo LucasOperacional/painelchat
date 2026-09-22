@@ -306,7 +306,13 @@ export async function verificarConexoes(
     resultado.quedas += 1;
     let religou = { ok: false, detalhe: "Religamento automático desligado." };
     if (settings.auto_reconectar) {
+      // Duas rodadas de religamento: a primeira resolve quedas simples,
+      // a segunda cobre APIs que demoram para reabrir a sessão.
       religou = await tentarReconectar(device);
+      if (!religou.ok) {
+        await new Promise((r) => setTimeout(r, 4000));
+        religou = await tentarReconectar(device);
+      }
       if (religou.ok) resultado.religados += 1;
     }
 
