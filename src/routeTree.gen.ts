@@ -44,6 +44,7 @@ import { Route as AuthenticatedProcessosRouteImport } from './routes/_authentica
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedSentinelaRouteImport } from './routes/_authenticated/sentinela'
 import { Route as AuthenticatedSistemaApiRouteImport } from './routes/_authenticated/sistema-api'
+import { Route as AuthenticatedStoriesRouteImport } from './routes/_authenticated/stories'
 import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticated/whatsapp'
 import { Route as AuthenticatedDasMeiIndexRouteImport } from './routes/_authenticated/das-mei.index'
 import { Route as AuthenticatedDasMeiReceberRouteImport } from './routes/_authenticated/das-mei.receber'
@@ -242,6 +243,11 @@ const AuthenticatedSistemaApiRoute = AuthenticatedSistemaApiRouteImport.update({
   path: '/sistema-api',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedStoriesRoute = AuthenticatedStoriesRouteImport.update({
+  id: '/stories',
+  path: '/stories',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedWhatsappRoute = AuthenticatedWhatsappRouteImport.update({
   id: '/whatsapp',
   path: '/whatsapp',
@@ -366,6 +372,7 @@ export interface FileRoutesByFullPath {
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/sentinela': typeof AuthenticatedSentinelaRoute
   '/sistema-api': typeof AuthenticatedSistemaApiRoute
+  '/stories': typeof AuthenticatedStoriesRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/das-mei/receber': typeof AuthenticatedDasMeiReceberRoute
   '/webview/$id': typeof AuthenticatedWebviewIdRoute
@@ -419,6 +426,7 @@ export interface FileRoutesByTo {
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/sentinela': typeof AuthenticatedSentinelaRoute
   '/sistema-api': typeof AuthenticatedSistemaApiRoute
+  '/stories': typeof AuthenticatedStoriesRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/das-mei/receber': typeof AuthenticatedDasMeiReceberRoute
   '/webview/$id': typeof AuthenticatedWebviewIdRoute
@@ -474,6 +482,7 @@ export interface FileRoutesById {
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/sentinela': typeof AuthenticatedSentinelaRoute
   '/_authenticated/sistema-api': typeof AuthenticatedSistemaApiRoute
+  '/_authenticated/stories': typeof AuthenticatedStoriesRoute
   '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
   '/_authenticated/das-mei/receber': typeof AuthenticatedDasMeiReceberRoute
   '/_authenticated/webview/$id': typeof AuthenticatedWebviewIdRoute
@@ -529,6 +538,7 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/sentinela'
     | '/sistema-api'
+    | '/stories'
     | '/whatsapp'
     | '/das-mei/receber'
     | '/webview/$id'
@@ -582,6 +592,7 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/sentinela'
     | '/sistema-api'
+    | '/stories'
     | '/whatsapp'
     | '/das-mei/receber'
     | '/webview/$id'
@@ -636,6 +647,7 @@ export interface FileRouteTypes {
     | '/_authenticated/relatorios'
     | '/_authenticated/sentinela'
     | '/_authenticated/sistema-api'
+    | '/_authenticated/stories'
     | '/_authenticated/whatsapp'
     | '/_authenticated/das-mei/receber'
     | '/_authenticated/webview/$id'
@@ -921,6 +933,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSistemaApiRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/stories': {
+      id: '/_authenticated/stories'
+      path: '/stories'
+      fullPath: '/stories'
+      preLoaderRoute: typeof AuthenticatedStoriesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/whatsapp': {
       id: '/_authenticated/whatsapp'
       path: '/whatsapp'
@@ -1075,6 +1094,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
   AuthenticatedSentinelaRoute: typeof AuthenticatedSentinelaRoute
   AuthenticatedSistemaApiRoute: typeof AuthenticatedSistemaApiRoute
+  AuthenticatedStoriesRoute: typeof AuthenticatedStoriesRoute
   AuthenticatedWhatsappRoute: typeof AuthenticatedWhatsappRoute
   AuthenticatedDasMeiReceberRoute: typeof AuthenticatedDasMeiReceberRoute
   AuthenticatedWebviewIdRoute: typeof AuthenticatedWebviewIdRoute
@@ -1114,6 +1134,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
   AuthenticatedSentinelaRoute: AuthenticatedSentinelaRoute,
   AuthenticatedSistemaApiRoute: AuthenticatedSistemaApiRoute,
+  AuthenticatedStoriesRoute: AuthenticatedStoriesRoute,
   AuthenticatedWhatsappRoute: AuthenticatedWhatsappRoute,
   AuthenticatedDasMeiReceberRoute: AuthenticatedDasMeiReceberRoute,
   AuthenticatedWebviewIdRoute: AuthenticatedWebviewIdRoute,

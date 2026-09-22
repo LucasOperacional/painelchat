@@ -56,6 +56,7 @@ const TITULOS: Record<string, string> = {
   divulgazap: "DivulgaZap",
   divulgacao: "Divulgação em grupos",
   postagens: "Postagens e Stories",
+  stories: "Stories e canais",
   chamadas: "Chamadas",
   ia: "IA",
   "das-mei": "DAS MEI",
