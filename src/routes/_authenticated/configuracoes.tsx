@@ -1847,6 +1847,7 @@ function SettingsPage() {
           <EfiCard />
           <AltispayCard />
           <WavoipCard />
+          <OtimizacaoCard />
 
           <div className="flex justify-end">
             <Button type="submit" disabled={mutation.isPending}>
