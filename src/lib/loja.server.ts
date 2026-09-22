@@ -148,7 +148,13 @@ type CobrancaGerada = {
 /** Gera a cobrança no gateway configurado; sem gateway, usa a chave Pix da loja. */
 async function gerarCobranca(
   settings: LojaSettings,
-  input: { amount: number; description: string; payerName: string; conversationId: string },
+  input: {
+    amount: number;
+    description: string;
+    payerName: string;
+    conversationId: string;
+    payerDocument?: string;
+  },
 ): Promise<CobrancaGerada> {
   const ordem: LojaSettings["provider"][] =
     settings.provider === "auto"
@@ -213,7 +219,7 @@ async function gerarCobranca(
           amount: input.amount,
           description: input.description,
           payerName: input.payerName || creds.defaultPayerName || "Cliente",
-          payerDocument: (creds.defaultPayerDocument ?? "").replace(/\D/g, ""),
+          payerDocument: (input.payerDocument ?? "").replace(/\D/g, ""),
           externalReference,
         });
         return {
