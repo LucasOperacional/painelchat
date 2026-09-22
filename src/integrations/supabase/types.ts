@@ -1943,6 +1943,45 @@ export type Database = {
         }
         Relationships: []
       }
+      otimizacao_settings: {
+        Row: {
+          ativo: boolean
+          id: boolean
+          intervalo_horas: number
+          limpar_anexos_orfaos: boolean
+          retencao_eventos_horas: number
+          retencao_logs_dias: number
+          retencao_mensagens_dias: number
+          ultima_execucao: string | null
+          ultimo_relatorio: Json | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          id?: boolean
+          intervalo_horas?: number
+          limpar_anexos_orfaos?: boolean
+          retencao_eventos_horas?: number
+          retencao_logs_dias?: number
+          retencao_mensagens_dias?: number
+          ultima_execucao?: string | null
+          ultimo_relatorio?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          id?: boolean
+          intervalo_horas?: number
+          limpar_anexos_orfaos?: boolean
+          retencao_eventos_horas?: number
+          retencao_logs_dias?: number
+          retencao_mensagens_dias?: number
+          ultima_execucao?: string | null
+          ultimo_relatorio?: Json | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pix_charges: {
         Row: {
           amount: number
@@ -3068,6 +3107,8 @@ export type Database = {
           serie: string
         }[]
       }
+      otimizacao_status: { Args: never; Returns: Json }
+      otimizar_servidor: { Args: never; Returns: Json }
       sentinela_limpar_diario: { Args: never; Returns: undefined }
       ultimas_mensagens: {
         Args: { _ids: string[] }

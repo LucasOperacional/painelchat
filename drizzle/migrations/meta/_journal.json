@@ -575,6 +575,20 @@
       "when": 1790035801745,
       "tag": "0081_otimiza_ultimas_mensagens",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1790036737419,
+      "tag": "0082_otimizacao_automatica_servidor",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1790036949984,
+      "tag": "0083_otimizacao_cron_token",
+      "breakpoints": true
     }
   ]
 }
