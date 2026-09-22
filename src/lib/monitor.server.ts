@@ -248,9 +248,7 @@ export async function verificarConexoes(
   };
   if (!settings.ativo) return resultado;
 
-  const { listEvolutionConfigs, ensureEvolutionWebhook } = await import(
-    "@/lib/evolution.server"
-  );
+  const { listEvolutionConfigs, sincronizarWebhook } = await import("@/lib/evolution.server");
   const devices = await listEvolutionConfigs();
 
   for (const device of devices) {
