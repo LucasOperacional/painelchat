@@ -35,6 +35,7 @@ import { Route as AuthenticatedFilasRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedFranquiasRouteImport } from './routes/_authenticated/franquias'
 import { Route as AuthenticatedIaRouteImport } from './routes/_authenticated/ia'
 import { Route as AuthenticatedKanbanRouteImport } from './routes/_authenticated/kanban'
+import { Route as AuthenticatedMensagensPendentesRouteImport } from './routes/_authenticated/mensagens-pendentes'
 import { Route as AuthenticatedMonitoramentoRouteImport } from './routes/_authenticated/monitoramento'
 import { Route as AuthenticatedNfseRouteImport } from './routes/_authenticated/nfse'
 import { Route as AuthenticatedNfseGoianiaRouteImport } from './routes/_authenticated/nfse-goiania'
@@ -196,6 +197,12 @@ const AuthenticatedKanbanRoute = AuthenticatedKanbanRouteImport.update({
   path: '/kanban',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedMensagensPendentesRoute =
+  AuthenticatedMensagensPendentesRouteImport.update({
+    id: '/mensagens-pendentes',
+    path: '/mensagens-pendentes',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedMonitoramentoRoute =
   AuthenticatedMonitoramentoRouteImport.update({
     id: '/monitoramento',
@@ -363,6 +370,7 @@ export interface FileRoutesByFullPath {
   '/franquias': typeof AuthenticatedFranquiasRoute
   '/ia': typeof AuthenticatedIaRoute
   '/kanban': typeof AuthenticatedKanbanRoute
+  '/mensagens-pendentes': typeof AuthenticatedMensagensPendentesRoute
   '/monitoramento': typeof AuthenticatedMonitoramentoRoute
   '/nfse': typeof AuthenticatedNfseRoute
   '/nfse-goiania': typeof AuthenticatedNfseGoianiaRoute
@@ -417,6 +425,7 @@ export interface FileRoutesByTo {
   '/franquias': typeof AuthenticatedFranquiasRoute
   '/ia': typeof AuthenticatedIaRoute
   '/kanban': typeof AuthenticatedKanbanRoute
+  '/mensagens-pendentes': typeof AuthenticatedMensagensPendentesRoute
   '/monitoramento': typeof AuthenticatedMonitoramentoRoute
   '/nfse': typeof AuthenticatedNfseRoute
   '/nfse-goiania': typeof AuthenticatedNfseGoianiaRoute
@@ -473,6 +482,7 @@ export interface FileRoutesById {
   '/_authenticated/franquias': typeof AuthenticatedFranquiasRoute
   '/_authenticated/ia': typeof AuthenticatedIaRoute
   '/_authenticated/kanban': typeof AuthenticatedKanbanRoute
+  '/_authenticated/mensagens-pendentes': typeof AuthenticatedMensagensPendentesRoute
   '/_authenticated/monitoramento': typeof AuthenticatedMonitoramentoRoute
   '/_authenticated/nfse': typeof AuthenticatedNfseRoute
   '/_authenticated/nfse-goiania': typeof AuthenticatedNfseGoianiaRoute
@@ -529,6 +539,7 @@ export interface FileRouteTypes {
     | '/franquias'
     | '/ia'
     | '/kanban'
+    | '/mensagens-pendentes'
     | '/monitoramento'
     | '/nfse'
     | '/nfse-goiania'
@@ -583,6 +594,7 @@ export interface FileRouteTypes {
     | '/franquias'
     | '/ia'
     | '/kanban'
+    | '/mensagens-pendentes'
     | '/monitoramento'
     | '/nfse'
     | '/nfse-goiania'
@@ -638,6 +650,7 @@ export interface FileRouteTypes {
     | '/_authenticated/franquias'
     | '/_authenticated/ia'
     | '/_authenticated/kanban'
+    | '/_authenticated/mensagens-pendentes'
     | '/_authenticated/monitoramento'
     | '/_authenticated/nfse'
     | '/_authenticated/nfse-goiania'
@@ -870,6 +883,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedKanbanRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/mensagens-pendentes': {
+      id: '/_authenticated/mensagens-pendentes'
+      path: '/mensagens-pendentes'
+      fullPath: '/mensagens-pendentes'
+      preLoaderRoute: typeof AuthenticatedMensagensPendentesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/monitoramento': {
       id: '/_authenticated/monitoramento'
       path: '/monitoramento'
@@ -1085,6 +1105,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedFranquiasRoute: typeof AuthenticatedFranquiasRoute
   AuthenticatedIaRoute: typeof AuthenticatedIaRoute
   AuthenticatedKanbanRoute: typeof AuthenticatedKanbanRoute
+  AuthenticatedMensagensPendentesRoute: typeof AuthenticatedMensagensPendentesRoute
   AuthenticatedMonitoramentoRoute: typeof AuthenticatedMonitoramentoRoute
   AuthenticatedNfseRoute: typeof AuthenticatedNfseRoute
   AuthenticatedNfseGoianiaRoute: typeof AuthenticatedNfseGoianiaRoute
@@ -1125,6 +1146,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedFranquiasRoute: AuthenticatedFranquiasRoute,
   AuthenticatedIaRoute: AuthenticatedIaRoute,
   AuthenticatedKanbanRoute: AuthenticatedKanbanRoute,
+  AuthenticatedMensagensPendentesRoute: AuthenticatedMensagensPendentesRoute,
   AuthenticatedMonitoramentoRoute: AuthenticatedMonitoramentoRoute,
   AuthenticatedNfseRoute: AuthenticatedNfseRoute,
   AuthenticatedNfseGoianiaRoute: AuthenticatedNfseGoianiaRoute,
