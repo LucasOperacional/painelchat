@@ -91,8 +91,13 @@ function mediaBase64Valido(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const raw = value.trim();
   if (!raw || /^\[conteúdo grande removido:/i.test(raw)) return null;
-  const clean = (raw.includes(",") ? raw.slice(raw.indexOf(",") + 1) : raw).replace(/\s/g, "");
+  const clean = (raw.includes(",") ? raw.slice(raw.indexOf(",") + 1) : raw)
+    .replace(/\s/g, "")
+    .replace(/-/g, "+")
+    .replace(/_/g, "/");
   if (clean.length < 16 || !/^[A-Za-z0-9+/]+={0,2}$/.test(clean)) return null;
+  const semPadding = clean.replace(/=+$/, "");
+  if (semPadding.length % 4 === 1) return null;
   return raw;
 }
 
