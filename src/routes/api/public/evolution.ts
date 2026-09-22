@@ -1062,7 +1062,14 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
           media: Record<string, unknown> | undefined,
         ): Promise<string | null> => {
           if (eventoBase64) return eventoBase64;
-          if (mediaUrl && !isEncryptedMediaUrl(mediaUrl)) return null;
+          // A WuzAPI avisa um endereço interno do arquivo (/files/...), que não
+          // pode ser baixado de fora. Quando a própria mídia traz a referência do
+          // WhatsApp com a chave, o download tem de passar pelo conector — senão
+          // áudios e vídeos chegavam como "arquivo indisponível".
+          const urlDaMidia = media ? textField(media, "url", "URL", "mediaUrl", "mediaURL") : "";
+          const temChave = !!media && !!textField(media, "mediaKey", "media_key");
+          const precisaConector = temChave && isEncryptedMediaUrl(urlDaMidia || null);
+          if (!precisaConector && mediaUrl && !isEncryptedMediaUrl(mediaUrl)) return null;
           const { downloadInboundMedia } = await import("@/lib/evolution.server");
           // Alguns webhooks colocam a URL criptografada no envelope da mensagem,
           // separada da mediaKey que fica dentro de imageMessage/videoMessage.
