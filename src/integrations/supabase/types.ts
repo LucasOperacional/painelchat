@@ -2689,6 +2689,59 @@ export type Database = {
           },
         ]
       }
+      stories_recebidos: {
+        Row: {
+          autor_jid: string
+          autor_nome: string
+          chat_jid: string
+          config_id: string | null
+          created_at: string
+          id: string
+          midia_tipo: string
+          midia_url: string
+          project_id: string | null
+          texto: string
+          tipo: string
+          wa_id: string
+        }
+        Insert: {
+          autor_jid?: string
+          autor_nome?: string
+          chat_jid?: string
+          config_id?: string | null
+          created_at?: string
+          id?: string
+          midia_tipo?: string
+          midia_url?: string
+          project_id?: string | null
+          texto?: string
+          tipo?: string
+          wa_id?: string
+        }
+        Update: {
+          autor_jid?: string
+          autor_nome?: string
+          chat_jid?: string
+          config_id?: string | null
+          created_at?: string
+          id?: string
+          midia_tipo?: string
+          midia_url?: string
+          project_id?: string | null
+          texto?: string
+          tipo?: string
+          wa_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stories_recebidos_config_id_fkey"
+            columns: ["config_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_config"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       system_control: {
         Row: {
           admin_phone: string

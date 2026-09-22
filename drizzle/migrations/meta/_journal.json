@@ -589,6 +589,13 @@
       "when": 1790036949984,
       "tag": "0083_otimizacao_cron_token",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1790045663135,
+      "tag": "0084_stories_recebidos",
+      "breakpoints": true
     }
   ]
 }
