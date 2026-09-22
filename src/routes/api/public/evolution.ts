@@ -388,12 +388,77 @@ const WUZAPI_EVENT: Record<string, string> = {
 const EVENT_ALIAS: Record<string, string> = {
   MESSAGES_UPSERT: "Message",
   MESSAGES_SET: "Message",
+  MESSAGES_HISTORY_SET: "HistorySync",
+  MESSAGING_HISTORY_SET: "HistorySync",
   MESSAGES_UPDATE: "Receipt",
   SEND_MESSAGE: "SendMessage",
+  SEND_MESSAGE_UPDATE: "SendMessage",
+  MESSAGE_SENT: "SendMessage",
   CONNECTION_UPDATE: "Connected",
   STATUS_INSTANCE: "Connected",
   QRCODE_UPDATED: "QRCode",
 };
+
+/**
+ * Nome do evento em qualquer nomenclatura ("messages.upsert", "MESSAGES_UPSERT",
+ * "send.message") vira o nome único usado aqui. Sem isso, mensagens enviadas
+ * pelo celular chegavam com um nome desconhecido e eram descartadas.
+ */
+function normalizeEventName(raw: string): string {
+  const direto = EVENT_ALIAS[raw];
+  if (direto) return direto;
+  const chave = raw.trim().replace(/[.\-\s]+/g, "_").toUpperCase();
+  return EVENT_ALIAS[chave] ?? raw;
+}
+
+/**
+ * Envelope das Evolution API baseadas em Baileys:
+ * { event, data: { key: { remoteJid, fromMe, id, participant }, message, pushName } }.
+ * Convertido para o formato Info/Message já tratado aqui — é o caminho pelo qual
+ * as mensagens enviadas pelo próprio celular chegam nessas versões.
+ */
+function fromBaileys(raw: Record<string, any>): EvolutionWebhook {
+  const bruto = (raw["data"] ?? {}) as Record<string, any>;
+  const alvo = (Array.isArray(bruto["messages"]) ? bruto["messages"][0] : bruto) as Record<
+    string,
+    any
+  >;
+  const key = (alvo["key"] ?? {}) as Record<string, any>;
+  const chat = String(key["remoteJid"] ?? key["RemoteJid"] ?? "");
+  const fromMe = key["fromMe"] === true || key["FromMe"] === true;
+  const participant = String(key["participant"] ?? alvo["participant"] ?? "");
+  const isGroup = chat.includes("@g.us");
+  const info: Record<string, unknown> = {
+    Chat: chat,
+    Sender: (isGroup ? participant : chat) || chat,
+    IsFromMe: fromMe,
+    IsGroup: isGroup,
+    ID: String(key["id"] ?? alvo["id"] ?? ""),
+    PushName: alvo["pushName"] ?? alvo["PushName"] ?? bruto["pushName"] ?? null,
+  };
+  // Mensagem enviada pelo celular: o destino da conversa é o remoteJid.
+  if (fromMe && !isGroup) info["RecipientAlt"] = chat;
+  const mensagem = (alvo["message"] ?? alvo["Message"] ?? {}) as Record<string, unknown>;
+  const midia = field<unknown>(alvo, "mediaUrl", "mediaURL", "file_url", "fileUrl", "base64");
+  return {
+    event: normalizeEventName(String(raw["event"] ?? "")),
+    data: {
+      Info: info,
+      Message: {
+        ...mensagem,
+        ...(typeof midia === "string" && midia
+          ? midia.startsWith("http")
+            ? { mediaUrl: midia }
+            : { base64: midia }
+          : {}),
+      },
+    },
+    ...(typeof raw["instanceId"] === "string" ? { instanceId: raw["instanceId"] } : {}),
+    ...(typeof raw["instance"] === "string" && !raw["instanceId"]
+      ? { instanceId: raw["instance"] }
+      : {}),
+  } as EvolutionWebhook;
+}
 
 /**
  * A WuzAPI usa outro envelope: { type, event: { Info, Message }, base64, s3 }.
