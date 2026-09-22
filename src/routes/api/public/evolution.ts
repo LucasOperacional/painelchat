@@ -613,18 +613,17 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
           .eq("webhook_token", token)
           .maybeSingle();
 
-        let config = byToken as
-          | {
-              id: string;
-              default_queue_id: string | null;
-              status: string | null;
-              last_event: string | null;
-              phone: string | null;
-              provider: string | null;
-              instance_id?: string | null;
-              instance_name?: string | null;
-            }
-          | null;
+        type ConfigWebhook = {
+          id: string;
+          default_queue_id: string | null;
+          status: string | null;
+          last_event: string | null;
+          phone: string | null;
+          provider: string | null;
+          instance_id?: string | null;
+          instance_name?: string | null;
+        };
+        let config = byToken as ConfigWebhook | null;
 
         if (!config) {
           // Token antigo (aparelho recriado ou webhook desatualizado no servidor).
@@ -633,7 +632,7 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
           const { data: todos } = await supabaseAdmin
             .from("whatsapp_config")
             .select(COLUNAS_CONFIG);
-          const lista = (todos ?? []) as NonNullable<typeof config>[];
+          const lista = (todos ?? []) as unknown as ConfigWebhook[];
           const nomeInstancia = (payload.instanceName ?? "").trim().toLowerCase();
           // A Evolution Go sempre envia instanceId/instanceName; a WuzAPI não.
           const provedorProvavel = payload.instanceId || payload.instanceName ? "evolution" : "wuzapi";
