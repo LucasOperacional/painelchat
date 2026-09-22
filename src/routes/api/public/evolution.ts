@@ -895,19 +895,155 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
         if (/@(broadcast|newsletter)$/i.test(chatRaw.trim())) {
           const ehCanal = /@newsletter$/i.test(chatRaw.trim());
           const envelopeMidia = unwrapMessage(message);
-          const urlMidia = [message, envelopeMidia].reduce<string>((achado, alvo) => {
+          const textoOriginal = extractText(message).slice(0, 4000);
+          const mediaUrlBruta = [message, envelopeMidia].reduce<string>((achado, alvo) => {
             if (achado || !alvo) return achado;
             const valor = field<unknown>(alvo, "mediaUrl", "mediaURL", "url", "URL", "file_url");
             return typeof valor === "string" && valor ? valor : "";
           }, "");
-          const chaves = Object.keys((envelopeMidia ?? message ?? {}) as Record<string, unknown>).join(" ");
-          const tipoMidia = /video/i.test(chaves)
-            ? "video"
-            : /image/i.test(chaves)
-              ? "imagem"
-              : /audio|ptt/i.test(chaves)
-                ? "audio"
-                : "nenhum";
+          const mediaUrl = (() => {
+            if (!mediaUrlBruta) return "";
+            try {
+              const alvo = new URL(mediaUrlBruta);
+              if (!/^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/i.test(alvo.hostname)) return mediaUrlBruta;
+              const base = String((config as { base_url?: string }).base_url ?? "");
+              if (!base) return mediaUrlBruta;
+              const publico = new URL(base);
+              alvo.protocol = publico.protocol;
+              alvo.hostname = publico.hostname;
+              alvo.port = publico.port;
+              return alvo.toString();
+            } catch {
+              return mediaUrlBruta;
+            }
+          })();
+          const isEncryptedStoryUrl = (value: string | null) => {
+            if (!value) return false;
+            if (/\.enc(?:\?|$)/i.test(value)) return true;
+            try {
+              return /(?:^|\.)mmg\.whatsapp\.net$/i.test(new URL(value).hostname);
+            } catch {
+              return /mmg\.whatsapp\.net/i.test(value);
+            }
+          };
+          const isInternalStoryUrl = (value: string | null) => {
+            if (!value) return false;
+            try {
+              const host = new URL(value).hostname;
+              return /^(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|\[?::1\]?|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)$/i.test(
+                host,
+              );
+            } catch {
+              return false;
+            }
+          };
+          const eventoBase64 = [message, envelopeMidia].reduce<string | null>((achado, alvo) => {
+            if (achado || !alvo) return achado;
+            const valor = field<unknown>(alvo, "base64", "fileBase64", "data");
+            return typeof valor === "string" && valor ? valor : null;
+          }, null);
+          const obterBase64Story = async (
+            kind: "image" | "sticker" | "video" | "audio" | "document",
+            media: Record<string, unknown> | undefined,
+          ): Promise<string | null> => {
+            if (eventoBase64) return eventoBase64;
+            const urlDaMidia = media ? textField(media, "url", "URL", "mediaUrl", "mediaURL") : "";
+            const temChave = !!media && !!textField(media, "mediaKey", "media_key");
+            const precisaConector =
+              temChave && (isEncryptedStoryUrl(urlDaMidia || null) || isInternalStoryUrl(mediaUrl));
+            if (
+              !precisaConector &&
+              mediaUrl &&
+              !isEncryptedStoryUrl(mediaUrl) &&
+              !isInternalStoryUrl(mediaUrl)
+            ) {
+              return null;
+            }
+            const { downloadInboundMedia } = await import("@/lib/evolution.server");
+            const mediaParaDownload = mediaUrl && media && !textField(media, "url", "URL", "mediaUrl", "mediaURL")
+              ? { ...media, url: mediaUrl }
+              : media;
+            const baixado = await downloadInboundMedia({
+              configId: config!.id,
+              kind,
+              media: mediaParaDownload,
+            });
+            if (!baixado) console.warn(`[stories] não consegui baixar a mídia (${kind})`);
+            return baixado?.base64 ?? null;
+          };
+          const midiaStory = <T,>(nome: string) =>
+            (envelopeMidia ? field<T>(envelopeMidia, nome) : undefined) ?? undefined;
+          const storageKey =
+            jidToPhone(chatRaw) ||
+            jidToPhone(String(info.Participant ?? info.SenderAlt ?? info.Sender ?? "")) ||
+            "stories";
+          const sticker = midiaStory<Record<string, unknown>>("stickerMessage");
+          const image = midiaStory<Record<string, unknown>>("imageMessage");
+          const video = midiaStory<Record<string, unknown>>("videoMessage");
+          const audio = midiaStory<Record<string, unknown>>("audioMessage");
+          const documento = midiaStory<Record<string, unknown>>("documentMessage");
+          let texto = textoOriginal;
+          let urlMidia = mediaUrl;
+          let tipoMidia = "nenhum";
+
+          if (sticker || image) {
+            const visual = sticker ?? image;
+            const base64 = await obterBase64Story(sticker ? "sticker" : "image", visual);
+            const { storeInboundImage } = await import("@/lib/media.server");
+            const stored = await storeInboundImage({
+              phoneDigits: storageKey,
+              mimeType: textField(visual, "mimetype", "mimeType", "contentType") || (sticker ? "image/webp" : "image/jpeg"),
+              base64,
+              url: mediaUrl || textField(visual, "url", "URL") || null,
+              folder: sticker ? "stories/figurinhas" : "stories/imagens",
+            });
+            urlMidia = stored ?? mediaUrl;
+            tipoMidia = sticker ? "figurinha" : "imagem";
+            texto = textField(image, "caption") || textoOriginal;
+          } else if (video) {
+            const base64 = await obterBase64Story("video", video);
+            const { storeInboundVideo } = await import("@/lib/media.server");
+            const stored = await storeInboundVideo({
+              phoneDigits: storageKey,
+              mimeType: textField(video, "mimetype", "mimeType", "contentType") || "video/mp4",
+              base64,
+              url: mediaUrl || textField(video, "url", "URL") || null,
+            });
+            urlMidia = stored ?? mediaUrl;
+            tipoMidia = "video";
+            texto = textField(video, "caption") || textoOriginal;
+          } else if (audio) {
+            const base64 = await obterBase64Story("audio", audio);
+            const { storeInboundAudio } = await import("@/lib/audio.server");
+            const stored = await storeInboundAudio({
+              phoneDigits: storageKey,
+              mimeType: textField(audio, "mimetype", "mimeType", "contentType") || "audio/ogg",
+              base64,
+              url: mediaUrl || textField(audio, "url", "URL") || null,
+            });
+            urlMidia = stored?.url ?? mediaUrl;
+            tipoMidia = "audio";
+            if (stored?.transcript) texto = `🗣 Transcrição: ${stored.transcript}`;
+          } else if (documento) {
+            const base64 = await obterBase64Story("document", documento);
+            const { storeInboundDocument } = await import("@/lib/media.server");
+            const stored = await storeInboundDocument({
+              phoneDigits: storageKey,
+              fileName: textField(documento, "fileName", "filename") || null,
+              mimeType: textField(documento, "mimetype", "mimeType", "contentType") || null,
+              base64,
+              url: mediaUrl || textField(documento, "url", "URL") || null,
+            });
+            urlMidia = stored?.url ?? mediaUrl;
+            tipoMidia = "documento";
+            texto = stored?.name || textoOriginal;
+          } else if (!texto || isUnsupportedText(texto)) {
+            const chaves = Object.keys((envelopeMidia ?? message ?? {}) as Record<string, unknown>)
+              .filter((chave) => !/^messageContextInfo$/i.test(chave))
+              .join(", ");
+            tipoMidia = "nao_suportada";
+            texto = chaves ? `Mensagem não suportada recebida (${chaves})` : "Mensagem não suportada recebida";
+          }
           try {
             await supabaseAdmin.from("stories_recebidos").insert({
                 project_id: (config as { project_id?: string | null }).project_id ?? null,
@@ -916,7 +1052,7 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
                 chat_jid: chatRaw.trim(),
                 autor_jid: String(info.Participant ?? info.SenderAlt ?? info.Sender ?? ""),
                 autor_nome: String(info.PushName ?? ""),
-                texto: extractText(message).slice(0, 4000),
+                texto: texto.slice(0, 4000),
                 midia_url: urlMidia,
                 midia_tipo: tipoMidia,
               wa_id: String(info.ID ?? ""),
