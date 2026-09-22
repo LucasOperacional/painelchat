@@ -24,8 +24,22 @@ function base64ToBytes(base64: string): Uint8Array {
 function absoluteMediaUrl(value?: string | null): string | null {
   const url = value?.trim();
   if (!url) return null;
-  if (url.startsWith("//")) return `https:${url}`;
-  return /^https?:\/\//i.test(url) ? url : null;
+  const full = url.startsWith("//") ? `https:${url}` : url;
+  if (!/^https?:\/\//i.test(full)) return null;
+  // Endereço interno do servidor do provedor (localhost/rede privada): não serve
+  // nem para baixar nem para exibir na conversa.
+  try {
+    const host = new URL(full).hostname;
+    if (
+      /^(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|\[?::1\]?|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)$/i.test(
+        host,
+      )
+    )
+      return null;
+  } catch {
+    return null;
+  }
+  return full;
 }
 
 /** Baixa (ou decodifica) a imagem/figurinha recebida e devolve um link para exibir. */
