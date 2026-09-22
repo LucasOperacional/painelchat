@@ -360,25 +360,23 @@ export const sendMisticpayCharge = createServerFn({ method: "POST" })
     }
 
     const amount = parseAmount(data.amount);
-    const payerName =
-      data.payerName.trim() || contact.name?.trim() || creds.defaultPayerName || "Cliente";
-    const payerDocument =
-      data.payerDocument.replace(/\D/g, "") ||
-      (creds.defaultPayerDocument ?? "").replace(/\D/g, "");
-    if (payerDocument && payerDocument.length !== 11) {
-      throw new Error("O CPF do pagador, quando informado, precisa ter 11 dígitos.");
-    }
+    const payerName = data.payerName.trim() || contact.name?.trim() || "Cliente";
+    // O CPF vai gravado no QR Code: se não for o CPF de quem vai pagar, o app do
+    // banco recusa o pagamento. Por isso nunca usamos um CPF padrão aqui.
+    const payerDocument = data.payerDocument.replace(/\D/g, "");
     if (!payerDocument) {
       throw new Error(
-        "A MisticPay exige um CPF para gerar a cobrança. Informe o CPF do pagador ou cadastre um CPF padrão em Configurações → MisticPay.",
+        "Informe o CPF do cliente que vai pagar. O CPF fica gravado no QR Code e, se for de outra pessoa, o banco recusa o pagamento.",
       );
+    }
+    if (payerDocument.length !== 11) {
+      throw new Error("O CPF do pagador precisa ter 11 dígitos.");
     }
 
     const transactionId = `conv-${data.conversationId.slice(0, 8)}-${Date.now()}`;
     const webhookToken = process.env["MISTICPAY_WEBHOOK_TOKEN"] ?? "";
     const publicBase = (
-      process.env["PUBLIC_SITE_URL"] ??
-      "https://project--7735c9b1-51e5-4325-8317-f1e55fa697f4.lovable.app"
+      process.env["PUBLIC_SITE_URL"] ?? "https://painelchat.lovable.app"
     ).replace(/\/+$/, "");
 
     const charge = await misticpayCreateCharge({
