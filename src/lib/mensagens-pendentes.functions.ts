@@ -202,3 +202,101 @@ export const reprocessarAviso = createServerFn({ method: "POST" })
 
     return { ok: resposta.ok, detalhe: corpo.slice(0, 300) };
   });
+
+/** Reenvia para o chat todos os avisos pendentes do período escolhido. */
+export const reprocessarTodos = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) =>
+    z
+      .object({ horas: z.number().min(1).max(168).default(24) })
+      .partial()
+      .parse(data ?? {}),
+  )
+  .handler(async ({ context, data }) => {
+    await requireAdmin(context as never);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const horas = data?.horas ?? 24;
+    const desde = new Date(Date.now() - horas * 3600_000).toISOString();
+
+    const { data: eventos, error } = await supabaseAdmin
+      .from("webhook_eventos")
+      .select("id, token, evento, status, external_id, payload, created_at")
+      .gte("created_at", desde)
+      .order("created_at", { ascending: true })
+      .limit(2000);
+    if (error) throw new Error(error.message);
+
+    const lista = (eventos ?? []) as Record<string, unknown>[];
+    const ids = Array.from(
+      new Set(lista.map((e) => texto(e["external_id"])).filter((v) => v.length > 0)),
+    );
+
+    const salvos = new Set<string>();
+    for (let i = 0; i < ids.length; i += 300) {
+      const { data: msgs } = await supabaseAdmin
+        .from("messages")
+        .select("external_id")
+        .in("external_id", ids.slice(i, i + 300));
+      for (const m of (msgs ?? []) as { external_id: string | null }[]) {
+        if (m.external_id) salvos.add(m.external_id);
+      }
+    }
+
+    const pendentes = lista.filter((e) => {
+      const id = texto(e["external_id"]);
+      const status = texto(e["status"]);
+      if (status === "erro" || status === "processando") return true;
+      if (!id) return false;
+      return !salvos.has(id);
+    });
+
+    const base =
+      process.env["PUBLIC_SITE_URL"] ??
+      "https://project--a3daa33e-35ce-4bc4-9ed0-fa0c79c7a779.lovable.app";
+
+    let enviados = 0;
+    let falhas = 0;
+    const alvo = pendentes.slice(0, 200);
+
+    for (const evento of alvo) {
+      const url = `${base.replace(/\/$/, "")}/api/public/evolution?token=${encodeURIComponent(
+        String(evento["token"] ?? ""),
+      )}`;
+      try {
+        const resposta = await fetch(url, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(evento["payload"] ?? {}),
+        });
+        const corpo = await resposta.text();
+        if (resposta.ok) enviados += 1;
+        else falhas += 1;
+        await supabaseAdmin
+          .from("webhook_eventos")
+          .update({
+            status: resposta.ok ? "ok" : "erro",
+            processado_em: new Date().toISOString(),
+            erro: resposta.ok ? null : corpo.slice(0, 500),
+          })
+          .eq("id", String(evento["id"]));
+      } catch (e) {
+        falhas += 1;
+        await supabaseAdmin
+          .from("webhook_eventos")
+          .update({
+            status: "erro",
+            processado_em: new Date().toISOString(),
+            erro: String((e as Error).message ?? e).slice(0, 500),
+          })
+          .eq("id", String(evento["id"]));
+      }
+    }
+
+    return {
+      total: pendentes.length,
+      processados: alvo.length,
+      enviados,
+      falhas,
+      restantes: Math.max(0, pendentes.length - alvo.length),
+    };
+  });
