@@ -164,22 +164,68 @@ async function tentarReconectar(config: EvolutionConfig): Promise<{ ok: boolean;
       { webhookUrl: webhook, immediate: true },
     );
 
-    await new Promise((r) => setTimeout(r, 2500));
-    const status = await evolutionGetStatus({
-      baseUrl: config.base_url,
-      instanceId,
-      configId: config.id,
-      provider: config.provider ?? undefined,
-    });
-    return status.connected && status.loggedIn
-      ? { ok: true, detalhe: "Conexão restabelecida automaticamente." }
-      : { ok: false, detalhe: "A instância não voltou a ficar on-line." };
+    // Dá tempo da sessão subir e confere algumas vezes antes de desistir.
+    for (let tentativa = 1; tentativa <= 4; tentativa += 1) {
+      await new Promise((r) => setTimeout(r, tentativa * 2500));
+      try {
+        const status = await evolutionGetStatus({
+          baseUrl: config.base_url,
+          instanceId,
+          configId: config.id,
+          provider: config.provider ?? undefined,
+          timeoutMs: 15_000,
+        });
+        if (status.connected && status.loggedIn) {
+          return { ok: true, detalhe: "Conexão restabelecida automaticamente." };
+        }
+      } catch {
+        /* segue tentando */
+      }
+    }
+    return { ok: false, detalhe: "A instância não voltou a ficar on-line." };
   } catch (error) {
     return {
       ok: false,
       detalhe: error instanceof Error ? error.message : "Falha ao religar a instância.",
     };
   }
+}
+
+/**
+ * Confere o aparelho várias vezes antes de declarar queda: instabilidade de
+ * rede ou um timeout isolado não deve derrubar a conexão nem gerar alerta.
+ */
+async function conferirComTentativas(
+  device: EvolutionConfig,
+  tentativas = 3,
+): Promise<{ online: boolean; erro: string; telefone: string; nomeConta: string }> {
+  const { ensureEvolutionInstance, evolutionGetStatus } = await import("@/lib/evolution.server");
+  let erro = "A API não respondeu.";
+  let telefone = device.phone ?? "";
+  let nomeConta = "";
+
+  for (let i = 1; i <= tentativas; i += 1) {
+    try {
+      const instanceId = await ensureEvolutionInstance(device);
+      const status = await evolutionGetStatus({
+        baseUrl: device.base_url,
+        instanceId,
+        configId: device.id,
+        provider: device.provider ?? undefined,
+        timeoutMs: 20_000,
+      });
+      telefone = status.phone || telefone;
+      nomeConta = status.name || nomeConta;
+      if (status.connected && status.loggedIn) {
+        return { online: true, erro: "", telefone, nomeConta };
+      }
+      erro = "A API respondeu, mas o aparelho está desconectado do WhatsApp.";
+    } catch (error) {
+      erro = error instanceof Error ? error.message : "A API não respondeu.";
+    }
+    if (i < tentativas) await new Promise((r) => setTimeout(r, 3000));
+  }
+  return { online: false, erro, telefone, nomeConta };
 }
 
 export type ResultadoVerificacao = {
@@ -202,12 +248,9 @@ export async function verificarConexoes(
   };
   if (!settings.ativo) return resultado;
 
-  const {
-    listEvolutionConfigs,
-    ensureEvolutionInstance,
-    evolutionGetStatus,
-    ensureEvolutionWebhook,
-  } = await import("@/lib/evolution.server");
+  const { listEvolutionConfigs, ensureEvolutionWebhook } = await import(
+    "@/lib/evolution.server"
+  );
   const devices = await listEvolutionConfigs();
 
   for (const device of devices) {
@@ -218,27 +261,11 @@ export async function verificarConexoes(
     const tentativas =
       (device as unknown as { monitor_tentativas?: number }).monitor_tentativas ?? 0;
 
-    let online = false;
-    let erro = "";
-    let telefone = device.phone ?? "";
-    let nomeConta = "";
-    try {
-      const instanceId = await ensureEvolutionInstance(device);
-      const status = await evolutionGetStatus({
-        baseUrl: device.base_url,
-        instanceId,
-        configId: device.id,
-        provider: device.provider ?? undefined,
-        timeoutMs: 15_000,
-      });
-      online = status.connected && status.loggedIn;
-      telefone = status.phone || telefone;
-      nomeConta = status.name || "";
-      if (!online) erro = "A API respondeu, mas o aparelho está desconectado do WhatsApp.";
-    } catch (error) {
-      online = false;
-      erro = error instanceof Error ? error.message : "A API não respondeu.";
-    }
+    const conferido = await conferirComTentativas(device);
+    const online = conferido.online;
+    const erro = conferido.erro;
+    const telefone = conferido.telefone;
+    const nomeConta = conferido.nomeConta;
 
     if (online) {
       // Autocorreção: garante que o webhook aponte para o endereço de produção.
@@ -279,7 +306,13 @@ export async function verificarConexoes(
     resultado.quedas += 1;
     let religou = { ok: false, detalhe: "Religamento automático desligado." };
     if (settings.auto_reconectar) {
+      // Duas rodadas de religamento: a primeira resolve quedas simples,
+      // a segunda cobre APIs que demoram para reabrir a sessão.
       religou = await tentarReconectar(device);
+      if (!religou.ok) {
+        await new Promise((r) => setTimeout(r, 4000));
+        religou = await tentarReconectar(device);
+      }
       if (religou.ok) resultado.religados += 1;
     }
 
