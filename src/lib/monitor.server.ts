@@ -20,22 +20,35 @@ type Severidade = "erro" | "aviso" | "ok";
 /** Configuração do monitor (cria a linha padrão se ainda não existir). */
 export async function carregarMonitorSettings(): Promise<MonitorSettings> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data } = await supabaseAdmin
-    .from("monitor_settings")
-    .select("*")
-    .order("created_at")
-    .limit(1)
-    .maybeSingle();
-  if (data) return data as MonitorSettings;
 
-  const { data: criado, error } = await supabaseAdmin
-    .from("monitor_settings")
-    .insert({ numero_alerta: NUMERO_ALERTA_PADRAO } as never)
-    .select("*")
-    .single();
-  if (error) throw new Error(error.message);
-  return criado as MonitorSettings;
+  // O banco pode responder devagar em picos: tentamos algumas vezes antes de falhar.
+  let ultimoErro = "Não foi possível ler a configuração do monitor.";
+  for (let tentativa = 1; tentativa <= 3; tentativa += 1) {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from("monitor_settings")
+        .select("*")
+        .order("created_at")
+        .limit(1)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (data) return data as MonitorSettings;
+
+      const { data: criado, error: erroInsert } = await supabaseAdmin
+        .from("monitor_settings")
+        .insert({ numero_alerta: NUMERO_ALERTA_PADRAO } as never)
+        .select("*")
+        .single();
+      if (erroInsert) throw new Error(erroInsert.message);
+      return criado as MonitorSettings;
+    } catch (error) {
+      ultimoErro = error instanceof Error ? error.message : String(error);
+      if (tentativa < 3) await new Promise((r) => setTimeout(r, tentativa * 1500));
+    }
+  }
+  throw new Error(ultimoErro);
 }
+
 
 /** Envia o aviso pelo WhatsApp usando qualquer aparelho que ainda esteja de pé. */
 async function enviarAlerta(
