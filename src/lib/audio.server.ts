@@ -29,12 +29,30 @@ function absoluteMediaUrl(value?: string | null) {
 function base64ToBytes(base64: string): Uint8Array | null {
   if (/^\[conteúdo grande removido:/i.test(base64.trim())) return null;
   const clean = base64.includes(",") ? base64.slice(base64.indexOf(",") + 1) : base64;
-  const normalized = clean.replace(/\s/g, "");
+  const normalized = clean.replace(/\s/g, "").replace(/-/g, "+").replace(/_/g, "/");
   if (!normalized || !/^[A-Za-z0-9+/]+={0,2}$/.test(normalized)) return null;
-  const binary = atob(normalized);
+  const semPadding = normalized.replace(/=+$/, "");
+  if (semPadding.length % 4 === 1) return null;
+  const padded = semPadding.padEnd(Math.ceil(semPadding.length / 4) * 4, "=");
+  let binary = "";
+  try {
+    binary = atob(padded);
+  } catch {
+    return null;
+  }
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
   return bytes;
+}
+
+function isEncryptedWhatsappUrl(value: string | null) {
+  if (!value) return false;
+  if (/\.enc(?:\?|$)/i.test(value)) return true;
+  try {
+    return /(?:^|\.)mmg\.whatsapp\.net$/i.test(new URL(value).hostname);
+  } catch {
+    return /mmg\.whatsapp\.net/i.test(value);
+  }
 }
 
 /** Baixa (ou decodifica) o áudio recebido e guarda na central, devolvendo um link para ouvir. */
@@ -52,7 +70,7 @@ export async function storeInboundAudio(input: {
     if (input.base64) {
       bytes = base64ToBytes(input.base64);
     }
-    if (!bytes && usableUrl && !/\.enc(\?|$)/i.test(usableUrl)) {
+    if (!bytes && usableUrl && !isEncryptedWhatsappUrl(usableUrl)) {
       const res = await fetch(usableUrl);
       if (res.ok) {
         bytes = new Uint8Array(await res.arrayBuffer());
@@ -66,7 +84,7 @@ export async function storeInboundAudio(input: {
 
   if (!bytes || bytes.byteLength < 256) {
     // Sem os bytes, ainda dá para ouvir pelo link original quando ele for público.
-    if (usableUrl && !/\.enc(\?|$)/i.test(usableUrl)) {
+    if (usableUrl && !isEncryptedWhatsappUrl(usableUrl)) {
       return { url: usableUrl, transcript: null };
     }
     return null;
