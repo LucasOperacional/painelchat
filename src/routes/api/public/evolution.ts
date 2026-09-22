@@ -833,6 +833,47 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
         const chatRaw = String(info.Chat ?? info.Sender ?? "");
         const isGroup = !!info.IsGroup || chatRaw.includes("@g.us");
 
+        // Stories (status@broadcast) e canais (@newsletter) não são conversas de
+        // atendimento: ficam guardados à parte para visualização na tela
+        // "Stories e canais".
+        if (/@(broadcast|newsletter)$/i.test(chatRaw.trim())) {
+          const ehCanal = /@newsletter$/i.test(chatRaw.trim());
+          const envelopeMidia = unwrapMessage(message);
+          const urlMidia = [message, envelopeMidia].reduce<string>((achado, alvo) => {
+            if (achado || !alvo) return achado;
+            const valor = field<unknown>(alvo, "mediaUrl", "mediaURL", "url", "URL", "file_url");
+            return typeof valor === "string" && valor ? valor : "";
+          }, "");
+          const chaves = Object.keys((envelopeMidia ?? message ?? {}) as Record<string, unknown>).join(" ");
+          const tipoMidia = /video/i.test(chaves)
+            ? "video"
+            : /image/i.test(chaves)
+              ? "imagem"
+              : /audio|ptt/i.test(chaves)
+                ? "audio"
+                : "nenhum";
+          try {
+            await supabaseAdmin.from("stories_recebidos").upsert(
+              {
+                project_id: (config as { project_id?: string | null }).project_id ?? null,
+                config_id: config.id,
+                tipo: ehCanal ? "canal" : "status",
+                chat_jid: chatRaw.trim(),
+                autor_jid: String(info.Participant ?? info.SenderAlt ?? info.Sender ?? ""),
+                autor_nome: String(info.PushName ?? ""),
+                texto: extractText(message).slice(0, 4000),
+                midia_url: urlMidia,
+                midia_tipo: tipoMidia,
+                wa_id: String(info.ID ?? ""),
+              },
+              { onConflict: "wa_id" },
+            );
+          } catch (erro) {
+            console.warn("[webhook] falha ao guardar story", erro);
+          }
+          return Response.json({ received: true, stored: ehCanal ? "canal" : "status" });
+        }
+
         // Conversa individual: o WhatsApp novo entrega o chat como @lid (um id
         // interno, sem telefone). O número real pode vir em SenderAlt,
         // RecipientAlt (respostas feitas no celular) ou Sender.
