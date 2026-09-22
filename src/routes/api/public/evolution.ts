@@ -480,10 +480,13 @@ function fromWuzapi(raw: Record<string, any>): EvolutionWebhook {
   if (info && typeof info === "object") {
     const novoInfo: Record<string, any> = { ...info };
     const atual = (nome: string) => jidLimpo(novoInfo[nome]);
-    if (senderJid && !atual("SenderAlt") && !atual("Sender").includes("@s.whatsapp.net")) {
+    const propria = novoInfo["IsFromMe"] === true;
+    // Mensagem enviada pelo celular: sender_jid é o NOSSO número e não serve
+    // para achar a conversa — quem manda na identificação é o chat_jid.
+    if (senderJid && !propria && !atual("SenderAlt") && !atual("Sender").includes("@s.whatsapp.net")) {
       novoInfo["SenderAlt"] = senderJid;
     }
-    if (chatJid && !atual("RecipientAlt") && novoInfo["IsFromMe"] === true) {
+    if (chatJid && propria && !atual("RecipientAlt")) {
       novoInfo["RecipientAlt"] = chatJid;
     }
     // Chat individual entregue como @lid: usa o telefone informado no contato.
