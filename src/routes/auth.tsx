@@ -95,7 +95,7 @@ function AuthPage() {
       <div className="pointer-events-none absolute inset-0 bg-black/45" />
 
 
-      <div className="relative w-full max-w-md">
+      <div className="relative z-10 w-full max-w-md">
         <div className="rounded-3xl border border-border/50 bg-card/60 p-8 shadow-2xl backdrop-blur-2xl">
           <div className="flex flex-col items-center gap-3 text-center">
             {project?.loginLogoUrl ? (
