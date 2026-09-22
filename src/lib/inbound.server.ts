@@ -14,11 +14,15 @@ let ignoreGroupsCache: { value: boolean; at: number } | null = null;
 
 const FAILED_MEDIA_RE = /arquivo indisponível|Arquivo recebido — não foi possível baixar/i;
 const MEDIA_LINK_RE = /(🖼\s*(?:Imagem|Figurinha)|🎬\s*(?:Vídeo|Video)|🎵\s*(?:Áudio|Audio)|📎\s*[^:\n]+):\s*https?:\/\//i;
+const WHATSAPP_MEDIA_RE = /https?:\/\/[^\s]+mmg\.whatsapp\.net/i;
+const STORED_MEDIA_RE = /\/storage\/v1\/object\/sign\/anexos\//i;
 
 function recoveredMediaBody(previousBody: string | null | undefined, incomingBody: string) {
   const current = previousBody ?? "";
-  if (!FAILED_MEDIA_RE.test(current) || FAILED_MEDIA_RE.test(incomingBody)) return null;
+  const precisaTrocar = FAILED_MEDIA_RE.test(current) || WHATSAPP_MEDIA_RE.test(current);
+  if (!precisaTrocar || FAILED_MEDIA_RE.test(incomingBody)) return null;
   if (!MEDIA_LINK_RE.test(incomingBody)) return null;
+  if (WHATSAPP_MEDIA_RE.test(current) && !STORED_MEDIA_RE.test(incomingBody)) return null;
   const prefix = current.match(/^([\s\S]*?)(?=🖼|🎬|🎵|📎)/)?.[1] ?? "";
   return `${prefix}${incomingBody}`;
 }
