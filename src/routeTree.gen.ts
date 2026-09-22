@@ -57,6 +57,7 @@ import { Route as ApiPublicEvolutionRouteImport } from './routes/api/public/evol
 import { Route as ApiPublicLojaRouteImport } from './routes/api/public/loja'
 import { Route as ApiPublicMisticpayRouteImport } from './routes/api/public/misticpay'
 import { Route as ApiPublicMonitorRouteImport } from './routes/api/public/monitor'
+import { Route as ApiPublicOtimizacaoRouteImport } from './routes/api/public/otimizacao'
 import { Route as ApiPublicPostagensRouteImport } from './routes/api/public/postagens'
 import { Route as ApiPublicSentinelaRouteImport } from './routes/api/public/sentinela'
 import { Route as ApiPublicWebviewProxyRouteImport } from './routes/api/public/webview-proxy'
@@ -309,6 +310,11 @@ const ApiPublicMonitorRoute = ApiPublicMonitorRouteImport.update({
   path: '/api/public/monitor',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicOtimizacaoRoute = ApiPublicOtimizacaoRouteImport.update({
+  id: '/api/public/otimizacao',
+  path: '/api/public/otimizacao',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicPostagensRoute = ApiPublicPostagensRouteImport.update({
   id: '/api/public/postagens',
   path: '/api/public/postagens',
@@ -371,6 +377,7 @@ export interface FileRoutesByFullPath {
   '/api/public/loja': typeof ApiPublicLojaRoute
   '/api/public/misticpay': typeof ApiPublicMisticpayRoute
   '/api/public/monitor': typeof ApiPublicMonitorRoute
+  '/api/public/otimizacao': typeof ApiPublicOtimizacaoRoute
   '/api/public/postagens': typeof ApiPublicPostagensRoute
   '/api/public/sentinela': typeof ApiPublicSentinelaRoute
   '/api/public/webview-proxy': typeof ApiPublicWebviewProxyRoute
@@ -423,6 +430,7 @@ export interface FileRoutesByTo {
   '/api/public/loja': typeof ApiPublicLojaRoute
   '/api/public/misticpay': typeof ApiPublicMisticpayRoute
   '/api/public/monitor': typeof ApiPublicMonitorRoute
+  '/api/public/otimizacao': typeof ApiPublicOtimizacaoRoute
   '/api/public/postagens': typeof ApiPublicPostagensRoute
   '/api/public/sentinela': typeof ApiPublicSentinelaRoute
   '/api/public/webview-proxy': typeof ApiPublicWebviewProxyRoute
@@ -477,6 +485,7 @@ export interface FileRoutesById {
   '/api/public/loja': typeof ApiPublicLojaRoute
   '/api/public/misticpay': typeof ApiPublicMisticpayRoute
   '/api/public/monitor': typeof ApiPublicMonitorRoute
+  '/api/public/otimizacao': typeof ApiPublicOtimizacaoRoute
   '/api/public/postagens': typeof ApiPublicPostagensRoute
   '/api/public/sentinela': typeof ApiPublicSentinelaRoute
   '/api/public/webview-proxy': typeof ApiPublicWebviewProxyRoute
@@ -531,6 +540,7 @@ export interface FileRouteTypes {
     | '/api/public/loja'
     | '/api/public/misticpay'
     | '/api/public/monitor'
+    | '/api/public/otimizacao'
     | '/api/public/postagens'
     | '/api/public/sentinela'
     | '/api/public/webview-proxy'
@@ -583,6 +593,7 @@ export interface FileRouteTypes {
     | '/api/public/loja'
     | '/api/public/misticpay'
     | '/api/public/monitor'
+    | '/api/public/otimizacao'
     | '/api/public/postagens'
     | '/api/public/sentinela'
     | '/api/public/webview-proxy'
@@ -636,6 +647,7 @@ export interface FileRouteTypes {
     | '/api/public/loja'
     | '/api/public/misticpay'
     | '/api/public/monitor'
+    | '/api/public/otimizacao'
     | '/api/public/postagens'
     | '/api/public/sentinela'
     | '/api/public/webview-proxy'
@@ -656,6 +668,7 @@ export interface RootRouteChildren {
   ApiPublicLojaRoute: typeof ApiPublicLojaRoute
   ApiPublicMisticpayRoute: typeof ApiPublicMisticpayRoute
   ApiPublicMonitorRoute: typeof ApiPublicMonitorRoute
+  ApiPublicOtimizacaoRoute: typeof ApiPublicOtimizacaoRoute
   ApiPublicPostagensRoute: typeof ApiPublicPostagensRoute
   ApiPublicSentinelaRoute: typeof ApiPublicSentinelaRoute
   ApiPublicWebviewProxyRoute: typeof ApiPublicWebviewProxyRoute
@@ -999,6 +1012,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicMonitorRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/otimizacao': {
+      id: '/api/public/otimizacao'
+      path: '/api/public/otimizacao'
+      fullPath: '/api/public/otimizacao'
+      preLoaderRoute: typeof ApiPublicOtimizacaoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/postagens': {
       id: '/api/public/postagens'
       path: '/api/public/postagens'
@@ -1117,6 +1137,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicLojaRoute: ApiPublicLojaRoute,
   ApiPublicMisticpayRoute: ApiPublicMisticpayRoute,
   ApiPublicMonitorRoute: ApiPublicMonitorRoute,
+  ApiPublicOtimizacaoRoute: ApiPublicOtimizacaoRoute,
   ApiPublicPostagensRoute: ApiPublicPostagensRoute,
   ApiPublicSentinelaRoute: ApiPublicSentinelaRoute,
   ApiPublicWebviewProxyRoute: ApiPublicWebviewProxyRoute,
