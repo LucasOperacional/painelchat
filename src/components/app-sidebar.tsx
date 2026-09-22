@@ -32,6 +32,7 @@ import {
     CalendarClock,
     Boxes,
     Activity,
+    Images,
  } from "lucide-react";
 
 
@@ -92,6 +93,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/divulgazap", label: "DivulgaZap", icon: Megaphone, adminOnly: true },
       { to: "/divulgacao", label: "Divulgação em grupos", icon: Users, adminOnly: true },
       { to: "/postagens", label: "Postagens e Stories", icon: CalendarClock, adminOnly: true },
+      { to: "/stories", label: "Stories e canais", icon: Images, adminOnly: false },
       { to: "/chamadas", label: "Chamadas", icon: PhoneCall, adminOnly: false },
       { to: "/ia", label: "IA", icon: Sparkles, adminOnly: true },
     ],
