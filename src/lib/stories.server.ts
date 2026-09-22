@@ -167,16 +167,14 @@ async function buscarNomeCanal(
         timeoutMs: 20_000,
       });
       const alvo = (res as { data?: unknown } | null)?.data ?? res;
-      const nome = nomeProfundo(alvo);
-      if (!nome) continue;
       const bag = (Array.isArray(alvo) ? alvo[0] : alvo) as Record<string, unknown>;
+      if (!bag || typeof bag !== "object") continue;
+      const nome = nomeDoCanal(bag);
+      if (!nome) continue;
       return {
         nome,
-        descricao: bag && typeof bag === "object" ? texto(bag, "Description", "description", "desc") : "",
-        inscritos:
-          bag && typeof bag === "object"
-            ? numero(bag, "SubscriberCount", "subscribers", "subscriberCount", "followers")
-            : null,
+        descricao: descricaoDoCanal(bag),
+        inscritos: inscritosDoCanal(bag),
       };
     } catch {
       /* rota indisponível nesta integração: tenta a próxima */
