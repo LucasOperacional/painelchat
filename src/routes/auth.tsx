@@ -82,13 +82,18 @@ function AuthPage() {
     "h-12 rounded-xl border-border/60 bg-background/40 px-4 text-foreground backdrop-blur-sm placeholder:text-muted-foreground/70 focus-visible:border-primary/60";
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-10">
-      {/* Fundo com brilhos suaves usando as cores do sistema */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-24 top-[-10%] size-[26rem] rounded-full bg-primary/30 blur-[120px]" />
-        <div className="absolute -right-20 bottom-[-15%] size-[30rem] rounded-full bg-accent/40 blur-[130px]" />
-        <div className="absolute left-1/2 top-1/2 size-[22rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/20 blur-[140px]" />
-      </div>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
+      {/* Vídeo de fundo */}
+      <video
+        autoPlay
+        loop
+        muted
+        playsInline
+        className="pointer-events-none absolute inset-0 size-full object-cover"
+        src={videoPaiAsset.url}
+      />
+      <div className="pointer-events-none absolute inset-0 bg-black/45" />
+
 
       <div className="relative w-full max-w-md">
         <div className="rounded-3xl border border-border/50 bg-card/60 p-8 shadow-2xl backdrop-blur-2xl">
