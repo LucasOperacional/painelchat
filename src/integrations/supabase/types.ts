@@ -3147,6 +3147,7 @@ export type Database = {
           total_out: number
         }[]
       }
+      cron_corrigir_urls: { Args: { _base: string }; Returns: number }
       current_project_id: { Args: never; Returns: string }
       has_role: {
         Args: {
