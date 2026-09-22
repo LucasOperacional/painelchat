@@ -542,3 +542,99 @@ export const startConversationWithContact = createServerFn({ method: "POST" })
     return { conversationId: created.id, created: true };
   });
 
+/** Inicia um atendimento a partir de um número, criando o contato quando necessário. */
+export const startNewAttendance = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: { phone: string; name?: string | null; whatsappConfigId?: string | null }) => {
+    const phone = toBrazilPhone(data.phone);
+    if (!phone) throw new Error("Informe um número de WhatsApp válido do Brasil (DDD + número).");
+    const name = data.name?.trim() || null;
+    return { phone, name, whatsappConfigId: data.whatsappConfigId ?? null };
+  })
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+
+    // 1. Reaproveita contato existente pelo telefone normalizado.
+    const { data: existing, error: findError } = await supabase
+      .from("contacts")
+      .select("id")
+      .eq("phone", data.phone)
+      .maybeSingle();
+    if (findError) throw new Error(findError.message);
+
+    let contactId = existing?.id;
+    if (!contactId) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: inserted, error: insertError } = await supabaseAdmin
+        .from("contacts")
+        .insert({
+          name: data.name ?? formatBrPhone(data.phone),
+          phone: data.phone,
+        })
+        .select("id")
+        .single();
+      if (insertError) throw new Error(insertError.message);
+      contactId = inserted.id;
+    }
+
+    // 2. Reaproveita conversa aberta do contato.
+    const { data: open, error: openError } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("contact_id", contactId)
+      .neq("status", "closed")
+      .order("last_message_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (openError) throw new Error(openError.message);
+
+    if (open) {
+      if (data.whatsappConfigId) {
+        await supabase
+          .from("conversations")
+          .update({ whatsapp_config_id: data.whatsappConfigId })
+          .eq("id", open.id);
+      }
+      return { conversationId: open.id, created: false, contactId };
+    }
+
+    // 3. Cria nova conversa aberta atribuída ao atendente.
+    const { data: queue } = await supabase
+      .from("queues")
+      .select("id, department_id")
+      .eq("is_active", true)
+      .order("priority")
+      .limit(1)
+      .maybeSingle();
+
+    const { data: created, error } = await supabase
+      .from("conversations")
+      .insert({
+        contact_id: contactId,
+        assigned_to: userId,
+        status: "open",
+        channel: "whatsapp",
+        queue_id: queue?.id ?? null,
+        department_id: queue?.department_id ?? null,
+        whatsapp_config_id: data.whatsappConfigId,
+        last_message_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+    if (error) {
+      // Em corrida rara, reaproveita conversa criada por outra sessão.
+      const { data: raced } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("contact_id", contactId)
+        .neq("status", "closed")
+        .limit(1)
+        .maybeSingle();
+      if (!raced) throw new Error(error.message);
+      return { conversationId: raced.id, created: false, contactId };
+    }
+
+    return { conversationId: created.id, created: true, contactId };
+  });
+
+

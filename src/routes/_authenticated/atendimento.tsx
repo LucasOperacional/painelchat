@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -178,7 +178,12 @@ function ContactAvatar({
   );
 }
 
+import { z } from "zod";
+
 export const Route = createFileRoute("/_authenticated/atendimento")({
+  validateSearch: z.object({
+    conversation: z.string().optional(),
+  }).parse,
   head: () => ({
     meta: [
       { title: "Painel de atendimento — Central" },
@@ -198,6 +203,7 @@ export const Route = createFileRoute("/_authenticated/atendimento")({
   }),
   component: AtendimentoPage,
 });
+
 
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -227,7 +233,14 @@ function AtendimentoPage() {
   const [queueFilter, setQueueFilter] = useState("all");
   const [agentFilter, setAgentFilter] = useState("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const searchParams = useSearch({ from: "/_authenticated/atendimento" });
+  useEffect(() => {
+    if (searchParams.conversation) {
+      setSelectedId(searchParams.conversation);
+    }
+  }, [searchParams.conversation]);
   const [draft, setDraft] = useState("");
+
   const [transferOpen, setTransferOpen] = useState(false);
   const [forwardBody, setForwardBody] = useState<string | null>(null);
   const [forwardSearch, setForwardSearch] = useState("");
