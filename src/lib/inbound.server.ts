@@ -27,6 +27,9 @@ function recoveredMediaBody(previousBody: string | null | undefined, incomingBod
   return `${prefix}${incomingBody}`;
 }
 
+/** Nome provisório de grupo, usado só enquanto o nome real não chega. */
+const GRUPO_SEM_NOME = "Grupo do WhatsApp";
+
 /** Preferência da central: ignorar mensagens recebidas de grupos. */
 export async function shouldIgnoreGroups() {
   if (ignoreGroupsCache && Date.now() - ignoreGroupsCache.at < 30_000) {
