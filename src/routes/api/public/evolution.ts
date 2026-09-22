@@ -809,8 +809,11 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
         const isBrPhone = (d: string) => /^55\d{10,11}$/.test(d);
         // Quando a mensagem é nossa (respondida no celular), o campo Sender é o
         // nosso próprio número — nunca serve para identificar a conversa.
-        const rawCandidates = [chatRaw, String(info.SenderAlt ?? ""), recipientAlt];
-        if (!fromMe) rawCandidates.push(String(info.Sender ?? ""));
+        // Mensagem enviada pelo celular: o outro lado está no chat/RecipientAlt.
+        // Sender e SenderAlt são o nosso próprio número nesses eventos.
+        const rawCandidates = fromMe
+          ? [recipientAlt, chatRaw]
+          : [chatRaw, String(info.SenderAlt ?? ""), recipientAlt, String(info.Sender ?? "")];
         const directCandidates = rawCandidates
           .filter((jid) => jid && !jid.includes("@lid"))
           .map(jidToPhone);
