@@ -37,6 +37,7 @@ import {
   PhoneCall,
   Archive,
   Check,
+  Ban,
 } from "lucide-react";
 import { toast } from "sonner";
 
