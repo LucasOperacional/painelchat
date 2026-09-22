@@ -5,7 +5,26 @@ export type CanalApi = {
   nome: string;
   descricao: string;
   inscritos: number | null;
+  /** Papel do número conectado no canal: owner, admin ou subscriber. */
+  papel: string;
+  /** Verdadeiro quando o número conectado pode publicar no canal. */
+  podeEnviar: boolean;
 };
+
+/** Papel do número conectado, vindo de viewer_metadata.role. */
+function papelDoCanal(bag: Record<string, unknown>): string {
+  const viewer = bag["viewer_metadata"] ?? bag["viewerMetadata"] ?? bag["ViewerMetadata"];
+  if (viewer && typeof viewer === "object" && !Array.isArray(viewer)) {
+    const papel = texto(viewer as Record<string, unknown>, "role", "Role", "papel");
+    if (papel) return papel.toLowerCase();
+  }
+  const direto = texto(bag, "role", "Role");
+  return direto ? direto.toLowerCase() : "";
+}
+
+function podePublicar(papel: string): boolean {
+  return papel === "owner" || papel === "admin";
+}
 
 function texto(bag: Record<string, unknown>, ...chaves: string[]): string {
   for (const chave of chaves) {
@@ -238,11 +257,14 @@ export async function listarCanais(deviceId: string | null): Promise<{
           texto(bag, "JID", "jid", "id", "Id", "ID", "remoteJid") ||
           texto(bag, "name", "Name");
         if (!id || !/^\d+@/.test(id)) continue;
+        const papel = papelDoCanal(bag);
         encontrados.set(id, {
           id,
           nome: nomeDoCanal(bag),
           descricao: descricaoDoCanal(bag),
           inscritos: inscritosDoCanal(bag),
+          papel,
+          podeEnviar: podePublicar(papel),
         });
       }
     } catch (error) {
@@ -282,5 +304,51 @@ export async function listarCanais(deviceId: string | null): Promise<{
       ? ultimoErro ||
         "Esta conexão não informou nenhum canal. Os canais aparecem aqui quando o servidor de WhatsApp permite listá-los; as publicações recebidas continuam sendo mostradas abaixo."
       : "";
-  return { canais, aviso };
+  const comOrdem = canais.sort(
+    (a, b) => Number(b.podeEnviar) - Number(a.podeEnviar) || a.nome.localeCompare(b.nome, "pt-BR"),
+  );
+  return { canais: comOrdem, aviso };
+}
+
+/**
+ * Publica no canal. Só funciona quando o número conectado é dono (owner) ou
+ * administrador (admin) do canal — a lista da API é a fonte da verdade.
+ */
+export async function publicarNoCanal(input: {
+  deviceId: string | null;
+  jid: string;
+  texto: string;
+  midiaUrl?: string;
+  midiaTipo?: "imagem" | "video";
+}): Promise<{ ok: boolean; detalhe: string }> {
+  const device = await resolverDispositivo(input.deviceId);
+  const { canais } = await listarCanais(input.deviceId);
+  const canal = canais.find((c) => c.id === input.jid);
+  if (!canal) throw new Error("Canal não encontrado nesta conexão. Toque em Atualizar e tente de novo.");
+  if (!canal.podeEnviar) {
+    throw new Error(
+      `Você não é administrador do canal "${canal.nome}", por isso não é possível publicar nele.`,
+    );
+  }
+
+  const target = { baseUrl: device.base_url, instanceId: device.instance_id, configId: device.id };
+  const { evolutionSendText, evolutionSendMedia } = await import("@/lib/evolution.server");
+  const mensagem = input.texto.trim();
+  const midia = (input.midiaUrl ?? "").trim();
+
+  if (midia) {
+    const imagem = input.midiaTipo !== "video";
+    await evolutionSendMedia(target, {
+      number: canal.id,
+      url: midia,
+      fileName: imagem ? "publicacao.jpg" : "publicacao.mp4",
+      mimeType: imagem ? "image/jpeg" : "video/mp4",
+      caption: mensagem,
+    });
+    return { ok: true, detalhe: `Publicado em ${canal.nome}.` };
+  }
+
+  if (!mensagem) throw new Error("Escreva a mensagem que será publicada no canal.");
+  await evolutionSendText(target, { number: canal.id, text: mensagem });
+  return { ok: true, detalhe: `Publicado em ${canal.nome}.` };
 }

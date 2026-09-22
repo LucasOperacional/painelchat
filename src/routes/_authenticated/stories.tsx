@@ -1,13 +1,25 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, RefreshCw, Radio, Images, CheckCircle2, XCircle } from "lucide-react";
+import { toast } from "sonner";
+import { Loader2, RefreshCw, Radio, Images, CheckCircle2, XCircle, Send } from "lucide-react";
 
 import {
   listStoriesRecebidos,
   listCanaisConectados,
   listStoriesPublicados,
+  enviarNoCanal,
 } from "@/lib/stories.functions";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { listWhatsappDevices } from "@/lib/whatsapp.functions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -100,6 +112,39 @@ function StoryCard({
 function StoriesPage() {
   const [deviceId, setDeviceId] = useState<string>("todos");
   const idEscolhido = deviceId === "todos" ? null : deviceId;
+  const [canalEnvio, setCanalEnvio] = useState<{ id: string; nome: string } | null>(null);
+  const [mensagem, setMensagem] = useState("");
+  const [midiaUrl, setMidiaUrl] = useState("");
+  const [enviando, setEnviando] = useState(false);
+
+  const fecharEnvio = () => {
+    setCanalEnvio(null);
+    setMensagem("");
+    setMidiaUrl("");
+  };
+
+  const publicar = async () => {
+    if (!canalEnvio) return;
+    setEnviando(true);
+    try {
+      const url = midiaUrl.trim();
+      const r = await enviarNoCanal({
+        data: {
+          deviceId: idEscolhido,
+          jid: canalEnvio.id,
+          texto: mensagem,
+          midiaUrl: url,
+          midiaTipo: /\.(mp4|mov|webm)(\?|$)/i.test(url) ? "video" : "imagem",
+        },
+      });
+      toast.success(r.detalhe);
+      fecharEnvio();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível publicar no canal.");
+    } finally {
+      setEnviando(false);
+    }
+  };
 
   const devices = useQuery({ queryKey: ["whatsapp-devices"], queryFn: () => listWhatsappDevices() });
 
@@ -237,9 +282,20 @@ function StoriesPage() {
                           <p className="text-xs text-muted-foreground">{c.descricao}</p>
                         ) : null}
                       </div>
-                      {c.inscritos !== null ? (
-                        <Badge variant="secondary">{c.inscritos} inscritos</Badge>
-                      ) : null}
+                      <div className="flex items-center gap-2">
+                        {c.podeEnviar ? (
+                          <Badge>{c.papel === "owner" ? "Você é dono" : "Você é admin"}</Badge>
+                        ) : null}
+                        {c.inscritos !== null ? (
+                          <Badge variant="secondary">{c.inscritos} inscritos</Badge>
+                        ) : null}
+                        {c.podeEnviar ? (
+                          <Button size="sm" onClick={() => setCanalEnvio({ id: c.id, nome: c.nome })}>
+                            <Send className="mr-2 h-4 w-4" />
+                            Enviar mensagem
+                          </Button>
+                        ) : null}
+                      </div>
                     </div>
                   ))}
                 </>
@@ -296,6 +352,39 @@ function StoriesPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!canalEnvio} onOpenChange={(aberto) => (aberto ? null : fecharEnvio())}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Publicar no canal</DialogTitle>
+            <DialogDescription>
+              A mensagem será publicada no canal {canalEnvio?.nome}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Textarea
+              value={mensagem}
+              onChange={(e) => setMensagem(e.target.value)}
+              placeholder="Escreva a mensagem do canal…"
+              rows={5}
+            />
+            <Input
+              value={midiaUrl}
+              onChange={(e) => setMidiaUrl(e.target.value)}
+              placeholder="Link de uma foto ou vídeo (opcional)"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={fecharEnvio} disabled={enviando}>
+              Cancelar
+            </Button>
+            <Button onClick={() => void publicar()} disabled={enviando}>
+              {enviando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+              Publicar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
