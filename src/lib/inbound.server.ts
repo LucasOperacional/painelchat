@@ -149,12 +149,10 @@ export async function recordInboundMessage(input: {
   // Grupos: o nome do grupo vem da Evolution Go, não do participante que escreveu.
   let displayName = isGroup ? "" : (realPersonName(input.name) ?? "");
   if (grupoSemNome) {
-    displayName = exactGroupName(input.name) ?? nomeGrupoBuscado ?? "";
-    // Regra: grupo sem nome de verdade (só o identificador "1203634114...")
-    // não entra na central — nem como contato, nem como conversa.
-    if (!displayName) {
-      return { conversationId: null, contactId: null, ignored: "group-without-name" as const };
-    }
+    // O nome real do grupo pode não estar disponível no momento. A mensagem
+    // nunca é descartada: entra com um nome provisório e o nome verdadeiro é
+    // aplicado quando a API responder nas próximas mensagens.
+    displayName = exactGroupName(input.name) ?? nomeGrupoBuscado ?? GRUPO_SEM_NOME;
   }
 
   if (existingContact) {
