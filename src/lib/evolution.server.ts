@@ -739,7 +739,7 @@ export async function sincronizarWebhook(
     const silencioMs = ultimoEvento ? Date.now() - new Date(ultimoEvento).getTime() : Infinity;
     const confirmadoEm = config.webhook_synced_at;
     const idadeSync = confirmadoEm ? Date.now() - new Date(confirmadoEm).getTime() : Infinity;
-    const silencioso = silencioMs > WEBHOOK_SILENCE_MS && idadeSync > WEBHOOK_FORCE_COOLDOWN_MS;
+    const silencioso = silencioMs > WEBHOOK_SILENCE_MS && idadeSync > WEBHOOK_FORCE_MIN_MS;
     const refez = await ensureEvolutionWebhook(config.id, {
       requestUrl: options?.requestUrl ?? null,
       ...(silencioso ? { force: true } : {}),
