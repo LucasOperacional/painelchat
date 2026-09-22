@@ -368,7 +368,26 @@ export async function guardarWebhook(
       if (registroId) await marcarEvento(registroId, 500, "Demorou demais; será reprocessado.");
       return new Response("aceito", { status: 202 });
     }
-    if (registroId) await marcarEvento(registroId, resposta.status, null);
+    if (registroId) {
+      // Guarda o motivo quando o aviso foi descartado de propósito (canal, grupo
+      // desligado, número de controle...), para a tela de pendentes não acusar erro.
+      let motivo: string | null = null;
+      let clonada: Response = resposta;
+      if (resposta.ok) {
+        try {
+          const espelho = resposta.clone();
+          clonada = resposta;
+          const corpoResposta = (await espelho.json()) as { ignored?: unknown };
+          if (corpoResposta && typeof corpoResposta.ignored === "string") {
+            motivo = corpoResposta.ignored;
+          }
+        } catch {
+          /* resposta sem JSON: segue normal */
+        }
+      }
+      await marcarEvento(registroId, resposta.status, null, motivo);
+      return clonada;
+    }
     return resposta;
   } catch (error) {
     const detalhe = error instanceof Error ? error.message : "Falha ao processar o evento.";
@@ -379,15 +398,21 @@ export async function guardarWebhook(
 
 }
 
-async function marcarEvento(id: string, httpStatus: number, erro: string | null) {
+async function marcarEvento(
+  id: string,
+  httpStatus: number,
+  erro: string | null,
+  descartadoPor?: string | null,
+) {
   try {
     const db = await admin();
     await db
       .from("webhook_eventos")
       .update({
-        status: erro || httpStatus >= 400 ? "erro" : "ok",
+        status:
+          erro || httpStatus >= 400 ? "erro" : descartadoPor ? "ignorado" : "ok",
         http_status: httpStatus,
-        erro: erro?.slice(0, 500) ?? null,
+        erro: (erro ?? descartadoPor ?? null)?.slice(0, 500) ?? null,
         processado_em: new Date().toISOString(),
       } as never)
       .eq("id", id);
