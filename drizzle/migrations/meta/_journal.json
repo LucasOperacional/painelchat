@@ -568,6 +568,13 @@
       "when": 1790034466191,
       "tag": "0080_retencao_curta_webhook_eventos",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1790035801745,
+      "tag": "0081_otimiza_ultimas_mensagens",
+      "breakpoints": true
     }
   ]
 }
