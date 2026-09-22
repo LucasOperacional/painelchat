@@ -545,7 +545,15 @@ export async function ensureEvolutionWebhook(
       EVOLUTION_SUBSCRIBE_FALLBACK,
     ].some((lista) => webhookEventsSignature(lista) === eventos);
     const idade = confirmadoEm ? Date.now() - new Date(confirmadoEm).getTime() : Infinity;
-    if (!options?.force && registrado === inboundUrl && eventosOk && idade < 6 * 60 * 60 * 1000) {
+    // Endereço certo e eventos certos: nada a fazer. Religar sem motivo faz a
+    // Evolution Go reenviar o histórico (mensagens antigas voltam a notificar) e
+    // interrompe a chegada das novas.
+    if (!options?.force && registrado && mesmoEndereco(registrado, inboundUrl) && eventosOk) {
+      return false;
+    }
+    // Trava de segurança: no máximo um religamento a cada 30 minutos por
+    // aparelho, mesmo quando pedido à força por uma rotina automática.
+    if (idade < 30 * 60 * 1000 && registrado && mesmoEndereco(registrado, inboundUrl)) {
       return false;
     }
     await evolutionConnectInstance(
