@@ -30,6 +30,28 @@ function recoveredMediaBody(previousBody: string | null | undefined, incomingBod
 /** Nome provisório de grupo, usado só enquanto o nome real não chega. */
 const GRUPO_SEM_NOME = "Grupo do WhatsApp";
 
+/**
+ * Buscar foto e nome na API do WhatsApp não pode atrasar a mensagem no chat.
+ * Se o servidor demorar, seguimos sem esses dados e completamos depois.
+ */
+const PRAZO_CONSULTA_MS = 1500;
+
+function comPrazo<T>(promessa: Promise<T>): Promise<T | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), PRAZO_CONSULTA_MS);
+    promessa
+      .then((valor) => {
+        clearTimeout(timer);
+        resolve(valor);
+      })
+      .catch(() => {
+        clearTimeout(timer);
+        resolve(null);
+      });
+  });
+}
+
+
 /** Preferência da central: ignorar mensagens recebidas de grupos. */
 export async function shouldIgnoreGroups() {
   if (ignoreGroupsCache && Date.now() - ignoreGroupsCache.at < 30_000) {
@@ -138,13 +160,16 @@ export async function recordInboundMessage(input: {
     );
   const precisaNomeGrupo = grupoSemNome && !exactGroupName(input.name);
 
+  // Com prazo curto: contato novo aparece no chat na hora, mesmo se a API
+  // do WhatsApp estiver lenta para devolver foto e nome do grupo.
   const [fotoBuscada, nomeGrupoBuscado] = await Promise.all([
     // Grupos usam o JID completo (…@g.us); contatos, o número.
     precisaFoto
-      ? fetchProfilePicture(isGroup ? chatJid : input.phoneDigits, deviceId)
+      ? comPrazo(fetchProfilePicture(isGroup ? chatJid : input.phoneDigits, deviceId))
       : Promise.resolve(null),
-    precisaNomeGrupo ? fetchGroupName(chatJid, deviceId) : Promise.resolve(null),
+    precisaNomeGrupo ? comPrazo(fetchGroupName(chatJid, deviceId)) : Promise.resolve(null),
   ]);
+
 
   const avatarUrl = avatarInformado ?? fotoBuscada;
 
@@ -378,6 +403,31 @@ export async function recordInboundMessage(input: {
     .from("conversations")
     .update({ last_message_at: lastMessageAt, ...patchConversa })
     .eq("id", conversationId);
+
+  // A mensagem já está no chat. Só agora, sem pressa, tentamos completar a foto
+  // do contato e o nome real do grupo que a API não devolveu a tempo.
+  if ((precisaFoto && !avatarUrl) || (precisaNomeGrupo && !nomeGrupoBuscado)) {
+    try {
+      const [fotoTardia, nomeTardio] = await Promise.all([
+        precisaFoto && !avatarUrl
+          ? fetchProfilePicture(isGroup ? chatJid : input.phoneDigits, deviceId)
+          : Promise.resolve(null),
+        precisaNomeGrupo && !nomeGrupoBuscado
+          ? fetchGroupName(chatJid, deviceId)
+          : Promise.resolve(null),
+      ]);
+      const completar: { avatar_url?: string; name?: string } = {};
+      if (fotoTardia) completar.avatar_url = fotoTardia;
+      if (nomeTardio) completar.name = nomeTardio;
+      if (Object.keys(completar).length > 0) {
+        await supabaseAdmin.from("contacts").update(completar).eq("id", contactId);
+      }
+    } catch {
+      // foto e nome são melhorias: nunca atrapalham a mensagem já gravada
+    }
+  }
+
+
 
 
   // Importação do histórico: grava e pronto, sem saudação, chatbot ou IA.
