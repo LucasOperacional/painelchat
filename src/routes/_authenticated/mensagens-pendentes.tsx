@@ -9,6 +9,7 @@ import { useMe } from "@/hooks/use-session";
 import {
   mensagensNaoEntregues,
   reprocessarAviso,
+  reprocessarTodos,
 } from "@/lib/mensagens-pendentes.functions";
 
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +53,7 @@ function MensagensPendentesPage() {
   const queryClient = useQueryClient();
   const listarFn = useServerFn(mensagensNaoEntregues);
   const reprocessarFn = useServerFn(reprocessarAviso);
+  const reprocessarTodosFn = useServerFn(reprocessarTodos);
   const [horas, setHoras] = useState(24);
 
   const lista = useQuery({
@@ -67,6 +69,22 @@ function MensagensPendentesPage() {
       toast[r.ok ? "success" : "error"](
         r.ok ? "Aviso reenviado para o chat." : `Não foi possível: ${r.detalhe}`,
       );
+      queryClient.invalidateQueries({ queryKey: ["mensagens-pendentes"] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const reenviarTudo = useMutation({
+    mutationFn: () => reprocessarTodosFn({ data: { horas } }),
+    onSuccess: (r) => {
+      if (r.total === 0) toast.info("Não havia mensagens pendentes.");
+      else
+        toast.success(
+          `${r.enviados} de ${r.processados} mensagens reenviadas para o chat.` +
+            (r.falhas ? ` ${r.falhas} falharam.` : "") +
+            (r.restantes ? ` Ainda restam ${r.restantes} — clique novamente.` : ""),
+        );
       queryClient.invalidateQueries({ queryKey: ["mensagens-pendentes"] });
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
     },
@@ -95,14 +113,25 @@ function MensagensPendentesPage() {
             Avisos que chegaram pelas APIs do WhatsApp e ainda não apareceram no chat.
           </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => lista.refetch()}
-          disabled={lista.isFetching}
-        >
-          <RefreshCw className={`size-4 ${lista.isFetching ? "animate-spin" : ""}`} />
-          Atualizar
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={() => lista.refetch()}
+            disabled={lista.isFetching}
+          >
+            <RefreshCw className={`size-4 ${lista.isFetching ? "animate-spin" : ""}`} />
+            Atualizar
+          </Button>
+          <Button
+            onClick={() => reenviarTudo.mutate()}
+            disabled={reenviarTudo.isPending || !lista.data?.totalPendentes}
+          >
+            <RotateCcw className={`size-4 ${reenviarTudo.isPending ? "animate-spin" : ""}`} />
+            {reenviarTudo.isPending
+              ? "Reenviando…"
+              : `Reenviar todas${lista.data?.totalPendentes ? ` (${lista.data.totalPendentes})` : ""}`}
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
