@@ -435,6 +435,34 @@ async function reprocessarEvento(linha: Record<string, unknown>): Promise<boolea
   }
 }
 
+/**
+ * Reassina o endereço de aviso (webhook) em todos os aparelhos cadastrados.
+ * Usado quando a central detecta avisos recusados (chave antiga) ou silêncio
+ * total de recebimento — é a autocorreção que impede perda de mensagens.
+ */
+async function ressincronizarWebhooks(): Promise<number> {
+  try {
+    const db = await admin();
+    const { data } = await db.from("whatsapp_config").select("id");
+    const ids = ((data ?? []) as { id: string }[]).map((d) => d.id);
+    if (!ids.length) return 0;
+    const { sincronizarWebhook } = await import("@/lib/evolution.server");
+    let corrigidos = 0;
+    for (const id of ids) {
+      const resultado = await comLimiteDeTempo(
+        sincronizarWebhook(id).then((r) => r.ok),
+        TEMPO_MAX_WEBHOOK_MS,
+        false,
+      );
+      if (resultado) corrigidos += 1;
+    }
+    return corrigidos;
+  } catch (error) {
+    console.error("[sentinela] ressincronização de webhook falhou:", (error as Error).message);
+    return 0;
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Registro dos achados e avisos                                       */
 /* ------------------------------------------------------------------ */
