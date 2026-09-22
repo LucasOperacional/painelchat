@@ -148,7 +148,13 @@ type CobrancaGerada = {
 /** Gera a cobrança no gateway configurado; sem gateway, usa a chave Pix da loja. */
 async function gerarCobranca(
   settings: LojaSettings,
-  input: { amount: number; description: string; payerName: string; conversationId: string },
+  input: {
+    amount: number;
+    description: string;
+    payerName: string;
+    conversationId: string;
+    payerDocument?: string;
+  },
 ): Promise<CobrancaGerada> {
   const ordem: LojaSettings["provider"][] =
     settings.provider === "auto"
@@ -165,7 +171,9 @@ async function gerarCobranca(
         );
         const creds = await loadMisticpayCredentials();
         if (!creds) continue;
-        const documento = (creds.defaultPayerDocument ?? "").replace(/\D/g, "");
+        // A MisticPay exige o CPF de quem vai pagar. Na loja automática não temos
+        // esse CPF, e usar o CPF do dono da conta faz o banco recusar o Pix.
+        const documento = (input.payerDocument ?? "").replace(/\D/g, "");
         if (documento.length !== 11) continue;
         const transactionId = `loja-${input.conversationId.slice(0, 8)}-${Date.now()}`;
         const charge = await misticpayCreateCharge({
@@ -211,7 +219,7 @@ async function gerarCobranca(
           amount: input.amount,
           description: input.description,
           payerName: input.payerName || creds.defaultPayerName || "Cliente",
-          payerDocument: (creds.defaultPayerDocument ?? "").replace(/\D/g, ""),
+          payerDocument: (input.payerDocument ?? "").replace(/\D/g, ""),
           externalReference,
         });
         return {
