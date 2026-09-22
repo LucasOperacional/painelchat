@@ -539,6 +539,12 @@ export async function wuzapiDispatch(options: WuzapiCall): Promise<unknown> {
       );
       return { data: data ?? {} };
     }
+    // Consulta do webhook atualmente registrado (usada na sincronização).
+    case "/webhook":
+    case "/instance/webhook": {
+      const data = await run<Record<string, unknown>>("/webhook", "GET");
+      return { data: data ?? {} };
+    }
     default:
       throw new Error(`A WuzAPI não tem equivalente para a rota ${path}.`);
   }

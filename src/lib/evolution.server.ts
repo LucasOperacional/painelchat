@@ -550,6 +550,134 @@ export async function ensureEvolutionWebhook(
   }
 }
 
+/** Endereço de webhook realmente registrado na API (quando ela informa). */
+export async function evolutionGetWebhook(target: InstanceTarget): Promise<string | null> {
+  for (const path of ["/webhook", "/instance/webhook"]) {
+    try {
+      const res = await evolutionRequest<Record<string, unknown>>({
+        baseUrl: target.baseUrl,
+        instanceId: target.instanceId,
+        configId: target.configId ?? null,
+        provider: target.provider,
+        path,
+        timeoutMs: 12_000,
+      });
+      const bag = ((res?.["data"] as Record<string, unknown>) ?? res) || {};
+      const url =
+        bag["webhook"] ?? bag["Webhook"] ?? bag["webhookUrl"] ?? bag["WebhookURL"] ?? bag["url"];
+      if (typeof url === "string" && url.trim()) return url.trim();
+    } catch {
+      /* API sem consulta de webhook: seguimos para o próximo caminho */
+    }
+  }
+  return null;
+}
+
+function mesmoEndereco(a: string, b: string) {
+  const limpar = (v: string) => v.replace(/\/+$/, "").trim();
+  return limpar(a) === limpar(b);
+}
+
+export type SincronizacaoWebhook = {
+  ok: boolean;
+  corrigido: boolean;
+  esperado: string;
+  registrado: string | null;
+  detalhe: string;
+};
+
+/**
+ * Sincronização do webhook: confere na própria API qual endereço está
+ * registrado e, se estiver diferente/ausente, reassina na hora. Chamada a cada
+ * verificação automática, então nenhuma mensagem deixa de chegar por webhook
+ * perdido (troca de endereço, reinício do servidor, instância recriada).
+ */
+export async function sincronizarWebhook(
+  configId: string,
+  options?: { requestUrl?: string | null },
+): Promise<SincronizacaoWebhook> {
+  const config = await loadEvolutionConfig(configId);
+  const origin = evolutionPublicOrigin(options?.requestUrl ?? null);
+  const esperado = `${origin}/api/public/evolution?token=${config?.webhook_token ?? ""}`;
+  if (!config?.base_url || !config.instance_id) {
+    return {
+      ok: false,
+      corrigido: false,
+      esperado,
+      registrado: null,
+      detalhe: "Aparelho sem instância configurada.",
+    };
+  }
+
+  const alvo: InstanceTarget = {
+    baseUrl: config.base_url,
+    instanceId: config.instance_id,
+    configId: config.id,
+    provider: config.provider ?? undefined,
+  };
+
+  const registrado = await evolutionGetWebhook(alvo);
+  if (registrado && mesmoEndereco(registrado, esperado)) {
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await supabaseAdmin
+        .from("whatsapp_config")
+        .update({
+          webhook_url: registrado,
+          webhook_synced_at: new Date().toISOString(),
+        } as never)
+        .eq("id", config.id);
+    } catch {
+      /* confirmação é informativa */
+    }
+    return {
+      ok: true,
+      corrigido: false,
+      esperado,
+      registrado,
+      detalhe: "Webhook já estava correto.",
+    };
+  }
+
+  // A API não informa o webhook registrado: usamos o registro da própria
+  // central (reassina quando o endereço mudou ou a confirmação ficou velha),
+  // evitando reassinar sem necessidade a cada verificação.
+  if (!registrado) {
+    const refez = await ensureEvolutionWebhook(config.id, {
+      requestUrl: options?.requestUrl ?? null,
+    });
+    return {
+      ok: true,
+      corrigido: refez,
+      esperado,
+      registrado: null,
+      detalhe: refez
+        ? "Webhook reassinado (a API não informa o endereço atual)."
+        : "Webhook confirmado pelo registro da central.",
+    };
+  }
+
+  // Endereço diferente do desta central: reassina na hora.
+  await ensureEvolutionWebhook(config.id, {
+    requestUrl: options?.requestUrl ?? null,
+    force: true,
+  });
+  const depois = await evolutionGetWebhook(alvo);
+  const certo = depois ? mesmoEndereco(depois, esperado) : true;
+  console.log(
+    `[webhook] sincronizado device=${config.id} antes=${registrado} agora=${depois ?? "?"}`,
+  );
+  return {
+    ok: certo,
+    corrigido: true,
+    esperado,
+    registrado: depois ?? registrado,
+    detalhe: certo
+      ? "Webhook reassinado na API."
+      : "Não foi possível confirmar o webhook na API.",
+  };
+}
+
 
 
 
