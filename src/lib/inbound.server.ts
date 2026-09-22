@@ -30,6 +30,28 @@ function recoveredMediaBody(previousBody: string | null | undefined, incomingBod
 /** Nome provisório de grupo, usado só enquanto o nome real não chega. */
 const GRUPO_SEM_NOME = "Grupo do WhatsApp";
 
+/**
+ * Buscar foto e nome na API do WhatsApp não pode atrasar a mensagem no chat.
+ * Se o servidor demorar, seguimos sem esses dados e completamos depois.
+ */
+const PRAZO_CONSULTA_MS = 1500;
+
+function comPrazo<T>(promessa: Promise<T>): Promise<T | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), PRAZO_CONSULTA_MS);
+    promessa
+      .then((valor) => {
+        clearTimeout(timer);
+        resolve(valor);
+      })
+      .catch(() => {
+        clearTimeout(timer);
+        resolve(null);
+      });
+  });
+}
+
+
 /** Preferência da central: ignorar mensagens recebidas de grupos. */
 export async function shouldIgnoreGroups() {
   if (ignoreGroupsCache && Date.now() - ignoreGroupsCache.at < 30_000) {
