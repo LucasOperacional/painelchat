@@ -205,8 +205,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (selectedContact) {
       mutation.mutate({
         phone: selectedContact.phone,
-        name: selectedContact.name,
-        whatsappConfigId: selectedConnection?.id,
+        name: selectedContact.name || undefined,
+        whatsappConfigId: selectedConnection?.id ?? null,
       });
       return;
     }
@@ -215,10 +215,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       mutation.mutate({
         phone: search,
         name: newName.trim() || undefined,
-        whatsappConfigId: selectedConnection?.id,
+        whatsappConfigId: selectedConnection?.id ?? null,
       });
     }
   }
+
 
   return (
     <SidebarProvider
