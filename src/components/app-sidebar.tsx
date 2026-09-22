@@ -1,8 +1,7 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import type { LucideIcon   Images,
-} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import {
   MessagesSquare,
   KanbanSquare,
