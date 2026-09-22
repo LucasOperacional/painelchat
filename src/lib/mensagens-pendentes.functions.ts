@@ -273,10 +273,16 @@ export const reprocessarTodos = createServerFn({ method: "POST" })
       }
     }
 
+    const agora = Date.now();
     const pendentes = lista.filter((e) => {
-      const id = texto(e["external_id"]);
       const status = texto(e["status"]);
-      if (status === "erro" || status === "processando") return true;
+      if (status === "ignorado") return false;
+      if (!eventoDeMensagem(texto(e["evento"]), e["payload"])) return false;
+      if (status === "erro") return true;
+      if (status === "processando") {
+        return agora - new Date(String(e["created_at"])).getTime() > 120_000;
+      }
+      const id = texto(e["external_id"]);
       if (!id) return false;
       return !salvos.has(id);
     });
