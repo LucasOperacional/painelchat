@@ -165,7 +165,9 @@ async function gerarCobranca(
         );
         const creds = await loadMisticpayCredentials();
         if (!creds) continue;
-        const documento = (creds.defaultPayerDocument ?? "").replace(/\D/g, "");
+        // A MisticPay exige o CPF de quem vai pagar. Na loja automática não temos
+        // esse CPF, e usar o CPF do dono da conta faz o banco recusar o Pix.
+        const documento = (input.payerDocument ?? "").replace(/\D/g, "");
         if (documento.length !== 11) continue;
         const transactionId = `loja-${input.conversationId.slice(0, 8)}-${Date.now()}`;
         const charge = await misticpayCreateCharge({
