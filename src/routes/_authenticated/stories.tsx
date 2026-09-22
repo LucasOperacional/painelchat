@@ -112,6 +112,39 @@ function StoryCard({
 function StoriesPage() {
   const [deviceId, setDeviceId] = useState<string>("todos");
   const idEscolhido = deviceId === "todos" ? null : deviceId;
+  const [canalEnvio, setCanalEnvio] = useState<{ id: string; nome: string } | null>(null);
+  const [mensagem, setMensagem] = useState("");
+  const [midiaUrl, setMidiaUrl] = useState("");
+  const [enviando, setEnviando] = useState(false);
+
+  const fecharEnvio = () => {
+    setCanalEnvio(null);
+    setMensagem("");
+    setMidiaUrl("");
+  };
+
+  const publicar = async () => {
+    if (!canalEnvio) return;
+    setEnviando(true);
+    try {
+      const url = midiaUrl.trim();
+      const r = await enviarNoCanal({
+        data: {
+          deviceId: idEscolhido,
+          jid: canalEnvio.id,
+          texto: mensagem,
+          midiaUrl: url,
+          midiaTipo: /\.(mp4|mov|webm)(\?|$)/i.test(url) ? "video" : "imagem",
+        },
+      });
+      toast.success(r.detalhe);
+      fecharEnvio();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível publicar no canal.");
+    } finally {
+      setEnviando(false);
+    }
+  };
 
   const devices = useQuery({ queryKey: ["whatsapp-devices"], queryFn: () => listWhatsappDevices() });
 
