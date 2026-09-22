@@ -580,12 +580,51 @@ export async function evolutionGetWebhook(target: InstanceTarget): Promise<strin
       /* API sem consulta de webhook: seguimos para o próximo caminho */
     }
   }
+
+  // A Evolution Go não tem consulta de webhook, mas a lista de instâncias
+  // informa o endereço registrado de cada uma. Assim a central confere o que
+  // está valendo sem precisar religar a conexão para "corrigir" no escuro.
+  if ((target.provider ?? "").toLowerCase() !== "wuzapi" && target.instanceId) {
+    try {
+      const instancias = await evolutionListInstances({
+        baseUrl: target.baseUrl,
+        configId: target.configId ?? null,
+        ...(target.provider ? { provider: target.provider } : {}),
+      });
+      const encontrada = instancias.find(
+        (item) => String(item["id"] ?? "").trim() === target.instanceId,
+      );
+      const url = encontrada?.["webhook"] ?? encontrada?.["Webhook"];
+      if (typeof url === "string" && url.trim()) return url.trim();
+    } catch {
+      /* sem credencial global ou lista indisponível: segue sem informação */
+    }
+  }
   return null;
 }
 
+/**
+ * Compara dois endereços de webhook. Os vários nomes do mesmo site (domínio
+ * publicado e endereço do projeto) valem como o mesmo endereço: o que importa é
+ * o caminho e o token. Sem isso, cada rotina trocava o endereço da outra e
+ * religava a conexão sem parar.
+ */
 function mesmoEndereco(a: string, b: string) {
   const limpar = (v: string) => v.replace(/\/+$/, "").trim();
-  return limpar(a) === limpar(b);
+  if (limpar(a) === limpar(b)) return true;
+  try {
+    const ua = new URL(a);
+    const ub = new URL(b);
+    const mesmaRota =
+      ua.pathname.replace(/\/+$/, "") === ub.pathname.replace(/\/+$/, "") &&
+      (ua.searchParams.get("token") ?? "") === (ub.searchParams.get("token") ?? "");
+    if (!mesmaRota) return false;
+    if (ua.host === ub.host) return true;
+    const hosts = hostsDaCentral();
+    return hosts.has(ua.host) && hosts.has(ub.host);
+  } catch {
+    return false;
+  }
 }
 
 export type SincronizacaoWebhook = {
