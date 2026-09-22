@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, Radio, Images, CheckCircle2, XCircle, Send } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileText, Images, Loader2, Music2, Radio, RefreshCw, Send, XCircle } from "lucide-react";
 
 import {
   listStoriesRecebidos,
@@ -62,7 +62,37 @@ function rotuloMidia(tipo: string) {
   if (tipo === "imagem") return "Foto";
   if (tipo === "video") return "Vídeo";
   if (tipo === "audio") return "Áudio";
+  if (tipo === "documento") return "Documento";
+  if (tipo === "figurinha") return "Figurinha";
+  if (tipo === "nao_suportada") return "Não suportada";
   return "Texto";
+}
+
+function primeiraUrl(texto: string) {
+  return texto.match(/https?:\/\/\S+/)?.[0]?.replace(/[),.;]+$/, "") ?? "";
+}
+
+function tipoDoStory(item: { texto: string; midiaTipo: string; midiaUrl: string }) {
+  const tipo = item.midiaTipo || "";
+  if (["imagem", "video", "audio", "documento", "figurinha", "nao_suportada"].includes(tipo)) return tipo;
+  const texto = item.texto.trim().toLocaleLowerCase("pt-BR");
+  if (texto.startsWith("🖼 imagem:") || texto.startsWith("🖼 figurinha:")) return "imagem";
+  if (texto.startsWith("🎬 vídeo:") || texto.startsWith("🎬 video:")) return "video";
+  if (texto.startsWith("🎵 áudio:") || texto.startsWith("🎵 audio:")) return "audio";
+  if (texto.startsWith("📎")) return "documento";
+  if (texto.includes("não suportada") || texto.includes("nao suportada")) return "nao_suportada";
+  const url = item.midiaUrl || primeiraUrl(item.texto);
+  if (/\.(mp4|mov|webm|3gp)(\?|$)/i.test(url)) return "video";
+  if (/\.(jpe?g|png|gif|webp)(\?|$)/i.test(url)) return "imagem";
+  return "nenhum";
+}
+
+function textoSemLinhaDaMidia(texto: string) {
+  return texto
+    .split("\n")
+    .filter((linha) => !/^(🖼\s*(Imagem|Figurinha)|🎬\s*(Vídeo|Video)|🎵\s*(Áudio|Audio)|📎)/i.test(linha.trim()))
+    .join("\n")
+    .trim();
 }
 
 function StoryCard({
@@ -81,28 +111,56 @@ function StoryCard({
   };
 }) {
   const autor = item.autorNome || item.autorJid.split("@")[0] || "Desconhecido";
+  const tipo = tipoDoStory(item);
+  const mediaUrl = item.midiaUrl || primeiraUrl(item.texto);
+  const texto = ["imagem", "video", "audio", "documento", "figurinha"].includes(tipo)
+    ? textoSemLinhaDaMidia(item.texto)
+    : item.texto;
   return (
     <div className="rounded-lg border border-border bg-card p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="font-medium text-foreground">{autor}</span>
-          <Badge variant="secondary">{rotuloMidia(item.midiaTipo)}</Badge>
+          <Badge variant={tipo === "nao_suportada" ? "outline" : "secondary"}>{rotuloMidia(tipo)}</Badge>
         </div>
         <span className="text-xs text-muted-foreground">{formatDate(item.createdAt)}</span>
       </div>
-      {item.midiaUrl && item.midiaTipo === "imagem" ? (
+      {mediaUrl && (tipo === "imagem" || tipo === "figurinha") ? (
         <img
-          src={item.midiaUrl}
+          src={mediaUrl}
           alt={`Publicação de ${autor}`}
-          className="mt-2 max-h-64 w-full rounded-md object-cover"
+          className="mt-2 max-h-80 w-full rounded-md object-contain"
           loading="lazy"
         />
       ) : null}
-      {item.midiaUrl && item.midiaTipo === "video" ? (
-        <video src={item.midiaUrl} controls className="mt-2 max-h-64 w-full rounded-md" />
+      {mediaUrl && tipo === "video" ? (
+        <video src={mediaUrl} controls className="mt-2 max-h-80 w-full rounded-md" />
       ) : null}
-      {item.texto ? (
-        <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{item.texto}</p>
+      {mediaUrl && tipo === "audio" ? (
+        <div className="mt-2 flex items-center gap-2 rounded-md border border-border bg-muted/40 p-2">
+          <Music2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <audio src={mediaUrl} controls className="w-full" />
+        </div>
+      ) : null}
+      {mediaUrl && tipo === "documento" ? (
+        <a
+          href={mediaUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-2 flex items-center gap-2 rounded-md border border-border bg-muted/40 p-2 text-sm text-foreground underline-offset-4 hover:underline"
+        >
+          <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+          Abrir documento
+        </a>
+      ) : null}
+      {tipo === "nao_suportada" ? (
+        <div className="mt-2 flex items-start gap-2 rounded-md border border-border bg-muted/40 p-2 text-sm text-muted-foreground">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{texto || "Mensagem não suportada recebida"}</span>
+        </div>
+      ) : null}
+      {texto && tipo !== "nao_suportada" ? (
+        <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{texto}</p>
       ) : null}
       <p className="mt-2 text-xs text-muted-foreground">Conexão: {item.conexao}</p>
     </div>
