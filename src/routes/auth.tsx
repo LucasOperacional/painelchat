@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useProjectBranding } from "@/hooks/use-project";
+import videoPaiAsset from "@/assets/video-pai.mp4.asset.json";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
