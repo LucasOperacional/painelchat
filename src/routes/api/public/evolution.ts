@@ -556,6 +556,22 @@ async function readWebhookBody(request: Request): Promise<EvolutionWebhook> {
   } else {
     raw = (await request.json()) as Record<string, any>;
   }
+  // A WuzAPI também envia JSON puro com o conteúdo dentro do texto "jsonData"
+  // (token/file_url ficam de fora). Sem abrir esse texto, áudios e outras
+  // mídias chegavam sem evento nenhum e eram descartados.
+  if (raw && typeof raw["jsonData"] === "string" && raw["jsonData"]) {
+    try {
+      const interno = JSON.parse(raw["jsonData"]) as Record<string, any>;
+      const externos = { ...raw };
+      delete externos["jsonData"];
+      for (const [chave, valor] of Object.entries(externos)) {
+        if (interno[chave] === undefined) interno[chave] = valor;
+      }
+      raw = interno;
+    } catch {
+      /* texto ilegível: segue com o corpo original */
+    }
+  }
   // Envelope da WuzAPI: { type, event: { Info, Message }, contact, ... }.
   const pareceWuzapi =
     !!raw &&
