@@ -180,7 +180,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const mutation = useMutation({
     mutationFn: async (payload: {
       phone: string;
-      name?: string;
+      name?: string | null;
       whatsappConfigId?: string | null;
     }) => {
       return startFn({ data: payload });
@@ -205,7 +205,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (selectedContact) {
       mutation.mutate({
         phone: selectedContact.phone,
-        name: selectedContact.name || undefined,
+        name: selectedContact.name || null,
         whatsappConfigId: selectedConnection?.id ?? null,
       });
       return;
@@ -214,11 +214,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (canUseNewNumber) {
       mutation.mutate({
         phone: search,
-        name: newName.trim() || undefined,
+        name: newName.trim() || null,
         whatsappConfigId: selectedConnection?.id ?? null,
       });
     }
   }
+
 
 
   return (
