@@ -3069,6 +3069,16 @@ export type Database = {
         }[]
       }
       sentinela_limpar_diario: { Args: never; Returns: undefined }
+      ultimas_mensagens: {
+        Args: { _ids: string[] }
+        Returns: {
+          body: string
+          conversation_id: string
+          created_at: string
+          direction: Database["public"]["Enums"]["message_direction"]
+          id: string
+        }[]
+      }
     }
     Enums: {
       agent_status: "available" | "away" | "offline"
