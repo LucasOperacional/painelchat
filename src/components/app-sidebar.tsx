@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
+  Inbox,
   MessagesSquare,
   KanbanSquare,
   ListOrdered,
