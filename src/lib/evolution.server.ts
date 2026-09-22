@@ -794,7 +794,7 @@ export async function reiniciarSessaoMuda(
   configId: string,
   options?: { requestUrl?: string | null },
 ): Promise<{ reiniciado: boolean; detalhe: string }> {
-  const config = await getEvolutionConfig(configId);
+  const config = await loadEvolutionConfig(configId);
   if (!config?.base_url || !config.instance_id) {
     return { reiniciado: false, detalhe: "Aparelho sem endereço da API." };
   }
