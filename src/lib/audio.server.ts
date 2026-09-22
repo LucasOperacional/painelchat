@@ -26,9 +26,12 @@ function absoluteMediaUrl(value?: string | null) {
   return null;
 }
 
-function base64ToBytes(base64: string): Uint8Array {
+function base64ToBytes(base64: string): Uint8Array | null {
+  if (/^\[conteúdo grande removido:/i.test(base64.trim())) return null;
   const clean = base64.includes(",") ? base64.slice(base64.indexOf(",") + 1) : base64;
-  const binary = atob(clean.replace(/\s/g, ""));
+  const normalized = clean.replace(/\s/g, "");
+  if (!normalized || !/^[A-Za-z0-9+/]+={0,2}$/.test(normalized)) return null;
+  const binary = atob(normalized);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
   return bytes;
@@ -48,7 +51,8 @@ export async function storeInboundAudio(input: {
   try {
     if (input.base64) {
       bytes = base64ToBytes(input.base64);
-    } else if (usableUrl && !/\.enc(\?|$)/i.test(usableUrl)) {
+    }
+    if (!bytes && usableUrl && !/\.enc(\?|$)/i.test(usableUrl)) {
       const res = await fetch(usableUrl);
       if (res.ok) {
         bytes = new Uint8Array(await res.arrayBuffer());
