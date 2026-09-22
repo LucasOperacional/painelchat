@@ -2185,9 +2185,10 @@ function AtendimentoPage() {
                     />
                     {pixProvider !== "efi" &&
                       pixProvider !== "altispay" &&
+                      misticForm.payerDocument.trim() &&
                       misticForm.payerDocument.replace(/\D/g, "").length !== 11 && (
                         <p className="text-xs text-destructive">
-                          Informe o CPF de quem vai pagar (11 dígitos).
+                          O CPF precisa ter 11 dígitos.
                         </p>
                       )}
                   </div>
@@ -2227,6 +2228,7 @@ function AtendimentoPage() {
                       !misticForm.amount.trim() ||
                       (pixProvider !== "efi" &&
                         pixProvider !== "altispay" &&
+                        !!misticForm.payerDocument.trim() &&
                         misticForm.payerDocument.replace(/\D/g, "").length !== 11) ||
                       gatewayMutation.isPending
                     }
