@@ -237,9 +237,20 @@ function StoriesPage() {
                           <p className="text-xs text-muted-foreground">{c.descricao}</p>
                         ) : null}
                       </div>
-                      {c.inscritos !== null ? (
-                        <Badge variant="secondary">{c.inscritos} inscritos</Badge>
-                      ) : null}
+                      <div className="flex items-center gap-2">
+                        {c.podeEnviar ? (
+                          <Badge>{c.papel === "owner" ? "Você é dono" : "Você é admin"}</Badge>
+                        ) : null}
+                        {c.inscritos !== null ? (
+                          <Badge variant="secondary">{c.inscritos} inscritos</Badge>
+                        ) : null}
+                        {c.podeEnviar ? (
+                          <Button size="sm" onClick={() => setCanalEnvio({ id: c.id, nome: c.nome })}>
+                            <Send className="mr-2 h-4 w-4" />
+                            Enviar mensagem
+                          </Button>
+                        ) : null}
+                      </div>
                     </div>
                   ))}
                 </>
