@@ -84,6 +84,9 @@ export type EvolutionConfig = {
   is_default: boolean;
   company: string;
   display_id: string | null;
+  webhook_url?: string | null;
+  webhook_events?: string | null;
+  webhook_synced_at?: string | null;
   updated_at: string;
   created_at: string;
 };
@@ -507,6 +510,26 @@ export function evolutionPublicOrigin(_requestUrl?: string | null) {
   return `https://project--${projectId}.lovable.app`;
 }
 
+const WEBHOOK_SILENCE_MS = 15 * 60 * 1000;
+const WEBHOOK_FORCE_COOLDOWN_MS = 30 * 60 * 1000;
+
+async function ultimoEventoRecebidoWebhook(token: string | null | undefined) {
+  if (!token) return null;
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("webhook_eventos")
+      .select("created_at")
+      .eq("token", token)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return (data as { created_at?: string } | null)?.created_at ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Nomes do site que apontam para esta mesma central. */
 function hostsDaCentral() {
   const projectId = process.env["LOVABLE_PROJECT_ID"] ?? "a3daa33e-35ce-4bc4-9ed0-fa0c79c7a779";
@@ -553,14 +576,14 @@ export async function ensureEvolutionWebhook(
     }
     // Trava de segurança: no máximo um religamento a cada 30 minutos por
     // aparelho, mesmo quando pedido à força por uma rotina automática.
-    if (idade < 30 * 60 * 1000 && registrado && mesmoEndereco(registrado, inboundUrl)) {
+    if (idade < WEBHOOK_FORCE_COOLDOWN_MS && registrado && mesmoEndereco(registrado, inboundUrl)) {
       return false;
     }
     await evolutionConnectInstance(
-      { baseUrl: config.base_url, instanceId: config.instance_id, configId: config.id },
+      { baseUrl: config.base_url, instanceId: config.instance_id, configId: config.id, provider: config.provider },
       { webhookUrl: inboundUrl, immediate: true },
     );
-    console.log(`[webhook] reconfigurado device=${config.id} url=${inboundUrl}`);
+    console.log(`[webhook] reconfigurado device=${config.id}`);
     return true;
   } catch (error) {
     console.error("[webhook] falha ao reconfigurar na Evolution", error);
@@ -697,11 +720,18 @@ export async function sincronizarWebhook(
   }
 
   // A API não informa o webhook registrado: usamos o registro da própria
-  // central (reassina quando o endereço mudou ou a confirmação ficou velha),
-  // evitando reassinar sem necessidade a cada verificação.
+  // central. Se o aparelho fica conectado mas nenhum evento chega por muito
+  // tempo, reassinamos uma vez por janela de segurança: isso recupera quedas em
+  // que a Evolution Go perde a entrega do webhook sem derrubar a sessão.
   if (!registrado) {
+    const ultimoEvento = await ultimoEventoRecebidoWebhook(config.webhook_token);
+    const silencioMs = ultimoEvento ? Date.now() - new Date(ultimoEvento).getTime() : Infinity;
+    const confirmadoEm = config.webhook_synced_at;
+    const idadeSync = confirmadoEm ? Date.now() - new Date(confirmadoEm).getTime() : Infinity;
+    const silencioso = silencioMs > WEBHOOK_SILENCE_MS && idadeSync > WEBHOOK_FORCE_COOLDOWN_MS;
     const refez = await ensureEvolutionWebhook(config.id, {
       requestUrl: options?.requestUrl ?? null,
+      ...(silencioso ? { force: true } : {}),
     });
     return {
       ok: true,
@@ -709,7 +739,9 @@ export async function sincronizarWebhook(
       esperado,
       registrado: null,
       detalhe: refez
-        ? "Webhook reassinado (a API não informa o endereço atual)."
+        ? silencioso
+          ? "Webhook reassinado porque o aparelho estava sem entregar eventos recentes."
+          : "Webhook reassinado (a API não informa o endereço atual)."
         : "Webhook confirmado pelo registro da central.",
     };
   }
