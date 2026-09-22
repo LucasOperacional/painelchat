@@ -51,6 +51,62 @@ function pareceIdentificador(valor: string): boolean {
   return !valor || /^\d{6,}$/.test(valor.replace(/\D/g, "")) === true;
 }
 
+/**
+ * Formato real da Evolution Go: o canal vem em
+ * { id, thread_metadata: { name: { text }, description: { text }, subscribers_count } }.
+ */
+function metaThread(bag: Record<string, unknown>): Record<string, unknown> | null {
+  const meta = bag["thread_metadata"] ?? bag["threadMetadata"] ?? bag["ThreadMetadata"];
+  return meta && typeof meta === "object" && !Array.isArray(meta)
+    ? (meta as Record<string, unknown>)
+    : null;
+}
+
+function campoTexto(valor: unknown): string {
+  if (typeof valor === "string") return valor.trim();
+  if (valor && typeof valor === "object" && !Array.isArray(valor)) {
+    const bag = valor as Record<string, unknown>;
+    for (const chave of ["text", "Text", "value", "Value"]) {
+      const item = bag[chave];
+      if (typeof item === "string" && item.trim()) return item.trim();
+    }
+  }
+  return "";
+}
+
+/** Nome real do canal: direto, aninhado em thread_metadata ou varredura profunda. */
+function nomeDoCanal(bag: Record<string, unknown>): string {
+  const meta = metaThread(bag);
+  const candidatos = [
+    campoTexto(meta?.["name"]),
+    campoTexto(bag["name"]),
+    campoTexto(bag["Name"]),
+    campoTexto(bag["subject"]),
+    campoTexto(bag["Subject"]),
+  ];
+  for (const c of candidatos) if (c && !pareceIdentificador(c)) return c;
+  const profundo = nomeProfundo(bag);
+  return pareceIdentificador(profundo) ? "" : profundo;
+}
+
+function descricaoDoCanal(bag: Record<string, unknown>): string {
+  const meta = metaThread(bag);
+  return (
+    campoTexto(meta?.["description"]) ||
+    campoTexto(bag["description"]) ||
+    campoTexto(bag["Description"]) ||
+    campoTexto(bag["desc"])
+  );
+}
+
+function inscritosDoCanal(bag: Record<string, unknown>): number | null {
+  const meta = metaThread(bag);
+  return (
+    numero(meta ?? {}, "subscribers_count", "subscriberCount", "subscribers") ??
+    numero(bag, "SubscriberCount", "subscribers", "subscriberCount", "subscribers_count", "followers")
+  );
+}
+
 const CHAVES_NOME = [
   "name",
   "subject",
