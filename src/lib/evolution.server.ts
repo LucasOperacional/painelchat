@@ -581,11 +581,15 @@ export async function ensureEvolutionWebhook(
     if (!options?.force && registrado && mesmoEndereco(registrado, inboundUrl) && eventosOk) {
       return false;
     }
-    // Trava de segurança: no máximo um religamento a cada 30 minutos por
-    // aparelho, mesmo quando pedido à força por uma rotina automática.
-    if (idade < WEBHOOK_FORCE_COOLDOWN_MS && registrado && mesmoEndereco(registrado, inboundUrl) && eventosOk) {
+    // Trava de segurança contra religamento em sequência. Quando o pedido é à
+    // força (queda de conexão, silêncio de eventos, novo pareamento) a espera é
+    // curta: o aparelho pode ter perdido a assinatura do webhook e ficaria meia
+    // hora sem entregar mensagens.
+    const espera = options?.force ? WEBHOOK_FORCE_MIN_MS : WEBHOOK_FORCE_COOLDOWN_MS;
+    if (idade < espera && registrado && mesmoEndereco(registrado, inboundUrl) && eventosOk) {
       return false;
     }
+
     await evolutionConnectInstance(
       { baseUrl: config.base_url, instanceId: config.instance_id, configId: config.id, provider: config.provider },
       { webhookUrl: inboundUrl, immediate: true },
