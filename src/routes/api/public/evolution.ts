@@ -1148,9 +1148,6 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
           const temChave = !!media && !!textField(media, "mediaKey", "media_key");
           const precisaConector =
             temChave && (isEncryptedMediaUrl(urlDaMidia || null) || isInternalMediaUrl(mediaUrl));
-          console.log(
-            `[dbg] kind=${kind} urlMidia=${urlDaMidia.slice(0, 40)} chave=${temChave} conector=${precisaConector} mediaUrl=${mediaUrl ?? "-"}`,
-          );
           if (
             !precisaConector &&
             mediaUrl &&
