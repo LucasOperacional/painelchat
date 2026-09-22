@@ -778,7 +778,64 @@ export async function sincronizarWebhook(
   };
 }
 
+/** Quanto tempo um aparelho conectado pode ficar sem entregar avisos. */
+const SESSAO_MUDA_MS = 20 * 60 * 1000;
+/** No máximo uma reinicialização de sessão por aparelho nessa janela. */
+const SESSAO_REINICIO_COOLDOWN_MS = 30 * 60 * 1000;
+const ultimoReinicioSessao = new Map<string, number>();
 
+/**
+ * Última linha de defesa contra perda de mensagens: às vezes a API aceita a
+ * assinatura do webhook e mesmo assim para de entregar qualquer aviso. Quando o
+ * aparelho está conectado e fica calado por muito tempo, reiniciamos a sessão
+ * (desconecta e conecta de novo, sem pedir QR) e reafirmamos o endereço.
+ */
+export async function reiniciarSessaoMuda(
+  configId: string,
+  options?: { requestUrl?: string | null },
+): Promise<{ reiniciado: boolean; detalhe: string }> {
+  const config = await getEvolutionConfig(configId);
+  if (!config?.base_url || !config.instance_id) {
+    return { reiniciado: false, detalhe: "Aparelho sem endereço da API." };
+  }
+
+  const ultimoEvento = await ultimoEventoRecebidoWebhook(config.webhook_token);
+  const silencioMs = ultimoEvento ? Date.now() - new Date(ultimoEvento).getTime() : Infinity;
+  if (silencioMs < SESSAO_MUDA_MS) {
+    return { reiniciado: false, detalhe: "O aparelho está entregando avisos normalmente." };
+  }
+
+  const anterior = ultimoReinicioSessao.get(configId) ?? 0;
+  if (Date.now() - anterior < SESSAO_REINICIO_COOLDOWN_MS) {
+    return { reiniciado: false, detalhe: "Reinicialização recente: aguardando a próxima janela." };
+  }
+  ultimoReinicioSessao.set(configId, Date.now());
+
+  const alvo: InstanceTarget = {
+    baseUrl: config.base_url,
+    instanceId: config.instance_id,
+    configId: config.id,
+    provider: config.provider,
+  };
+  const inboundUrl = buildInboundUrl(config.webhook_token, options?.requestUrl ?? null);
+
+  try {
+    await evolutionDisconnect(alvo);
+  } catch {
+    /* se a API já considerava desconectado, seguimos para reconectar */
+  }
+  await new Promise((r) => setTimeout(r, 3000));
+  await evolutionConnectInstance(alvo, { webhookUrl: inboundUrl, immediate: true });
+  invalidateEvolutionSessionCache(config.instance_id);
+  console.log(`[webhook] sessão reiniciada por silêncio device=${config.id}`);
+  const minutos = Number.isFinite(silencioMs) ? Math.round(silencioMs / 60000) : null;
+  return {
+    reiniciado: true,
+    detalhe: minutos
+      ? `A sessão foi reiniciada após ${minutos} minutos sem nenhum aviso da API.`
+      : "A sessão foi reiniciada porque a API nunca entregou avisos.",
+  };
+}
 
 
 /** GET /instance/qr → { data: { Qrcode, Code } } */
