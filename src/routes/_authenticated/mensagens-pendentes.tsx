@@ -9,6 +9,7 @@ import { useMe } from "@/hooks/use-session";
 import {
   mensagensNaoEntregues,
   reprocessarAviso,
+  reprocessarTodos,
 } from "@/lib/mensagens-pendentes.functions";
 
 import { Badge } from "@/components/ui/badge";
