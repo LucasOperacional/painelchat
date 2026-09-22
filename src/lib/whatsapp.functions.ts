@@ -1153,12 +1153,28 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
     }
 
 
-    const attachmentLines = attachments.map((f) => `📎 ${f.name}: ${f.url}`).join("\n");
+    // Áudios entram no formato de player (onda + tempo + transcrição); os
+    // demais anexos continuam como arquivo com nome e link.
+    const audioAttachments = attachments.filter((f) =>
+      f.mimeType.toLowerCase().startsWith("audio/"),
+    );
+    const otherAttachments = attachments.filter(
+      (f) => !f.mimeType.toLowerCase().startsWith("audio/"),
+    );
+    const attachmentLines = otherAttachments.map((f) => `📎 ${f.name}: ${f.url}`).join("\n");
+    let audioLines = "";
+    if (audioAttachments.length > 0) {
+      const { outboundAudioBody } = await import("@/lib/audio.server");
+      const bodies = await Promise.all(
+        audioAttachments.map((f) => outboundAudioBody({ url: f.url, mimeType: f.mimeType })),
+      );
+      audioLines = bodies.filter(Boolean).join("\n");
+    }
     const contactLine = sharedContact
       ? `👤 Contato: ${sharedContact.name}\n📞 +${sharedContact.phone.replace(/\D/g, "")}`
       : "";
     const stickerLine = stickerUrl ? `🖼 Figurinha: ${stickerUrl}` : "";
-    const stored = [outgoing.trim(), contactLine, attachmentLines, stickerLine]
+    const stored = [outgoing.trim(), contactLine, attachmentLines, audioLines, stickerLine]
       .filter(Boolean)
       .join("\n");
 

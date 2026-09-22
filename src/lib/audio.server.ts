@@ -130,6 +130,32 @@ async function transcribeAudio(bytes: Uint8Array, mime: string): Promise<string 
 }
 
 
+/**
+ * Áudio enviado pelo atendente: baixa o arquivo recém-guardado, transcreve e
+ * devolve o corpo no formato de player de áudio (melhor esforço — se a
+ * transcrição falhar, o áudio entra só com o player).
+ */
+export async function outboundAudioBody(input: {
+  url: string;
+  mimeType?: string | null;
+}): Promise<string> {
+  let transcript: string | null = null;
+  try {
+    const res = await fetch(input.url);
+    if (res.ok) {
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      const mime =
+        res.headers.get("content-type")?.split(";")[0]?.trim() ||
+        (input.mimeType ?? "").split(";")[0]?.trim() ||
+        "audio/ogg";
+      if (bytes.byteLength >= 256) transcript = await transcribeAudio(bytes, mime);
+    }
+  } catch (error) {
+    console.error("[audio] transcrição do áudio enviado falhou:", (error as Error).message);
+  }
+  return audioMessageBody({ url: input.url, transcript });
+}
+
 /** Monta o corpo da mensagem de áudio no formato que a central entende. */
 export function audioMessageBody(stored: { url: string; transcript: string | null }) {
   const lines = [`🎵 Áudio: ${stored.url}`];
