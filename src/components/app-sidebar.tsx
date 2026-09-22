@@ -139,6 +139,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/api-conexao", label: "API de conexão", icon: PlugZap, adminOnly: true },
       { to: "/monitoramento", label: "Monitoramento", icon: Activity, adminOnly: true },
       { to: "/sentinela", label: "IA Sentinela", icon: Bot, adminOnly: true },
+      { to: "/mensagens-pendentes", label: "Mensagens pendentes", icon: Inbox, adminOnly: true },
 
       { to: "/franquias", label: "Franquias", icon: LayoutGrid, adminOnly: true },
       { to: "/relatorios", label: "Relatórios", icon: BarChart3, adminOnly: true },
