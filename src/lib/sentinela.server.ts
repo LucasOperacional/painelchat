@@ -727,6 +727,87 @@ export async function executarCicloSentinela(
     /* verificação complementar */
   }
 
+  /* 6. Avisos recusados (token/instância trocados) — a maior causa de mensagem perdida. */
+  try {
+    const desde = new Date(Date.now() - 60 * 60_000).toISOString();
+    const { data: recusados } = await db
+      .from("webhook_eventos")
+      .select("id, url, token, evento, external_id, http_status, created_at")
+      .in("http_status", [401, 403])
+      .gte("created_at", desde)
+      .order("created_at", { ascending: false })
+      .limit(MAX_EVENTOS_POR_CICLO);
+
+    const lista = (recusados ?? []) as Record<string, unknown>[];
+    verificacoes += 1;
+    if (lista.length) {
+      const sincronizados = await ressincronizarWebhooks();
+      let recuperados = 0;
+      for (const linha of lista) {
+        if (Date.now() - inicio > ORCAMENTO_CICLO_MS) break;
+        // Tentativas zeradas: o motivo anterior (token velho) já foi tratado.
+        const ok = await comLimiteDeTempo(
+          reprocessarEvento({ ...linha, tentativas: 0 }),
+          TEMPO_MAX_EVENTO_MS,
+          false,
+        );
+        if (ok) recuperados += 1;
+      }
+      corrigidos += recuperados;
+      achados.push({
+        tipo: "recebimento",
+        severidade: recuperados > 0 || sincronizados > 0 ? "aviso" : "erro",
+        titulo: `${lista.length} aviso(s) do WhatsApp foram recusados`,
+        detalhe:
+          "O servidor de WhatsApp avisou a central com um endereço/chave antigo, por isso mensagens deixaram de aparecer.",
+        acao: `Endereço reassinado em ${sincronizados} aparelho(s) e ${recuperados} mensagem(ns) recuperada(s).`,
+        status: recuperados > 0 || sincronizados > 0 ? "corrigido" : "aberto",
+      });
+    }
+  } catch (error) {
+    achados.push({
+      tipo: "recebimento",
+      severidade: "aviso",
+      titulo: "Não foi possível revisar os avisos recusados",
+      detalhe: error instanceof Error ? error.message : "Erro desconhecido.",
+    });
+  }
+
+  /* 7. Silêncio total de recebimento: nenhuma mensagem entrou há muito tempo. */
+  try {
+    const { count: conectados } = await db
+      .from("whatsapp_config")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "connected");
+    if ((conectados ?? 0) > 0) {
+      verificacoes += 1;
+      const limite = new Date(Date.now() - 90 * 60_000).toISOString();
+      const { count: recebidas } = await db
+        .from("messages")
+        .select("id", { count: "exact", head: true })
+        .eq("direction", "inbound")
+        .gte("created_at", limite);
+      if (!recebidas) {
+        const sincronizados = await ressincronizarWebhooks();
+        corrigidos += sincronizados;
+        achados.push({
+          tipo: "recebimento",
+          severidade: sincronizados > 0 ? "aviso" : "erro",
+          titulo: "Nenhuma mensagem recebida nas últimas horas",
+          detalhe:
+            "Os aparelhos estão conectados, mas nada entrou na central — sinal de aviso (webhook) desligado no servidor de WhatsApp.",
+          acao:
+            sincronizados > 0
+              ? `Endereço de aviso reassinado em ${sincronizados} aparelho(s).`
+              : "Não foi possível reassinar o endereço de aviso automaticamente.",
+          status: sincronizados > 0 ? "corrigido" : "aberto",
+        });
+      }
+    }
+  } catch {
+    /* verificação complementar */
+  }
+
   const problemas = achados.filter((a) => (a.status ?? "aberto") === "aberto").length;
   const severidade: Severidade = achados.some(
     (a) => a.severidade === "erro" && (a.status ?? "aberto") === "aberto",
