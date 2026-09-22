@@ -563,6 +563,15 @@ async function readWebhookBody(request: Request): Promise<EvolutionWebhook> {
   if (raw && ((typeof raw["type"] === "string" && typeof raw["event"] !== "string") || pareceWuzapi)) {
     return fromWuzapi(raw);
   }
+  // Envelope Baileys: { event, data: { key: { remoteJid, fromMe }, message } }.
+  const dados = (raw?.["data"] ?? {}) as Record<string, any>;
+  const primeira = Array.isArray(dados["messages"]) ? dados["messages"][0] : dados;
+  const pareceBaileys =
+    !!primeira &&
+    typeof primeira === "object" &&
+    !dados["Info"] &&
+    !!(primeira as Record<string, any>)["key"];
+  if (pareceBaileys) return fromBaileys(raw);
   return raw as EvolutionWebhook;
 }
 
