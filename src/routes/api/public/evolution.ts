@@ -853,8 +853,7 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
                 ? "audio"
                 : "nenhum";
           try {
-            await supabaseAdmin.from("stories_recebidos").upsert(
-              {
+            await supabaseAdmin.from("stories_recebidos").insert({
                 project_id: (config as { project_id?: string | null }).project_id ?? null,
                 config_id: config.id,
                 tipo: ehCanal ? "canal" : "status",
@@ -864,10 +863,8 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
                 texto: extractText(message).slice(0, 4000),
                 midia_url: urlMidia,
                 midia_tipo: tipoMidia,
-                wa_id: String(info.ID ?? ""),
-              },
-              { onConflict: "wa_id" },
-            );
+              wa_id: String(info.ID ?? ""),
+            });
           } catch (erro) {
             console.warn("[webhook] falha ao guardar story", erro);
           }
