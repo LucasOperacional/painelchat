@@ -1094,7 +1094,7 @@ function AtendimentoPage() {
               )}
               <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
                   <TabsList
-                    className="flex h-auto w-full flex-wrap items-center justify-center gap-0.5 rounded-[8px] bg-muted/70 p-0.5"
+                    className="flex h-auto w-full flex-nowrap items-center justify-start gap-1 overflow-x-auto rounded-[8px] bg-muted/70 p-1 scrollbar-hide"
                   >
                     <TabsTrigger value="minhas" className="h-7 shrink-0 whitespace-nowrap px-2 text-[10px] leading-none">
                       Minhas{counts.minhas > 0 ? ` (${counts.minhas})` : ""}
