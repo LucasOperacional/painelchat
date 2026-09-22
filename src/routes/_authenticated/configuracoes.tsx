@@ -16,6 +16,8 @@ import {
   QrCode,
   PhoneCall,
   Check,
+  Gauge,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -62,6 +64,208 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  statusOtimizacao,
+  salvarOtimizacao,
+  otimizarAgora,
+} from "@/lib/otimizacao.functions";
+
+function formatarBytes(valor: number | null | undefined) {
+  const n = Number(valor ?? 0);
+  if (!Number.isFinite(n) || n <= 0) return "0 MB";
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+function OtimizacaoCard() {
+  const statusFn = useServerFn(statusOtimizacao);
+  const saveFn = useServerFn(salvarOtimizacao);
+  const runFn = useServerFn(otimizarAgora);
+  const queryClient = useQueryClient();
+
+  const status = useQuery({ queryKey: ["otimizacao"], queryFn: () => statusFn({}) });
+
+  const [ativo, setAtivo] = useState(true);
+  const [intervalo, setIntervalo] = useState("6");
+  const [eventos, setEventos] = useState("6");
+  const [logs, setLogs] = useState("7");
+  const [mensagens, setMensagens] = useState("0");
+  const [anexos, setAnexos] = useState(true);
+
+  useEffect(() => {
+    const s = status.data?.settings;
+    if (!s) return;
+    setAtivo(s.ativo);
+    setIntervalo(String(s.intervalo_horas));
+    setEventos(String(s.retencao_eventos_horas));
+    setLogs(String(s.retencao_logs_dias));
+    setMensagens(String(s.retencao_mensagens_dias));
+    setAnexos(s.limpar_anexos_orfaos);
+  }, [status.data]);
+
+  const salvar = useMutation({
+    mutationFn: () =>
+      saveFn({
+        data: {
+          ativo,
+          intervaloHoras: Math.max(Number(intervalo) || 6, 1),
+          retencaoEventosHoras: Math.max(Number(eventos) || 6, 1),
+          retencaoLogsDias: Math.max(Number(logs) || 7, 1),
+          retencaoMensagensDias: Math.max(Number(mensagens) || 0, 0),
+          limparAnexosOrfaos: anexos,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Limpeza automática atualizada");
+      void queryClient.invalidateQueries({ queryKey: ["otimizacao"] });
+    },
+    onError: (e: Error) => toast.error("Não foi possível salvar", { description: e.message }),
+  });
+
+  const rodar = useMutation({
+    mutationFn: () => runFn({}),
+    onSuccess: (rel) => {
+      toast.success("Servidor otimizado", {
+        description: `Espaço liberado: ${formatarBytes(rel.liberado)} — ${rel.eventos_removidos} registro(s) antigos removidos.`,
+      });
+      void queryClient.invalidateQueries({ queryKey: ["otimizacao"] });
+    },
+    onError: (e: Error) => toast.error("Falha ao otimizar", { description: e.message }),
+  });
+
+  const uso = status.data?.uso;
+  const ultimo = status.data?.settings.ultimo_relatorio ?? null;
+  const ultimaExec = status.data?.settings.ultima_execucao ?? null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Gauge className="size-4" /> Otimização automática do servidor
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <p className="text-sm text-muted-foreground">
+          O sistema limpa registros antigos, apaga arquivos sem conversa e libera espaço sozinho, na
+          frequência escolhida abaixo.
+        </p>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-md border border-border p-3">
+            <p className="text-xs text-muted-foreground">Espaço usado</p>
+            <p className="text-lg font-semibold text-foreground">
+              {formatarBytes(uso?.tamanho_banco)}
+            </p>
+          </div>
+          <div className="rounded-md border border-border p-3">
+            <p className="text-xs text-muted-foreground">Mensagens guardadas</p>
+            <p className="text-lg font-semibold text-foreground">{uso?.mensagens ?? 0}</p>
+          </div>
+          <div className="rounded-md border border-border p-3">
+            <p className="text-xs text-muted-foreground">Registros técnicos</p>
+            <p className="text-lg font-semibold text-foreground">{uso?.eventos ?? 0}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
+          <div>
+            <p className="text-sm font-medium text-foreground">Limpeza automática</p>
+            <p className="text-xs text-muted-foreground">
+              {ativo ? "Ativada" : "Desativada"}
+              {ultimaExec
+                ? ` — última em ${new Date(ultimaExec).toLocaleString("pt-BR")}`
+                : " — ainda não executada"}
+            </p>
+          </div>
+          <Switch checked={ativo} onCheckedChange={setAtivo} />
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="otim-intervalo">Rodar a cada (horas)</Label>
+            <Input
+              id="otim-intervalo"
+              inputMode="numeric"
+              value={intervalo}
+              onChange={(e) => setIntervalo(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="otim-eventos">Guardar registros técnicos por (horas)</Label>
+            <Input
+              id="otim-eventos"
+              inputMode="numeric"
+              value={eventos}
+              onChange={(e) => setEventos(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="otim-logs">Guardar relatórios de segurança por (dias)</Label>
+            <Input
+              id="otim-logs"
+              inputMode="numeric"
+              value={logs}
+              onChange={(e) => setLogs(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="otim-mensagens">Apagar conversas com mais de (dias)</Label>
+            <Input
+              id="otim-mensagens"
+              inputMode="numeric"
+              value={mensagens}
+              onChange={(e) => setMensagens(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Use 0 para nunca apagar mensagens do histórico.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
+          <div>
+            <p className="text-sm font-medium text-foreground">Apagar arquivos sem conversa</p>
+            <p className="text-xs text-muted-foreground">
+              Remove fotos e áudios de conversas que já não existem mais.
+            </p>
+          </div>
+          <Switch checked={anexos} onCheckedChange={setAnexos} />
+        </div>
+
+        {ultimo && (
+          <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">Última otimização</p>
+            <p>
+              Espaço liberado: {formatarBytes(ultimo.liberado)} · {ultimo.eventos_removidos} registro
+              (s) técnicos · {ultimo.mensagens_removidas} mensagem(ns) antigas.
+            </p>
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" onClick={() => salvar.mutate()} disabled={salvar.isPending}>
+            {salvar.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+            Salvar limpeza automática
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => rodar.mutate()}
+            disabled={rodar.isPending}
+          >
+            {rodar.isPending ? (
+              <Loader2 className="mr-2 size-4 animate-spin" />
+            ) : (
+              <Sparkles className="mr-2 size-4" />
+            )}
+            Otimizar agora
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function MisticpayCard() {
   const loadStatus = useServerFn(getMisticpayStatus);
