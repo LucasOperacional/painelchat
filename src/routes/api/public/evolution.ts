@@ -641,7 +641,7 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
 
         // O token da URL identifica o dispositivo desta central.
         const COLUNAS_CONFIG =
-          "id, default_queue_id, status, last_event, phone, provider, instance_id, instance_name";
+          "id, default_queue_id, status, last_event, phone, provider, instance_id, instance_name, base_url, project_id";
         const { data: byToken } = await supabaseAdmin
           .from("whatsapp_config")
           .select(COLUNAS_CONFIG)
