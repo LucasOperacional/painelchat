@@ -779,8 +779,19 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
             } else {
               await touch({ status: "disconnected", last_qr: null });
             }
+            // Depois de uma queda o aparelho costuma voltar sem a assinatura do
+            // webhook: reassinamos na hora para não ficar sem receber mensagens.
+            try {
+              await (await import("@/lib/evolution.server")).ensureEvolutionWebhook(config.id, {
+                requestUrl: request.url,
+                force: true,
+              });
+            } catch {
+              /* a verificação automática tenta de novo no próximo ciclo */
+            }
             return Response.json({ received: true });
           }
+
           case "OfflineSyncCompleted": {
             await touch({ status: "connected", last_qr: null });
             return Response.json({ received: true });

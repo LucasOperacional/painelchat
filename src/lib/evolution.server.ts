@@ -514,8 +514,11 @@ export function evolutionPublicOrigin(_requestUrl?: string | null) {
   return `https://project--${projectId}.lovable.app`;
 }
 
-const WEBHOOK_SILENCE_MS = 15 * 60 * 1000;
+const WEBHOOK_SILENCE_MS = 10 * 60 * 1000;
 const WEBHOOK_FORCE_COOLDOWN_MS = 30 * 60 * 1000;
+/** Quando alguém pede à força (queda, silêncio, novo pareamento), a espera é curta. */
+const WEBHOOK_FORCE_MIN_MS = 5 * 60 * 1000;
+
 
 async function ultimoEventoRecebidoWebhook(token: string | null | undefined) {
   if (!token) return null;
@@ -578,11 +581,15 @@ export async function ensureEvolutionWebhook(
     if (!options?.force && registrado && mesmoEndereco(registrado, inboundUrl) && eventosOk) {
       return false;
     }
-    // Trava de segurança: no máximo um religamento a cada 30 minutos por
-    // aparelho, mesmo quando pedido à força por uma rotina automática.
-    if (idade < WEBHOOK_FORCE_COOLDOWN_MS && registrado && mesmoEndereco(registrado, inboundUrl) && eventosOk) {
+    // Trava de segurança contra religamento em sequência. Quando o pedido é à
+    // força (queda de conexão, silêncio de eventos, novo pareamento) a espera é
+    // curta: o aparelho pode ter perdido a assinatura do webhook e ficaria meia
+    // hora sem entregar mensagens.
+    const espera = options?.force ? WEBHOOK_FORCE_MIN_MS : WEBHOOK_FORCE_COOLDOWN_MS;
+    if (idade < espera && registrado && mesmoEndereco(registrado, inboundUrl) && eventosOk) {
       return false;
     }
+
     await evolutionConnectInstance(
       { baseUrl: config.base_url, instanceId: config.instance_id, configId: config.id, provider: config.provider },
       { webhookUrl: inboundUrl, immediate: true },
@@ -732,7 +739,7 @@ export async function sincronizarWebhook(
     const silencioMs = ultimoEvento ? Date.now() - new Date(ultimoEvento).getTime() : Infinity;
     const confirmadoEm = config.webhook_synced_at;
     const idadeSync = confirmadoEm ? Date.now() - new Date(confirmadoEm).getTime() : Infinity;
-    const silencioso = silencioMs > WEBHOOK_SILENCE_MS && idadeSync > WEBHOOK_FORCE_COOLDOWN_MS;
+    const silencioso = silencioMs > WEBHOOK_SILENCE_MS && idadeSync > WEBHOOK_FORCE_MIN_MS;
     const refez = await ensureEvolutionWebhook(config.id, {
       requestUrl: options?.requestUrl ?? null,
       ...(silencioso ? { force: true } : {}),
@@ -771,7 +778,64 @@ export async function sincronizarWebhook(
   };
 }
 
+/** Quanto tempo um aparelho conectado pode ficar sem entregar avisos. */
+const SESSAO_MUDA_MS = 20 * 60 * 1000;
+/** No máximo uma reinicialização de sessão por aparelho nessa janela. */
+const SESSAO_REINICIO_COOLDOWN_MS = 30 * 60 * 1000;
+const ultimoReinicioSessao = new Map<string, number>();
 
+/**
+ * Última linha de defesa contra perda de mensagens: às vezes a API aceita a
+ * assinatura do webhook e mesmo assim para de entregar qualquer aviso. Quando o
+ * aparelho está conectado e fica calado por muito tempo, reiniciamos a sessão
+ * (desconecta e conecta de novo, sem pedir QR) e reafirmamos o endereço.
+ */
+export async function reiniciarSessaoMuda(
+  configId: string,
+  options?: { requestUrl?: string | null },
+): Promise<{ reiniciado: boolean; detalhe: string }> {
+  const config = await loadEvolutionConfig(configId);
+  if (!config?.base_url || !config.instance_id) {
+    return { reiniciado: false, detalhe: "Aparelho sem endereço da API." };
+  }
+
+  const ultimoEvento = await ultimoEventoRecebidoWebhook(config.webhook_token);
+  const silencioMs = ultimoEvento ? Date.now() - new Date(ultimoEvento).getTime() : Infinity;
+  if (silencioMs < SESSAO_MUDA_MS) {
+    return { reiniciado: false, detalhe: "O aparelho está entregando avisos normalmente." };
+  }
+
+  const anterior = ultimoReinicioSessao.get(configId) ?? 0;
+  if (Date.now() - anterior < SESSAO_REINICIO_COOLDOWN_MS) {
+    return { reiniciado: false, detalhe: "Reinicialização recente: aguardando a próxima janela." };
+  }
+  ultimoReinicioSessao.set(configId, Date.now());
+
+  const alvo: InstanceTarget = {
+    baseUrl: config.base_url,
+    instanceId: config.instance_id,
+    configId: config.id,
+    provider: config.provider,
+  };
+  const inboundUrl = `${evolutionPublicOrigin(options?.requestUrl ?? null)}/api/public/evolution?token=${config.webhook_token ?? ""}`;
+
+  try {
+    await evolutionDisconnect(alvo);
+  } catch {
+    /* se a API já considerava desconectado, seguimos para reconectar */
+  }
+  await new Promise((r) => setTimeout(r, 3000));
+  await evolutionConnectInstance(alvo, { webhookUrl: inboundUrl, immediate: true });
+  invalidateEvolutionSessionCache(config.instance_id);
+  console.log(`[webhook] sessão reiniciada por silêncio device=${config.id}`);
+  const minutos = Number.isFinite(silencioMs) ? Math.round(silencioMs / 60000) : null;
+  return {
+    reiniciado: true,
+    detalhe: minutos
+      ? `A sessão foi reiniciada após ${minutos} minutos sem nenhum aviso da API.`
+      : "A sessão foi reiniciada porque a API nunca entregou avisos.",
+  };
+}
 
 
 /** GET /instance/qr → { data: { Qrcode, Code } } */
