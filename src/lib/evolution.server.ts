@@ -491,26 +491,36 @@ export async function evolutionConnectInstance(
   };
 }
 
-/** Endereço público e estável desta central para receber os eventos. */
-export function evolutionPublicOrigin(requestUrl?: string | null) {
-  if (requestUrl) {
-    try {
-      const origin = new URL(requestUrl).origin;
-      // `id-preview--` exige sessão e `-dev` serve só a prévia: nesses casos
-      // usamos o domínio estável da versão publicada.
-      if (
-        /^https:\/\//.test(origin) &&
-        !/\/\/id-preview--/.test(origin) &&
-        !/-dev\.lovable\.app$/.test(origin)
-      ) {
-        return origin;
-      }
-    } catch {
-      /* cai no domínio estável abaixo */
-    }
-  }
+/**
+ * Endereço público e estável desta central para receber os eventos.
+ *
+ * Precisa ser SEMPRE o mesmo, não importa quem chama (webhook, monitor a cada
+ * minuto, sentinela a cada 5 minutos). Quando o endereço variava entre dois
+ * nomes do mesmo site, cada rotina "corrigia" o endereço da outra e religava a
+ * instância — o religamento reenviava o histórico (mensagens antigas voltavam a
+ * notificar) e cortava a chegada das mensagens novas.
+ */
+export function evolutionPublicOrigin(_requestUrl?: string | null) {
+  const configurado = (process.env["PUBLIC_SITE_URL"] ?? "").trim().replace(/\/+$/, "");
+  if (/^https:\/\//.test(configurado)) return configurado;
   const projectId = process.env["LOVABLE_PROJECT_ID"] ?? "a3daa33e-35ce-4bc4-9ed0-fa0c79c7a779";
   return `https://project--${projectId}.lovable.app`;
+}
+
+/** Nomes do site que apontam para esta mesma central. */
+function hostsDaCentral() {
+  const projectId = process.env["LOVABLE_PROJECT_ID"] ?? "a3daa33e-35ce-4bc4-9ed0-fa0c79c7a779";
+  const hosts = new Set<string>([
+    `project--${projectId}.lovable.app`,
+    "painelchat.lovable.app",
+  ]);
+  const configurado = (process.env["PUBLIC_SITE_URL"] ?? "").trim();
+  try {
+    if (configurado) hosts.add(new URL(configurado).host);
+  } catch {
+    /* endereço mal formado: ignora */
+  }
+  return hosts;
 }
 
 /**
