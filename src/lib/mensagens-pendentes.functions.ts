@@ -29,6 +29,23 @@ function texto(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+/**
+ * Só avisos de mensagem individual entram na conta. Sincronizações de histórico,
+ * confirmações de leitura, presença e afins não geram mensagem no chat e, se
+ * reenviados, trariam conversas antigas de volta.
+ */
+const EVENTOS_DE_MENSAGEM = new Set(["message", "sendmessage", "messages.upsert"]);
+
+function eventoDeMensagem(nome: string, payload: unknown): boolean {
+  const limpo = nome.trim().toLowerCase();
+  if (EVENTOS_DE_MENSAGEM.has(limpo)) return true;
+  if (limpo && limpo !== "[object object]") return false;
+  // Avisos antigos guardaram "[object Object]": o tipo real está no conteúdo.
+  const raiz = obj(payload);
+  const tipo = (texto(raiz["type"]) || texto(raiz["event_type"])).toLowerCase();
+  return EVENTOS_DE_MENSAGEM.has(tipo);
+}
+
 /** Tenta achar quem enviou e o conteúdo dentro de qualquer formato de aviso. */
 function resumirPayload(payload: unknown): {
   de: string;
