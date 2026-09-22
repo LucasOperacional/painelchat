@@ -233,7 +233,14 @@ function AtendimentoPage() {
   const [queueFilter, setQueueFilter] = useState("all");
   const [agentFilter, setAgentFilter] = useState("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const searchParams = useSearch({ from: "/_authenticated/atendimento" });
+  useEffect(() => {
+    if (searchParams.conversation) {
+      setSelectedId(searchParams.conversation);
+    }
+  }, [searchParams.conversation]);
   const [draft, setDraft] = useState("");
+
   const [transferOpen, setTransferOpen] = useState(false);
   const [forwardBody, setForwardBody] = useState<string | null>(null);
   const [forwardSearch, setForwardSearch] = useState("");
