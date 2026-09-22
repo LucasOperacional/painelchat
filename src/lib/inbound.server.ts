@@ -404,6 +404,31 @@ export async function recordInboundMessage(input: {
     .update({ last_message_at: lastMessageAt, ...patchConversa })
     .eq("id", conversationId);
 
+  // A mensagem já está no chat. Só agora, sem pressa, tentamos completar a foto
+  // do contato e o nome real do grupo que a API não devolveu a tempo.
+  if ((precisaFoto && !avatarUrl) || (precisaNomeGrupo && !nomeGrupoBuscado)) {
+    try {
+      const [fotoTardia, nomeTardio] = await Promise.all([
+        precisaFoto && !avatarUrl
+          ? fetchProfilePicture(isGroup ? chatJid : input.phoneDigits, deviceId)
+          : Promise.resolve(null),
+        precisaNomeGrupo && !nomeGrupoBuscado
+          ? fetchGroupName(chatJid, deviceId)
+          : Promise.resolve(null),
+      ]);
+      const completar: { avatar_url?: string; name?: string } = {};
+      if (fotoTardia) completar.avatar_url = fotoTardia;
+      if (nomeTardio) completar.name = nomeTardio;
+      if (Object.keys(completar).length > 0) {
+        await supabaseAdmin.from("contacts").update(completar).eq("id", contactId);
+      }
+    } catch {
+      // foto e nome são melhorias: nunca atrapalham a mensagem já gravada
+    }
+  }
+
+
+
 
   // Importação do histórico: grava e pronto, sem saudação, chatbot ou IA.
   if (input.skipAutomations) return { conversationId, contactId };
