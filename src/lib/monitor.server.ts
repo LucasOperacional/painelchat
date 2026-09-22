@@ -295,6 +295,31 @@ export async function verificarConexoes(
           avisar: !sync.ok,
         });
       }
+      // Aparelho conectado que para de entregar avisos perde mensagens em
+      // silêncio: a sessão é reiniciada e o número de plantão é avisado.
+      try {
+        const revivido = await reiniciarSessaoMuda(device.id, {
+          requestUrl: requestUrl ?? null,
+        });
+        if (revivido.reiniciado) {
+          resultado.religados += 1;
+          await registrarOcorrencia({
+            tipo: "Recebimento reativado",
+            mensagem: `O aparelho ${nome} estava conectado, mas sem entregar nenhuma mensagem. ${revivido.detalhe}`,
+            severidade: "aviso",
+            deviceId: device.id,
+            deviceLabel: nome,
+            provider: device.provider,
+            avisar: true,
+          });
+        }
+      } catch (error) {
+        console.error(
+          `[monitor] falha ao reiniciar sessão muda device=${device.id}`,
+          error instanceof Error ? error.message : error,
+        );
+      }
+
       await marcarEstado(device.id, {
         monitor_estado: "online",
         monitor_tentativas: 0,
