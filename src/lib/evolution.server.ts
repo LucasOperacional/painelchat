@@ -817,7 +817,7 @@ export async function reiniciarSessaoMuda(
     configId: config.id,
     provider: config.provider,
   };
-  const inboundUrl = buildInboundUrl(config.webhook_token, options?.requestUrl ?? null);
+  const inboundUrl = `${evolutionPublicOrigin(options?.requestUrl ?? null)}/api/public/evolution?token=${config.webhook_token ?? ""}`;
 
   try {
     await evolutionDisconnect(alvo);
