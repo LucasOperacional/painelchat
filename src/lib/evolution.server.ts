@@ -639,15 +639,33 @@ export async function sincronizarWebhook(
     };
   }
 
-  // Endereço diferente, ausente ou API sem consulta: reassina para garantir.
-  const refez = await ensureEvolutionWebhook(config.id, {
+  // A API não informa o webhook registrado: usamos o registro da própria
+  // central (reassina quando o endereço mudou ou a confirmação ficou velha),
+  // evitando reassinar sem necessidade a cada verificação.
+  if (!registrado) {
+    const refez = await ensureEvolutionWebhook(config.id, {
+      requestUrl: options?.requestUrl ?? null,
+    });
+    return {
+      ok: true,
+      corrigido: refez,
+      esperado,
+      registrado: null,
+      detalhe: refez
+        ? "Webhook reassinado (a API não informa o endereço atual)."
+        : "Webhook confirmado pelo registro da central.",
+    };
+  }
+
+  // Endereço diferente do desta central: reassina na hora.
+  await ensureEvolutionWebhook(config.id, {
     requestUrl: options?.requestUrl ?? null,
     force: true,
   });
   const depois = await evolutionGetWebhook(alvo);
-  const certo = depois ? mesmoEndereco(depois, esperado) : refez;
+  const certo = depois ? mesmoEndereco(depois, esperado) : true;
   console.log(
-    `[webhook] sincronizado device=${config.id} antes=${registrado ?? "?"} agora=${depois ?? "?"}`,
+    `[webhook] sincronizado device=${config.id} antes=${registrado} agora=${depois ?? "?"}`,
   );
   return {
     ok: certo,
