@@ -16,9 +16,17 @@ function extFor(mime: string) {
 function base64ToBytes(base64: string): Uint8Array | null {
   if (/^\[conteúdo grande removido:/i.test(base64.trim())) return null;
   const clean = base64.includes(",") ? base64.slice(base64.indexOf(",") + 1) : base64;
-  const normalized = clean.replace(/\s/g, "");
+  const normalized = clean.replace(/\s/g, "").replace(/-/g, "+").replace(/_/g, "/");
   if (!normalized || !/^[A-Za-z0-9+/]+={0,2}$/.test(normalized)) return null;
-  const binary = atob(normalized);
+  const semPadding = normalized.replace(/=+$/, "");
+  if (semPadding.length % 4 === 1) return null;
+  const padded = semPadding.padEnd(Math.ceil(semPadding.length / 4) * 4, "=");
+  let binary = "";
+  try {
+    binary = atob(padded);
+  } catch {
+    return null;
+  }
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
   return bytes;
@@ -53,6 +61,16 @@ function absoluteMediaUrl(value?: string | null): string | null {
   return full;
 }
 
+function isEncryptedWhatsappUrl(value: string | null) {
+  if (!value) return false;
+  if (/\.enc(?:\?|$)/i.test(value)) return true;
+  try {
+    return /(?:^|\.)mmg\.whatsapp\.net$/i.test(new URL(value).hostname);
+  } catch {
+    return /mmg\.whatsapp\.net/i.test(value);
+  }
+}
+
 /** Baixa (ou decodifica) a imagem/figurinha recebida e devolve um link para exibir. */
 export async function storeInboundImage(input: {
   phoneDigits: string;
@@ -64,7 +82,7 @@ export async function storeInboundImage(input: {
   let bytes: Uint8Array | null = null;
   let mime = (input.mimeType ?? "").split(";")[0]?.trim() || "image/webp";
   const normalizedUrl = absoluteMediaUrl(input.url);
-  const usableUrl = normalizedUrl && !/\.enc(\?|$)/i.test(normalizedUrl) ? normalizedUrl : null;
+  const usableUrl = normalizedUrl && !isEncryptedWhatsappUrl(normalizedUrl) ? normalizedUrl : null;
 
   try {
     bytes = await bytesFromInput(input, usableUrl);
@@ -118,7 +136,7 @@ export async function storeInboundVideo(input: {
   let bytes: Uint8Array | null = null;
   let mime = (input.mimeType ?? "").split(";")[0]?.trim() || "video/mp4";
   const normalizedUrl = absoluteMediaUrl(input.url);
-  const usableUrl = normalizedUrl && !/\.enc(\?|$)/i.test(normalizedUrl) ? normalizedUrl : null;
+  const usableUrl = normalizedUrl && !isEncryptedWhatsappUrl(normalizedUrl) ? normalizedUrl : null;
 
   try {
     bytes = await bytesFromInput(input, usableUrl);
@@ -176,7 +194,7 @@ export async function storeInboundDocument(input: {
   let mime = (input.mimeType ?? "").split(";")[0]?.trim() || "application/octet-stream";
   const name = safeFileName(input.fileName ?? (mime === "application/pdf" ? "documento.pdf" : "documento"));
   const normalizedUrl = absoluteMediaUrl(input.url);
-  const usableUrl = normalizedUrl && !/\.enc(\?|$)/i.test(normalizedUrl) ? normalizedUrl : null;
+  const usableUrl = normalizedUrl && !isEncryptedWhatsappUrl(normalizedUrl) ? normalizedUrl : null;
 
   try {
     bytes = await bytesFromInput(input, usableUrl);
