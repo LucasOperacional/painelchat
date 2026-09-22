@@ -514,8 +514,11 @@ export function evolutionPublicOrigin(_requestUrl?: string | null) {
   return `https://project--${projectId}.lovable.app`;
 }
 
-const WEBHOOK_SILENCE_MS = 15 * 60 * 1000;
+const WEBHOOK_SILENCE_MS = 10 * 60 * 1000;
 const WEBHOOK_FORCE_COOLDOWN_MS = 30 * 60 * 1000;
+/** Quando alguém pede à força (queda, silêncio, novo pareamento), a espera é curta. */
+const WEBHOOK_FORCE_MIN_MS = 5 * 60 * 1000;
+
 
 async function ultimoEventoRecebidoWebhook(token: string | null | undefined) {
   if (!token) return null;
