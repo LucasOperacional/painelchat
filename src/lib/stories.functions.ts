@@ -21,7 +21,34 @@ export type CanalItem = {
   nome: string;
   descricao: string;
   inscritos: number | null;
+  papel: string;
+  podeEnviar: boolean;
 };
+
+/** Publica uma mensagem em um canal onde o número conectado é admin/dono. */
+export const enviarNoCanal = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        deviceId: z.string().uuid().nullable().default(null),
+        jid: z.string().min(5),
+        texto: z.string().default(""),
+        midiaUrl: z.string().default(""),
+        midiaTipo: z.enum(["imagem", "video"]).default("imagem"),
+      })
+      .parse(data ?? {}),
+  )
+  .handler(async ({ data }) => {
+    const { publicarNoCanal } = await import("@/lib/stories.server");
+    return publicarNoCanal({
+      deviceId: data.deviceId,
+      jid: data.jid,
+      texto: data.texto,
+      midiaUrl: data.midiaUrl,
+      midiaTipo: data.midiaTipo,
+    });
+  });
 
 /** Stories e canais recebidos pelas conexões (gravados pelo webhook). */
 export const listStoriesRecebidos = createServerFn({ method: "POST" })
