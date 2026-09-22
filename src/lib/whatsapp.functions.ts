@@ -1174,7 +1174,7 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
       ? `👤 Contato: ${sharedContact.name}\n📞 +${sharedContact.phone.replace(/\D/g, "")}`
       : "";
     const stickerLine = stickerUrl ? `🖼 Figurinha: ${stickerUrl}` : "";
-    const stored = [outgoing.trim(), contactLine, attachmentLines, stickerLine]
+    const stored = [outgoing.trim(), contactLine, attachmentLines, audioLines, stickerLine]
       .filter(Boolean)
       .join("\n");
 
