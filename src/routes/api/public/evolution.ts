@@ -13,6 +13,7 @@ type EvolutionWebhook = {
   event?: string;
   state?: string;
   instanceId?: string;
+  instanceName?: string;
   instanceToken?: string;
   data?: {
     Info?: {
@@ -604,29 +605,60 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
 
 
         // O token da URL identifica o dispositivo desta central.
+        const COLUNAS_CONFIG =
+          "id, default_queue_id, status, last_event, phone, provider, instance_id, instance_name";
         const { data: byToken } = await supabaseAdmin
           .from("whatsapp_config")
-          .select("id, default_queue_id, status, last_event, phone, provider")
+          .select(COLUNAS_CONFIG)
           .eq("webhook_token", token)
           .maybeSingle();
 
-        let config = byToken;
+        type ConfigWebhook = {
+          id: string;
+          default_queue_id: string | null;
+          status: string | null;
+          last_event: string | null;
+          phone: string | null;
+          provider: string | null;
+          instance_id?: string | null;
+          instance_name?: string | null;
+        };
+        let config = byToken as ConfigWebhook | null;
+
         if (!config) {
-          const envToken = process.env["EVOLUTION_WEBHOOK_TOKEN"];
-          if (!envToken || token !== envToken) {
-            return new Response("Unauthorized", { status: 401 });
-          }
-          // Webhook global do servidor: identifica o dispositivo pelo instanceId.
-          const { data: byInstance } = instanceRef
-            ? await supabaseAdmin
-                .from("whatsapp_config")
-                .select("id, default_queue_id, status, last_event, phone, provider")
-                .eq("instance_id", instanceRef)
-                .maybeSingle()
-            : { data: null };
-          config = byInstance ?? null;
-          if (!config) return Response.json({ received: true });
+          // Token antigo (aparelho recriado ou webhook desatualizado no servidor).
+          // Nenhuma mensagem pode ser perdida: identificamos o aparelho pelos
+          // dados do próprio evento antes de recusar.
+          const { data: todos } = await supabaseAdmin
+            .from("whatsapp_config")
+            .select(COLUNAS_CONFIG);
+          const lista = (todos ?? []) as unknown as ConfigWebhook[];
+          const nomeInstancia = (payload.instanceName ?? "").trim().toLowerCase();
+          // A Evolution Go sempre envia instanceId/instanceName; a WuzAPI não.
+          const provedorProvavel = payload.instanceId || payload.instanceName ? "evolution" : "wuzapi";
+          const doProvedor = lista.filter(
+            (item) => (item.provider ?? "evolution") === provedorProvavel,
+          );
+
+          config =
+            (instanceRef
+              ? lista.find((item) => String(item.instance_id ?? "") === String(instanceRef))
+              : null) ??
+            (nomeInstancia
+              ? doProvedor.find(
+                  (item) => (item.instance_name ?? "").trim().toLowerCase() === nomeInstancia,
+                )
+              : null) ??
+            (doProvedor.length === 1 ? doProvedor[0] : null) ??
+            (lista.length === 1 ? lista[0] : null) ??
+            null;
+
+          if (!config) return Response.json({ received: true, ignored: "aparelho-desconhecido" });
+          console.warn(
+            `[webhook] token desatualizado; evento atribuído ao aparelho ${config.id} (${config.provider ?? "evolution"}) por ${instanceRef ? "instanceId" : nomeInstancia ? "instanceName" : "provedor"}`,
+          );
         }
+
 
         const now = new Date().toISOString();
         const wasConnected = config.status === "connected";
