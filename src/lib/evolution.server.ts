@@ -580,7 +580,7 @@ export async function ensureEvolutionWebhook(
     }
     // Trava de segurança: no máximo um religamento a cada 30 minutos por
     // aparelho, mesmo quando pedido à força por uma rotina automática.
-    if (idade < WEBHOOK_FORCE_COOLDOWN_MS && registrado && mesmoEndereco(registrado, inboundUrl)) {
+    if (idade < WEBHOOK_FORCE_COOLDOWN_MS && registrado && mesmoEndereco(registrado, inboundUrl) && eventosOk) {
       return false;
     }
     await evolutionConnectInstance(
