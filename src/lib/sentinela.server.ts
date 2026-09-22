@@ -308,6 +308,22 @@ export async function guardarWebhook(
     }
   }
 
+  // JSON puro da WuzAPI com o conteúdo dentro do texto "jsonData": abre o texto
+  // para o diário guardar o evento certo e permitir o reprocessamento.
+  const bruto = payload as Record<string, unknown> | null;
+  if (bruto && typeof bruto["jsonData"] === "string" && bruto["jsonData"]) {
+    try {
+      const interno = JSON.parse(bruto["jsonData"] as string) as Record<string, unknown>;
+      for (const [chave, valor] of Object.entries(bruto)) {
+        if (chave === "jsonData") continue;
+        if (interno[chave] === undefined) interno[chave] = valor;
+      }
+      payload = interno;
+    } catch {
+      /* texto ilegível: mantém o corpo original */
+    }
+  }
+
   let registroId: string | null = null;
   const nomeEvento = payload ? eventoDoPayload(payload) : "";
   const vaiParaDiario = !!payload && !EVENTOS_SEM_DIARIO.has(nomeEvento.toLowerCase());
