@@ -595,7 +595,7 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const eventoBruto = String(payload.event ?? "");
-        const event = EVENT_ALIAS[eventoBruto] ?? eventoBruto;
+        const event = normalizeEventName(eventoBruto);
         const instanceRef = payload.instanceId ?? null;
         console.log(`[webhook] recebido evento=${event} instancia=${instanceRef ?? "-"}`);
 
