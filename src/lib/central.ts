@@ -163,13 +163,9 @@ export async function fetchConversations() {
   if (conversations.length === 0) return conversations;
 
   // Regra: a lista sempre mostra a última mensagem (enviada ou recebida) de cada chat.
+  // Uma única consulta no banco resolve todas as conversas (DISTINCT ON por conversa).
   const ids = conversations.map((c) => c.id);
-  const { data: recentes } = await supabase
-    .from("messages")
-    .select("id, conversation_id, body, direction, created_at")
-    .in("conversation_id", ids)
-    .order("created_at", { ascending: false })
-    .limit(900);
+  const { data: recentes } = await supabase.rpc("ultimas_mensagens", { _ids: ids });
 
   const ultimas = new Map<string, LastMessage>();
   for (const row of (recentes ?? []) as (LastMessage & { conversation_id: string })[]) {
