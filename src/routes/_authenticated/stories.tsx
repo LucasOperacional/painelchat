@@ -352,6 +352,39 @@ function StoriesPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!canalEnvio} onOpenChange={(aberto) => (aberto ? null : fecharEnvio())}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Publicar no canal</DialogTitle>
+            <DialogDescription>
+              A mensagem será publicada no canal {canalEnvio?.nome}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Textarea
+              value={mensagem}
+              onChange={(e) => setMensagem(e.target.value)}
+              placeholder="Escreva a mensagem do canal…"
+              rows={5}
+            />
+            <Input
+              value={midiaUrl}
+              onChange={(e) => setMidiaUrl(e.target.value)}
+              placeholder="Link de uma foto ou vídeo (opcional)"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={fecharEnvio} disabled={enviando}>
+              Cancelar
+            </Button>
+            <Button onClick={() => void publicar()} disabled={enviando}>
+              {enviando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+              Publicar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
