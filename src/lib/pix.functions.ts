@@ -361,14 +361,9 @@ export const sendMisticpayCharge = createServerFn({ method: "POST" })
 
     const amount = parseAmount(data.amount);
     const payerName = data.payerName.trim() || contact.name?.trim() || "Cliente";
-    // O CPF vai gravado no QR Code: se não for o CPF de quem vai pagar, o app do
-    // banco recusa o pagamento. Por isso nunca usamos um CPF padrão aqui.
-    const payerDocument = data.payerDocument.replace(/\D/g, "");
-    if (!payerDocument) {
-      throw new Error(
-        "Informe o CPF do cliente que vai pagar. O CPF fica gravado no QR Code e, se for de outra pessoa, o banco recusa o pagamento.",
-      );
-    }
+    // O CPF é opcional: quando não informado, usamos o CPF cadastrado na conta.
+    const payerDocument =
+      data.payerDocument.replace(/\D/g, "") || creds.defaultPayerDocument || "";
     if (payerDocument.length !== 11) {
       throw new Error("O CPF do pagador precisa ter 11 dígitos.");
     }
