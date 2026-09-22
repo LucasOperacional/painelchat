@@ -13,6 +13,7 @@ type EvolutionWebhook = {
   event?: string;
   state?: string;
   instanceId?: string;
+  instanceName?: string;
   instanceToken?: string;
   data?: {
     Info?: {
