@@ -388,12 +388,77 @@ const WUZAPI_EVENT: Record<string, string> = {
 const EVENT_ALIAS: Record<string, string> = {
   MESSAGES_UPSERT: "Message",
   MESSAGES_SET: "Message",
+  MESSAGES_HISTORY_SET: "HistorySync",
+  MESSAGING_HISTORY_SET: "HistorySync",
   MESSAGES_UPDATE: "Receipt",
   SEND_MESSAGE: "SendMessage",
+  SEND_MESSAGE_UPDATE: "SendMessage",
+  MESSAGE_SENT: "SendMessage",
   CONNECTION_UPDATE: "Connected",
   STATUS_INSTANCE: "Connected",
   QRCODE_UPDATED: "QRCode",
 };
+
+/**
+ * Nome do evento em qualquer nomenclatura ("messages.upsert", "MESSAGES_UPSERT",
+ * "send.message") vira o nome único usado aqui. Sem isso, mensagens enviadas
+ * pelo celular chegavam com um nome desconhecido e eram descartadas.
+ */
+function normalizeEventName(raw: string): string {
+  const direto = EVENT_ALIAS[raw];
+  if (direto) return direto;
+  const chave = raw.trim().replace(/[.\-\s]+/g, "_").toUpperCase();
+  return EVENT_ALIAS[chave] ?? raw;
+}
+
+/**
+ * Envelope das Evolution API baseadas em Baileys:
+ * { event, data: { key: { remoteJid, fromMe, id, participant }, message, pushName } }.
+ * Convertido para o formato Info/Message já tratado aqui — é o caminho pelo qual
+ * as mensagens enviadas pelo próprio celular chegam nessas versões.
+ */
+function fromBaileys(raw: Record<string, any>): EvolutionWebhook {
+  const bruto = (raw["data"] ?? {}) as Record<string, any>;
+  const alvo = (Array.isArray(bruto["messages"]) ? bruto["messages"][0] : bruto) as Record<
+    string,
+    any
+  >;
+  const key = (alvo["key"] ?? {}) as Record<string, any>;
+  const chat = String(key["remoteJid"] ?? key["RemoteJid"] ?? "");
+  const fromMe = key["fromMe"] === true || key["FromMe"] === true;
+  const participant = String(key["participant"] ?? alvo["participant"] ?? "");
+  const isGroup = chat.includes("@g.us");
+  const info: Record<string, unknown> = {
+    Chat: chat,
+    Sender: (isGroup ? participant : chat) || chat,
+    IsFromMe: fromMe,
+    IsGroup: isGroup,
+    ID: String(key["id"] ?? alvo["id"] ?? ""),
+    PushName: alvo["pushName"] ?? alvo["PushName"] ?? bruto["pushName"] ?? null,
+  };
+  // Mensagem enviada pelo celular: o destino da conversa é o remoteJid.
+  if (fromMe && !isGroup) info["RecipientAlt"] = chat;
+  const mensagem = (alvo["message"] ?? alvo["Message"] ?? {}) as Record<string, unknown>;
+  const midia = field<unknown>(alvo, "mediaUrl", "mediaURL", "file_url", "fileUrl", "base64");
+  return {
+    event: normalizeEventName(String(raw["event"] ?? "")),
+    data: {
+      Info: info,
+      Message: {
+        ...mensagem,
+        ...(typeof midia === "string" && midia
+          ? midia.startsWith("http")
+            ? { mediaUrl: midia }
+            : { base64: midia }
+          : {}),
+      },
+    },
+    ...(typeof raw["instanceId"] === "string" ? { instanceId: raw["instanceId"] } : {}),
+    ...(typeof raw["instance"] === "string" && !raw["instanceId"]
+      ? { instanceId: raw["instance"] }
+      : {}),
+  } as EvolutionWebhook;
+}
 
 /**
  * A WuzAPI usa outro envelope: { type, event: { Info, Message }, base64, s3 }.
@@ -415,10 +480,13 @@ function fromWuzapi(raw: Record<string, any>): EvolutionWebhook {
   if (info && typeof info === "object") {
     const novoInfo: Record<string, any> = { ...info };
     const atual = (nome: string) => jidLimpo(novoInfo[nome]);
-    if (senderJid && !atual("SenderAlt") && !atual("Sender").includes("@s.whatsapp.net")) {
+    const propria = novoInfo["IsFromMe"] === true;
+    // Mensagem enviada pelo celular: sender_jid é o NOSSO número e não serve
+    // para achar a conversa — quem manda na identificação é o chat_jid.
+    if (senderJid && !propria && !atual("SenderAlt") && !atual("Sender").includes("@s.whatsapp.net")) {
       novoInfo["SenderAlt"] = senderJid;
     }
-    if (chatJid && !atual("RecipientAlt") && novoInfo["IsFromMe"] === true) {
+    if (chatJid && propria && !atual("RecipientAlt")) {
       novoInfo["RecipientAlt"] = chatJid;
     }
     // Chat individual entregue como @lid: usa o telefone informado no contato.
@@ -498,6 +566,15 @@ async function readWebhookBody(request: Request): Promise<EvolutionWebhook> {
   if (raw && ((typeof raw["type"] === "string" && typeof raw["event"] !== "string") || pareceWuzapi)) {
     return fromWuzapi(raw);
   }
+  // Envelope Baileys: { event, data: { key: { remoteJid, fromMe }, message } }.
+  const dados = (raw?.["data"] ?? {}) as Record<string, any>;
+  const primeira = Array.isArray(dados["messages"]) ? dados["messages"][0] : dados;
+  const pareceBaileys =
+    !!primeira &&
+    typeof primeira === "object" &&
+    !dados["Info"] &&
+    !!(primeira as Record<string, any>)["key"];
+  if (pareceBaileys) return fromBaileys(raw);
   return raw as EvolutionWebhook;
 }
 
@@ -521,7 +598,7 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const eventoBruto = String(payload.event ?? "");
-        const event = EVENT_ALIAS[eventoBruto] ?? eventoBruto;
+        const event = normalizeEventName(eventoBruto);
         const instanceRef = payload.instanceId ?? null;
         console.log(`[webhook] recebido evento=${event} instancia=${instanceRef ?? "-"}`);
 
@@ -732,8 +809,11 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
         const isBrPhone = (d: string) => /^55\d{10,11}$/.test(d);
         // Quando a mensagem é nossa (respondida no celular), o campo Sender é o
         // nosso próprio número — nunca serve para identificar a conversa.
-        const rawCandidates = [chatRaw, String(info.SenderAlt ?? ""), recipientAlt];
-        if (!fromMe) rawCandidates.push(String(info.Sender ?? ""));
+        // Mensagem enviada pelo celular: o outro lado está no chat/RecipientAlt.
+        // Sender e SenderAlt são o nosso próprio número nesses eventos.
+        const rawCandidates = fromMe
+          ? [recipientAlt, chatRaw]
+          : [chatRaw, String(info.SenderAlt ?? ""), recipientAlt, String(info.Sender ?? "")];
         const directCandidates = rawCandidates
           .filter((jid) => jid && !jid.includes("@lid"))
           .map(jidToPhone);
