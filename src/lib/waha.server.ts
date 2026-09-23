@@ -759,6 +759,16 @@ async function wahaDispatchOnce(options: WahaCall): Promise<unknown> {
       );
       return { data: data ?? {} };
     }
+    case "/message/markread": {
+      const chatId = toChatId(body["number"]);
+      const ids = ((body["id"] ?? []) as string[]).filter(Boolean);
+      const data = await run("/api/sendSeen", "POST", {
+        session,
+        chatId,
+        ...(ids.length ? { messageIds: ids } : {}),
+      });
+      return { data: data ?? {} };
+    }
 
     // -------------------------------------------------------- contatos/grupos
     case "/user/avatar": {

@@ -1349,6 +1349,23 @@ export async function evolutionDeleteMessage(
   return true;
 }
 
+/** POST /message/markread → marca mensagens recebidas como vistas (tique azul). */
+export async function evolutionMarkRead(
+  target: SendTarget,
+  input: { number: string; ids: string[] },
+) {
+  await evolutionRequest<unknown>({
+    baseUrl: target.baseUrl,
+    instanceId: target.instanceId,
+    configId: target.configId ?? null,
+    path: "/message/markread",
+    method: "POST",
+    body: { number: input.number, id: input.ids },
+    timeoutMs: 20_000,
+  });
+  return true;
+}
+
 
 
 // ---------------------------------------------------------------------------
