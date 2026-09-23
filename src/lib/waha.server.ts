@@ -69,6 +69,11 @@ function describeWahaError(status: number, payload: unknown): string {
         : (raw?.message ?? raw?.error);
   const message = (rawMessage && String(rawMessage)) || `Falha na WAHA (HTTP ${status}).`;
 
+  // Número inexistente com esses dígitos: a WAHA devolve "no LID found ..." ou
+  // o erro cru do WhatsApp ("server returned error 403").
+  if (/no LID found|returned error 403|not.*registered/i.test(message)) {
+    return "Esse número não está no WhatsApp com esses dígitos. Confira o DDD e o nono dígito e tente novamente.";
+  }
   if (/not logged|no session|status.*(stopped|failed)|session.*not.*(found|started)/i.test(message)) {
     return "O WhatsApp deste dispositivo não está pareado. Abra Administração → Dispositivos e leia o QR Code para voltar a enviar mensagens.";
   }
