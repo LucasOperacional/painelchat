@@ -1441,13 +1441,14 @@ function GroupMessagesCard() {
   const ignoreGroups = settings.data?.ignoreGroups ?? false;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Users className="size-4 text-primary" /> Mensagens de grupos
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex items-center justify-between gap-4">
+    <ConfigSectionCard
+      icon={Users}
+      title="Mensagens de grupos"
+      description="Escolha se mensagens recebidas em grupos entram na central."
+      status={ignoreGroups ? "Grupos ignorados" : "Grupos ativados"}
+      statusOk={!ignoreGroups}
+    >
+      <div className="flex items-center justify-between gap-4 rounded-md border border-border p-4">
         <div className="space-y-1">
           <Label htmlFor="ignoreGroups">Ignorar mensagens de grupos</Label>
           <p className="text-sm text-muted-foreground">
@@ -1460,8 +1461,8 @@ function GroupMessagesCard() {
           disabled={settings.isLoading || mutation.isPending}
           onCheckedChange={(checked) => mutation.mutate(checked)}
         />
-      </CardContent>
-    </Card>
+      </div>
+    </ConfigSectionCard>
   );
 }
 
