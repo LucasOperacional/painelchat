@@ -238,6 +238,7 @@ function AtendimentoPage() {
   useEffect(() => {
     if (searchParams.conversation) {
       setSelectedId(searchParams.conversation);
+      setListCollapsed(true);
     }
   }, [searchParams.conversation]);
   const [draft, setDraft] = useState("");
