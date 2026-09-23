@@ -69,6 +69,11 @@ function describeWahaError(status: number, payload: unknown): string {
         : (raw?.message ?? raw?.error);
   const message = (rawMessage && String(rawMessage)) || `Falha na WAHA (HTTP ${status}).`;
 
+  // Número inexistente com esses dígitos: a WAHA devolve "no LID found ..." ou
+  // o erro cru do WhatsApp ("server returned error 403").
+  if (/no LID found|returned error 403|not.*registered/i.test(message)) {
+    return "Esse número não está no WhatsApp com esses dígitos. Confira o DDD e o nono dígito e tente novamente.";
+  }
   if (/not logged|no session|status.*(stopped|failed)|session.*not.*(found|started)/i.test(message)) {
     return "O WhatsApp deste dispositivo não está pareado. Abra Administração → Dispositivos e leia o QR Code para voltar a enviar mensagens.";
   }
@@ -310,6 +315,72 @@ function sessionOf(options: WahaCall): string {
   );
 }
 
+// --------------------------------------------------------------- destinatário
+// O WhatsApp novo endereça as conversas por um id interno (@lid). Enviar direto
+// para "55DD9XXXXXXXX@c.us" quando o número está registrado sem o nono dígito
+// (ou vice-versa) faz o servidor recusar com "no LID found" / erro 403. Por isso
+// perguntamos à WAHA qual é o destino correto antes de enviar.
+const chatIdCache = new Map<string, { chatId: string; at: number }>();
+const CHAT_ID_TTL = 10 * 60 * 1000;
+
+/** Variante brasileira do número: com e sem o nono dígito. */
+function brVariant(only: string): string | null {
+  if (!only.startsWith("55")) return null;
+  const rest = only.slice(4);
+  const head = only.slice(0, 4);
+  if (rest.length === 9 && rest.startsWith("9")) return `${head}${rest.slice(1)}`;
+  if (rest.length === 8) return `${head}9${rest}`;
+  return null;
+}
+
+async function checkExists(
+  options: WahaCall,
+  session: string,
+  only: string,
+): Promise<string | null> {
+  const data = await call<{ numberExists?: boolean; chatId?: string; pn?: string }>({
+    baseUrl: options.baseUrl,
+    apiKey: options.apiKey,
+    path: `/api/contacts/check-exists?phone=${encodeURIComponent(only)}&session=${encodeURIComponent(session)}`,
+    method: "GET",
+    timeoutMs: 12_000,
+  });
+  if (!data?.numberExists) return null;
+  return String(data.chatId || data.pn || `${only}@c.us`);
+}
+
+/** Destino confirmado para o envio (id interno quando a WAHA informa um). */
+async function resolveChatId(options: WahaCall, session: string, value: unknown): Promise<string> {
+  const chatId = toChatId(value);
+  if (!chatId || /@(g\.us|broadcast|newsletter|lid)$/i.test(chatId)) return chatId;
+  const only = digits(chatId.split("@")[0] ?? "");
+  if (only.length < 8) return chatId;
+
+  const key = `${normalizeWahaBaseUrl(options.baseUrl)}|${session}|${only}`;
+  const cached = chatIdCache.get(key);
+  if (cached && Date.now() - cached.at < CHAT_ID_TTL) return cached.chatId;
+
+  try {
+    let resolved = await checkExists(options, session, only);
+    if (!resolved) {
+      const alt = brVariant(only);
+      if (alt) resolved = await checkExists(options, session, alt);
+    }
+    if (!resolved) {
+      throw new Error(
+        "Esse número não está no WhatsApp com esses dígitos. Confira o DDD e o nono dígito e tente novamente.",
+      );
+    }
+    chatIdCache.set(key, { chatId: resolved, at: Date.now() });
+    return resolved;
+  } catch (error) {
+    // Consulta indisponível (servidor lento/erro): segue com o número original.
+    const message = error instanceof Error ? error.message : String(error ?? "");
+    if (/não está no WhatsApp/i.test(message)) throw error;
+    return chatId;
+  }
+}
+
 /**
  * Reinicia a sessão travada e espera ela voltar a funcionar. Sem isso o envio
  * seguinte também ficaria esperando sem resposta.
@@ -406,6 +477,9 @@ async function wahaDispatchOnce(options: WahaCall): Promise<unknown> {
 
   // Texto não precisa de espera longa: se passar disso a sessão está travada e
   // o envio é retomado depois de reiniciá-la.
+  const destino = path.startsWith("/send/")
+    ? await resolveChatId(options, session, body["number"])
+    : "";
   const TEXT_TIMEOUT = 25_000;
   const sendText = async (chatId: string, text: string) =>
     sentEnvelope(await run("/api/sendText", "POST", { session, chatId, text }, TEXT_TIMEOUT));
@@ -523,7 +597,7 @@ async function wahaDispatchOnce(options: WahaCall): Promise<unknown> {
         "POST",
         {
           session,
-          chatId: toChatId(body["number"]),
+          chatId: destino,
           text: String(body["text"] ?? ""),
           ...(quoted?.messageId ? { reply_to: quoted.messageId } : {}),
         },
@@ -533,12 +607,12 @@ async function wahaDispatchOnce(options: WahaCall): Promise<unknown> {
     }
     case "/send/link": {
       const text = [String(body["text"] ?? ""), String(body["url"] ?? "")].filter(Boolean).join("\n");
-      return sendText(toChatId(body["number"]), text);
+      return sendText(destino, text);
     }
     case "/send/media": {
       const type = String(body["type"] ?? "document");
       const url = String(body["url"] ?? "");
-      const chatId = toChatId(body["number"]);
+      const chatId = destino;
       const caption = String(body["caption"] ?? "");
       const filename = String(body["filename"] ?? "arquivo");
       if (type === "image") {
@@ -597,7 +671,7 @@ async function wahaDispatchOnce(options: WahaCall): Promise<unknown> {
       );
     }
     case "/send/sticker": {
-      const chatId = toChatId(body["number"]);
+      const chatId = destino;
       const url = String(body["sticker"] ?? "");
       const file = { mimetype: "image/webp", filename: "figurinha.webp", url };
       try {
@@ -619,13 +693,13 @@ async function wahaDispatchOnce(options: WahaCall): Promise<unknown> {
       const name = String(card?.fullName ?? "Contato");
       const data = await run("/api/sendContactVcard", "POST", {
         session,
-        chatId: toChatId(body["number"]),
+        chatId: destino,
         contacts: [{ vcard: vcard(name, String(card?.phone ?? "")) }],
       });
       return sentEnvelope(data);
     }
     case "/send/button": {
-      const chatId = toChatId(body["number"]);
+      const chatId = destino;
       const buttons = (body["buttons"] ?? []) as Array<Record<string, any>>;
       try {
         return sentEnvelope(
@@ -654,7 +728,7 @@ async function wahaDispatchOnce(options: WahaCall): Promise<unknown> {
       }
     }
     case "/send/list": {
-      const chatId = toChatId(body["number"]);
+      const chatId = destino;
       const sections = (body["sections"] ?? []) as Array<Record<string, any>>;
       const rows = sections.flatMap((section) =>
         ((section["rows"] ?? []) as Array<Record<string, any>>).map((row) => String(row["title"] ?? "")),
@@ -667,7 +741,7 @@ async function wahaDispatchOnce(options: WahaCall): Promise<unknown> {
     case "/send/poll": {
       const data = await run("/api/sendPoll", "POST", {
         session,
-        chatId: toChatId(body["number"]),
+        chatId: destino,
         poll: {
           name: String(body["question"] ?? ""),
           options: (body["options"] ?? []) as string[],
