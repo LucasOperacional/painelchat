@@ -594,6 +594,10 @@ function WhatsappPage() {
                     onDisconnect={
                       device.status === "connected" ? () => disconnect.mutate(device.id) : undefined
                     }
+                    onMakeDefault={() => {
+                      setDeviceId(device.id);
+                      makeDefault.mutate(device.id);
+                    }}
                   >
                     {selected && (
                       <>
