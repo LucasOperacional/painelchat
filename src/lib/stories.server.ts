@@ -285,7 +285,7 @@ export async function listarCanais(deviceId: string | null): Promise<{
   // Quem ficou sem nome recebe o nome real: primeiro do histórico recebido,
   // depois consultando os metadados do canal na API.
   const historico = await nomesConhecidos();
-  const pendentes = Array.from(encontrados.values()).filter((c) => !c.nome);
+  const pendentes = Array.from(encontrados.values()).filter((c) => !nomeValido(c.nome));
   for (const canal of pendentes) {
     const doHistorico = historico.get(canal.id);
     if (doHistorico) {
@@ -307,7 +307,7 @@ export async function listarCanais(deviceId: string | null): Promise<{
   }
 
   const canais = Array.from(encontrados.values())
-    .map((c) => ({ ...c, nome: c.nome || "Canal sem nome" }))
+    .map((c) => ({ ...c, nome: nomeValido(c.nome) ? c.nome : "Canal sem nome" }))
     .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
   const aviso =
     canais.length === 0
