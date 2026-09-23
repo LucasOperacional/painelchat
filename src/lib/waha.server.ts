@@ -18,6 +18,7 @@ export const WAHA_DEFAULT_BASE_URL = "http://localhost:3000";
 export const WAHA_EVENTS = [
   "message.any",
   "message.reaction",
+  "message.edited",
   "message.ack",
   "message.waiting",
   "message.revoked",

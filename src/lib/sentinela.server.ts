@@ -218,6 +218,7 @@ function externalIdDoPayload(payload: unknown): string | null {
     raw?.["data"]?.["info"]?.["ID"] ??
     raw?.["data"]?.["key"]?.["id"] ??
     raw?.["event"]?.["Info"]?.["ID"] ??
+    raw?.["payload"]?.["id"] ??
     null;
   return id ? String(id) : null;
 }

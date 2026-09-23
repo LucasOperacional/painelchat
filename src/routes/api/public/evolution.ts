@@ -670,6 +670,10 @@ async function fromWaha(raw: Record<string, any>): Promise<EvolutionWebhook> {
     ...(isGroup && participante ? { Participant: participante } : {}),
     ...(senderAlt ? { SenderAlt: senderAlt } : {}),
   };
+  // A WAHA publica edições em um evento separado. Mantemos o identificador
+  // original e marcamos a mensagem para o fluxo existente atualizar a linha,
+  // em vez de inserir uma segunda mensagem na conversa.
+  if (evento === "message.edited") info["Edit"] = "1";
   // Mensagem enviada pelo celular: o outro lado da conversa é o destino.
   if (fromMe && !isGroup) {
     info["RecipientAlt"] = recipientAlt || jidDe(payload["to"]) || chat;
@@ -678,7 +682,7 @@ async function fromWaha(raw: Record<string, any>): Promise<EvolutionWebhook> {
   }
 
 
-  const texto = String(payload["body"] ?? "");
+  const texto = String(payload["body"] ?? payload["after"]?.["body"] ?? "");
   const midia = (payload["media"] ?? null) as Record<string, any> | null;
   let mensagem: Record<string, unknown> = { conversation: texto };
 
