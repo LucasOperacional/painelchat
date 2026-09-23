@@ -73,7 +73,6 @@ import {
 } from "@/lib/otimizacao.functions";
 
 type ConfigSectionProps = {
-  id: string;
   icon: LucideIcon;
   title: string;
   description: string;
