@@ -1309,6 +1309,20 @@ export const testApiConnection = createServerFn({ method: "POST" })
     if (!ref?.base_url) {
       return { ok: false, instances: 0, message: "Cadastre o endereço da API e salve." };
     }
+    if (provider === "waha") {
+      const { loadWahaApiKey } = await import("@/lib/evolution.server");
+      const apiKey = await loadWahaApiKey(ref.id);
+      if (!apiKey) {
+        return { ok: false, instances: 0, message: "Cadastre a chave da API da WAHA e salve." };
+      }
+      try {
+        const { testWahaConnection } = await import("@/lib/waha.server");
+        const sessions = await testWahaConnection(ref.base_url, apiKey);
+        return { ok: true, instances: sessions, message: "Conexão com a WAHA confirmada." };
+      } catch (error) {
+        return { ok: false, instances: 0, message: (error as Error).message };
+      }
+    }
     if (provider === "wuzapi") {
       const adminToken = await loadWuzapiAdminToken(ref.id);
       if (!adminToken) {
@@ -1356,7 +1370,13 @@ export const saveApiSettings = createServerFn({ method: "POST" })
       saveProviderApiKey,
       saveProviderGlobalCredentials,
     } = await import("@/lib/evolution.server");
-    const defaultBase = data.provider === "wuzapi" ? WUZAPI_DEFAULT_BASE_URL : EVOLUTION_DEFAULT_BASE_URL;
+    const { WAHA_DEFAULT_BASE_URL } = await import("@/lib/waha.server");
+    const defaultBase =
+      data.provider === "wuzapi"
+        ? WUZAPI_DEFAULT_BASE_URL
+        : data.provider === "waha"
+          ? WAHA_DEFAULT_BASE_URL
+          : EVOLUTION_DEFAULT_BASE_URL;
     const baseUrl = data.baseUrl.trim().replace(/\/+$/, "") || defaultBase;
 
     // Guarda token + endereço da integração no backend imediatamente, antes de
@@ -1454,8 +1474,9 @@ async function linkProviderDevices(
   const { getRequest } = await import("@tanstack/react-start/server");
   const { digitsOnly } = await import("@/lib/phone");
 
+  const { loadProviderSharedKey } = await import("@/lib/evolution.server");
   const credential =
-    provider === "wuzapi" ? await loadWuzapiAdminToken(null) : await loadEvolutionApiKey(null);
+    provider === "wuzapi" ? await loadWuzapiAdminToken(null) : await loadProviderSharedKey(provider);
   const { invalidateProviderCache } = await import("@/lib/evolution.server");
   invalidateProviderCache();
   if (!credential) {
