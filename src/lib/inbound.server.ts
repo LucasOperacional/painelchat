@@ -117,6 +117,10 @@ export async function recordInboundMessage(input: {
   const { projetoDoDispositivo } = await import("@/lib/tenant.server");
   const projectId = ((await projetoDoDispositivo(deviceId)) ?? "") as string;
 
+  // IDs no formato `true_<jid>_<ID>` (WAHA/WuzAPI) e `<ID>` são a mesma mensagem.
+  if (input.externalId) {
+    input.externalId = input.externalId.replace(/^(true|false)_[^_]+_/, "");
+  }
   // Provedores reenviam o mesmo evento: ignora quando a mensagem já foi registrada.
   if (input.externalId) {
     const { data: duplicated } = await supabaseAdmin
@@ -327,6 +331,38 @@ export async function recordInboundMessage(input: {
       .limit(1)
       .maybeSingle();
     if (already) return { conversationId, contactId };
+    // Mensagem enviada pelo painel e gravada antes do ID chegar: completa o ID em vez de duplicar.
+    const { data: semId } = await supabaseAdmin
+      .from("messages")
+      .select("id")
+      .eq("conversation_id", conversationId)
+      .eq("direction", "outbound")
+      .eq("body", storedBody)
+      .is("external_id", null)
+      .gte("created_at", new Date(Date.now() - 5 * 60_000).toISOString())
+      .limit(1)
+      .maybeSingle();
+    if (semId) {
+      await supabaseAdmin.from("messages").update({ external_id: input.externalId }).eq("id", semId.id);
+      return { conversationId, contactId };
+    }
+  }
+
+  // A WuzAPI às vezes entrega a mesma mensagem com IDs diferentes em sequência:
+  // mesmo texto, mesma direção e mesma conversa em poucos segundos é duplicata.
+  {
+    const base = new Date(eventAt).getTime();
+    const { data: gemea } = await supabaseAdmin
+      .from("messages")
+      .select("id")
+      .eq("conversation_id", conversationId)
+      .eq("direction", input.fromMe ? "outbound" : "inbound")
+      .eq("body", storedBody)
+      .gte("created_at", new Date(base - 20_000).toISOString())
+      .lte("created_at", new Date(base + 20_000).toISOString())
+      .limit(1)
+      .maybeSingle();
+    if (gemea) return { conversationId, contactId };
   }
 
   // Regra: a mensagem recebida nunca pode se perder por falha passageira —
