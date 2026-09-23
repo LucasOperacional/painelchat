@@ -223,6 +223,54 @@
   select {
     font-size: 16px;
   }
+
+  /* Toque mais responsivo e rolagem mais fluida no celular */
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    overscroll-behavior-y: none;
+  }
+
+  button,
+  a,
+  [role="button"],
+  [role="tab"],
+  label,
+  summary {
+    -webkit-tap-highlight-color: transparent;
+    touch-manipulation: manipulation;
+    touch-action: manipulation;
+  }
+
+  button:active,
+  [role="button"]:active,
+  [data-slot="card"]:active {
+    transform: scale(0.985);
+  }
+
+  button,
+  [role="button"],
+  [role="tab"] {
+    transition: transform 0.12s ease;
+  }
+
+  [data-slot="card"] {
+    transition: transform 0.12s ease;
+  }
+
+  .overflow-y-auto,
+  .overflow-auto,
+  [data-radix-scroll-area-viewport] {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  ::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
