@@ -1672,8 +1672,13 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
         const { withRetry } = await import("@/lib/retry.server");
         const timestampRaw = (info as Record<string, unknown>)["Timestamp"];
         const timestampNumber = Number(timestampRaw);
-        const occurredAt = Number.isFinite(timestampNumber) && timestampNumber > 0
-          ? new Date(timestampNumber < 10_000_000_000 ? timestampNumber * 1000 : timestampNumber).toISOString()
+        const timestampDate = Number.isFinite(timestampNumber) && timestampNumber > 0
+          ? new Date(timestampNumber < 10_000_000_000 ? timestampNumber * 1000 : timestampNumber)
+          : typeof timestampRaw === "string"
+            ? new Date(timestampRaw)
+            : null;
+        const occurredAt = timestampDate && Number.isFinite(timestampDate.getTime())
+          ? timestampDate.toISOString()
           : null;
         try {
           // Regra: nenhuma mensagem recebida se perde por falha passageira —
