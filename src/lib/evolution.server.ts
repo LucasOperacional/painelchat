@@ -98,7 +98,12 @@ export type EvolutionConfig = {
 /** Envelope padrão das respostas: { data, message }. */
 type EvolutionEnvelope<T> = { data?: T; message?: string };
 
-/** Carrega um dispositivo específico; sem id, usa o dispositivo padrão. */
+/**
+ * Carrega um dispositivo específico; sem id, usa o dispositivo padrão.
+ * Quando um aparelho é indicado e não existe mais, a função falha em vez de
+ * trocar silenciosamente para outro número — a resposta sempre sai do mesmo
+ * número que recebeu a mensagem, salvo transferência explícita.
+ */
 export async function loadEvolutionConfig(
   configId?: string | null,
 ): Promise<EvolutionConfig | null> {
@@ -111,6 +116,9 @@ export async function loadEvolutionConfig(
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (data) return data as EvolutionConfig;
+    throw new Error(
+      "O aparelho desta conversa não está mais cadastrado. Transfira a conversa para outro aparelho antes de responder.",
+    );
   }
   const { data, error } = await supabaseAdmin
     .from("whatsapp_config")
@@ -121,6 +129,43 @@ export async function loadEvolutionConfig(
     .maybeSingle();
   if (error) throw new Error(error.message);
   return (data as EvolutionConfig | null) ?? null;
+}
+
+/**
+ * Descobre com qual aparelho a conversa deve responder e grava essa escolha.
+ * Conversa sem aparelho definido herda o do último atendimento do contato;
+ * nunca cai para o aparelho padrão por conta própria.
+ */
+export async function resolveConversationConfigId(
+  conversationId: string,
+  current?: string | null,
+): Promise<string | null> {
+  if (current) return current;
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: conversa } = await supabaseAdmin
+    .from("conversations")
+    .select("contact_id")
+    .eq("id", conversationId)
+    .maybeSingle();
+  const contactId = (conversa as { contact_id?: string } | null)?.contact_id;
+  if (!contactId) return null;
+
+  const { data: anterior } = await supabaseAdmin
+    .from("conversations")
+    .select("whatsapp_config_id")
+    .eq("contact_id", contactId)
+    .not("whatsapp_config_id", "is", null)
+    .order("last_message_at", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+  const herdado = (anterior as { whatsapp_config_id?: string } | null)?.whatsapp_config_id ?? null;
+  if (!herdado) return null;
+
+  await supabaseAdmin
+    .from("conversations")
+    .update({ whatsapp_config_id: herdado } as never)
+    .eq("id", conversationId);
+  return herdado;
 }
 
 /** Lista todos os dispositivos de WhatsApp cadastrados na central. */
@@ -1572,6 +1617,13 @@ export async function ensureEvolutionDevice(configId?: string | null): Promise<E
   const envInstanceName = (process.env["EVOLUTION_INSTANCE_NAME"] ?? "central").trim();
 
   if (!config) {
+    // Só criamos o aparelho principal quando ninguém foi indicado. Com um
+    // aparelho indicado, um erro claro é melhor do que responder por outro número.
+    if (configId) {
+      throw new Error(
+        "O aparelho desta conversa não está mais disponível. Transfira a conversa para outro aparelho antes de responder.",
+      );
+    }
     const { data: created, error } = await supabaseAdmin
       .from("whatsapp_config")
       .insert({

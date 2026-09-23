@@ -1047,10 +1047,17 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
 
 
 
-    const { ensureEvolutionDevice, evolutionRequest } = await import("@/lib/evolution.server");
+    const { ensureEvolutionDevice, evolutionRequest, resolveConversationConfigId } = await import(
+      "@/lib/evolution.server"
+    );
     const { digitsOnly } = await import("@/lib/phone");
-    // A conversa responde pelo mesmo dispositivo que recebeu a mensagem.
-    const config = await ensureEvolutionDevice(conversation.whatsapp_config_id ?? null);
+    // A conversa responde SEMPRE pelo mesmo aparelho que recebeu a mensagem.
+    // Sem aparelho definido, herda o do último atendimento do contato.
+    const configIdDaConversa = await resolveConversationConfigId(
+      conversation.id,
+      conversation.whatsapp_config_id ?? null,
+    );
+    const config = await ensureEvolutionDevice(configIdDaConversa);
     const { loadEvolutionApiKey } = await import("@/lib/evolution.server");
 
     const canSend =
