@@ -277,7 +277,9 @@ export async function saveProviderGlobalCredentials(input: {
 /** Endereço salvo (ou padrão) do servidor conforme a integração escolhida. */
 export async function defaultBaseUrlFor(provider: string): Promise<string> {
   const { WUZAPI_DEFAULT_BASE_URL: wuz } = await import("@/lib/wuzapi.server");
-  const fallback = provider === "wuzapi" ? wuz : EVOLUTION_DEFAULT_BASE_URL;
+  const { WAHA_DEFAULT_BASE_URL: waha } = await import("@/lib/waha.server");
+  const fallback =
+    provider === "wuzapi" ? wuz : provider === "waha" ? waha : EVOLUTION_DEFAULT_BASE_URL;
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data } = await supabaseAdmin
