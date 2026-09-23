@@ -1701,11 +1701,8 @@ export async function ensureEvolutionDevice(configId?: string | null): Promise<E
     .maybeSingle();
   const ownToken = ((own as { instance_token?: string } | null)?.instance_token ?? "").trim();
   if (!ownToken) {
-    // Replica a credencial global da MESMA integração (Evolution ou WuzAPI).
-    const shared =
-      provider === "wuzapi"
-        ? await loadProviderApiToken("wuzapi", "WUZAPI_ADMIN_TOKEN", null)
-        : await loadProviderApiToken("evolution", "EVOLUTION_API_KEY", null);
+    // Replica a credencial global da MESMA integração (Evolution, WuzAPI, WAHA).
+    const shared = await loadProviderSharedKey(provider);
     if (shared) await saveProviderApiKey({ configId: config.id, provider, apiKey: shared });
   }
 
@@ -1857,6 +1854,15 @@ export async function downloadInboundMedia(input: {
 }): Promise<{ base64: string; mimetype: string } | null> {
   if (!input.media) return null;
   const provider = await providerOf(input.configId);
+  if (provider === "waha") {
+    const configWaha = await loadEvolutionConfig(input.configId);
+    const { wahaDownloadMedia } = await import("@/lib/waha.server");
+    return wahaDownloadMedia({
+      baseUrl: normalizeBaseUrl(configWaha?.base_url ?? "") || (await defaultBaseUrlFor("waha")),
+      apiKey: await loadWahaApiKey(input.configId),
+      media: input.media,
+    });
+  }
   if (provider !== "wuzapi") {
     return evolutionDownloadMedia({
       configId: input.configId,
