@@ -1309,7 +1309,12 @@ function AtendimentoPage() {
       </section>
 
       {/* Conversa */}
-      <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-card">
+      <section
+        className={cn(
+          "min-h-0 min-w-0 flex-1 flex-col bg-card md:flex",
+          listCollapsed ? "flex" : "hidden",
+        )}
+      >
         {!selected ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 p-10 text-center">
             <div className="flex size-20 items-center justify-center rounded-full bg-muted">
