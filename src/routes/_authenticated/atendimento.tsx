@@ -472,6 +472,7 @@ function AtendimentoPage() {
 
 
   const [showContactPanel, setShowContactPanel] = useState(false);
+  const isMobile = useIsMobile();
   const [listCollapsed, setListCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem("atendimento-list-collapsed") === "true";
