@@ -55,9 +55,10 @@ export const Route = createFileRoute("/_authenticated/api-conexao")({
 const PROVIDER_LABEL: Record<string, string> = {
   evolution: "Evolution Go",
   wuzapi: "WuzAPI",
+  waha: "WAHA",
 };
 
-type ProviderId = "evolution" | "wuzapi";
+type ProviderId = "evolution" | "wuzapi" | "waha";
 
 function ApiConnectionPage() {
   const { isAdmin } = useMe();
@@ -79,6 +80,7 @@ function ApiConnectionPage() {
   const [defaultQueueId, setDefaultQueueId] = useState("auto");
   const [evolutionApiKey, setEvolutionApiKey] = useState("");
   const [wuzapiApiKey, setWuzapiApiKey] = useState("");
+  const [wahaApiKey, setWahaApiKey] = useState("");
 
   const current = (settings.data?.settings ?? []).find((s) => s.provider === provider);
 
@@ -87,11 +89,18 @@ function ApiConnectionPage() {
       setBaseUrl(current.baseUrl);
       setDefaultQueueId(current.defaultQueueId ?? "auto");
     } else {
-      setBaseUrl(provider === "wuzapi" ? "https://api.wuzapi.com" : "https://api.nxsplus.xyz");
+      setBaseUrl(
+        provider === "wuzapi"
+          ? "https://api.wuzapi.com"
+          : provider === "waha"
+            ? "http://localhost:3000"
+            : "https://api.nxsplus.xyz",
+      );
       setDefaultQueueId("auto");
     }
     setEvolutionApiKey("");
     setWuzapiApiKey("");
+    setWahaApiKey("");
   }, [provider, settings.data]);
 
   const save = useMutation({
@@ -101,12 +110,14 @@ function ApiConnectionPage() {
           provider,
           baseUrl,
           defaultQueueId: defaultQueueId === "auto" ? null : defaultQueueId,
-          apiKey: provider === "wuzapi" ? wuzapiApiKey : evolutionApiKey,
+          apiKey:
+            provider === "wuzapi" ? wuzapiApiKey : provider === "waha" ? wahaApiKey : evolutionApiKey,
         },
       }),
     onSuccess: (res) => {
       setEvolutionApiKey("");
       setWuzapiApiKey("");
+      setWahaApiKey("");
       const link = res as {
         linked?: number;
         error?: string | null;
@@ -179,6 +190,7 @@ function ApiConnectionPage() {
             <SelectContent>
               <SelectItem value="evolution">Evolution Go</SelectItem>
               <SelectItem value="wuzapi">WuzAPI</SelectItem>
+              <SelectItem value="waha">WAHA</SelectItem>
             </SelectContent>
           </Select>
           {current && (
@@ -240,6 +252,28 @@ function ApiConnectionPage() {
               <p className="text-xs text-muted-foreground">
                 Token usado nas rotas <code>/admin/*</code> do WuzAPI (criação de instâncias, QR Code,
                 etc.).
+              </p>
+            </div>
+          )}
+
+          {provider === "waha" && (
+            <div className="space-y-2">
+              <Label htmlFor="wahaApiKey">Chave da API da WAHA</Label>
+              <Input
+                id="wahaApiKey"
+                type="password"
+                autoComplete="off"
+                placeholder={
+                  settings.data?.hasApiKeyByProvider?.waha
+                    ? "já cadastrada — cole para trocar"
+                    : "cole a chave da API do seu servidor WAHA"
+                }
+                value={wahaApiKey}
+                onChange={(e) => setWahaApiKey(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                É a mesma chave configurada no servidor WAHA (WHATSAPP_API_KEY). Cada dispositivo
+                vira uma sessão lá dentro, com QR Code lido aqui na central.
               </p>
             </div>
           )}

@@ -82,9 +82,10 @@ const STATUS_LABEL: Record<string, string> = {
 const PROVIDER_LABEL: Record<string, string> = {
   evolution: "Evolution Go",
   wuzapi: "WuzAPI",
+  waha: "WAHA",
 };
 
-type ProviderId = "evolution" | "wuzapi";
+type ProviderId = "evolution" | "wuzapi" | "waha";
 
 function WhatsappPage() {
   const { isAdmin } = useMe();
@@ -543,6 +544,7 @@ function WhatsappPage() {
                 <SelectContent>
                   <SelectItem value="evolution">Evolution Go</SelectItem>
                   <SelectItem value="wuzapi">WuzAPI</SelectItem>
+                  <SelectItem value="waha">WAHA</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -662,6 +664,7 @@ function WhatsappPage() {
                                 <SelectContent>
                                   <SelectItem value="evolution">Evolution Go</SelectItem>
                                   <SelectItem value="wuzapi">WuzAPI</SelectItem>
+                                  <SelectItem value="waha">WAHA</SelectItem>
                                 </SelectContent>
                               </Select>
                               {deviceId ? (
