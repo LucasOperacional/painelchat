@@ -1541,11 +1541,16 @@ async function loadProviderApiToken(provider: string, envName: string, configId?
 
 /**
  * Credencial global do servidor deste dispositivo. Dispositivos da WuzAPI usam
- * o token de administrador; os demais usam a API Key global da Evolution Go.
+ * o token de administrador, os da WAHA usam a chave da API e os demais usam a
+ * API Key global da Evolution Go.
  */
 export async function loadEvolutionApiKey(configId?: string | null): Promise<string> {
-  if ((await providerOf(configId ?? null)) === "wuzapi") {
+  const provider = await providerOf(configId ?? null);
+  if (provider === "wuzapi") {
     return loadProviderApiToken("wuzapi", "WUZAPI_ADMIN_TOKEN", configId);
+  }
+  if (provider === "waha") {
+    return loadProviderApiToken("waha", "WAHA_API_KEY", configId);
   }
   return loadProviderApiToken("evolution", "EVOLUTION_API_KEY", configId);
 }
