@@ -1698,12 +1698,20 @@ function SettingsPage() {
     onError: (error: Error) => toast.error("Não foi possível salvar", { description: error.message }),
   });
 
+  const brandingStatus = `${form.headline || "Central de Atendimento"} · ${form.tagline || "Multi atendimento"}`;
+  const chatBgStatus = form.chatBackgroundUrl
+    ? "Imagem personalizada"
+    : form.chatBackgroundColor && form.chatBackgroundColor.toLowerCase() !== "#f1f5f9"
+      ? "Cor personalizada"
+      : "Padrão do tema";
+  const logosCount = [form.loginLogoUrl, form.dashboardLogoUrl, form.logoUrl, form.faviconUrl].filter(Boolean).length;
+
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6 p-4 md:p-6">
+    <div className="mx-auto w-full max-w-6xl space-y-6 p-4 md:p-6">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Configurações</h1>
         <p className="text-sm text-muted-foreground">
-          Personalize as cores do sistema e as logos usadas na tela de início e no dashboard.
+          Toque em um card para abrir e editar as opções da central.
         </p>
       </header>
 
@@ -1713,238 +1721,234 @@ function SettingsPage() {
         </div>
       ) : (
         <form
-          className="space-y-6"
           onSubmit={(e) => {
             e.preventDefault();
             mutation.mutate(form);
           }}
         >
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Palette className="size-4 text-primary" /> Cores
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <ColorField
-                  id="primaryColor"
-                  label="Cor principal"
-                  value={form.primaryColor}
-                   onChange={(v) => {
-                     setForm((current) => ({ ...current, primaryColor: v }));
-                     if (/^#[0-9a-fA-F]{6}$/.test(v)) applyBrandingColors(v, form.accentColor);
-                   }}
-                />
-                <ColorField
-                  id="accentColor"
-                  label="Cor de destaque"
-                  value={form.accentColor}
-                   onChange={(v) => {
-                     setForm((current) => ({ ...current, accentColor: v }));
-                     if (/^#[0-9a-fA-F]{6}$/.test(v)) applyBrandingColors(form.primaryColor, v);
-                   }}
-                />
-              </div>
-               <div className="space-y-3">
-                 <div>
-                   <p className="text-sm font-medium text-foreground">Temas prontos</p>
-                   <p className="text-xs text-muted-foreground">Escolha uma opção e veja a mudança imediatamente.</p>
-                 </div>
-                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                 {BRANDING_THEMES.map((theme) => {
-                   const selected =
-                     form.primaryColor.toLowerCase() === theme.primary.toLowerCase() &&
-                     form.accentColor.toLowerCase() === theme.accent.toLowerCase();
-                   return (
-                   <Button
-                     key={theme.id}
-                    type="button"
-                     variant="outline"
-                     aria-pressed={selected}
-                     onClick={() => selectColors(theme.primary, theme.accent)}
-                     className={`relative h-auto min-w-0 flex-col items-stretch gap-2 overflow-hidden p-2 text-left whitespace-normal ${selected ? "border-primary ring-2 ring-primary/20" : ""}`}
-                  >
-                     <span className="flex h-10 w-full overflow-hidden rounded border border-border/60 bg-background" aria-hidden>
-                       <span className="w-1/4" style={{ backgroundColor: theme.primary }} />
-                       <span className="flex flex-1 items-center justify-center bg-muted/60">
-                         <span className="h-2 w-3/5 rounded-full" style={{ backgroundColor: theme.accent }} />
-                       </span>
-                     </span>
-                     <span className="flex min-w-0 items-start gap-1.5">
-                       <span className="min-w-0 flex-1">
-                         <span className="block truncate text-xs font-semibold text-foreground">{theme.name}</span>
-                         <span className="block truncate text-[11px] font-normal text-muted-foreground">{theme.description}</span>
-                       </span>
-                       {selected && <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-label="Selecionado" />}
-                     </span>
-                   </Button>
-                   );
-                 })}
-                 </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <ImageIcon className="size-4 text-primary" /> Plano de fundo do chat
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <ConfigSectionCard
+              icon={Palette}
+              title="Cores e identidade"
+              description="Cores principais, temas prontos, título e subtítulo da central."
+              status={brandingStatus}
+            >
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <ColorField
-                    id="chatBackgroundColor"
-                    label="Cor de fundo"
-                    value={form.chatBackgroundColor}
-                    onChange={(v) => setForm({ ...form, chatBackgroundColor: v })}
+                    id="primaryColor"
+                    label="Cor principal"
+                    value={form.primaryColor}
+                    onChange={(v) => {
+                      setForm((current) => ({ ...current, primaryColor: v }));
+                      if (/^#[0-9a-fA-F]{6}$/.test(v)) applyBrandingColors(v, form.accentColor);
+                    }}
                   />
-                  <label
-                    htmlFor="chatBackgroundAuto"
-                    className="flex cursor-pointer items-center gap-2 text-sm"
-                  >
-                    <input
-                      id="chatBackgroundAuto"
-                      type="checkbox"
-                      checked={
-                        !form.chatBackgroundColor.trim() ||
-                        form.chatBackgroundColor.trim().toLowerCase() === "#f1f5f9"
-                      }
-                      onChange={(e) =>
-                        setForm({ ...form, chatBackgroundColor: e.target.checked ? "#f1f5f9" : "#ffffff" })
-                      }
-                      className="size-4 accent-primary"
-                    />
-                    Automático (segue o tema claro/escuro)
-                  </label>
+                  <ColorField
+                    id="accentColor"
+                    label="Cor de destaque"
+                    value={form.accentColor}
+                    onChange={(v) => {
+                      setForm((current) => ({ ...current, accentColor: v }));
+                      if (/^#[0-9a-fA-F]{6}$/.test(v)) applyBrandingColors(form.primaryColor, v);
+                    }}
+                  />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="chatBackgroundUrl">Imagem de fundo (opcional)</Label>
-                  <Input
-                    id="chatBackgroundUrl"
-                    type="url"
-                    value={form.chatBackgroundUrl}
-                    onChange={(e) => setForm({ ...form, chatBackgroundUrl: e.target.value })}
-                    placeholder="https://.../fundo.jpg"
-                  />
-                  <div className="flex flex-wrap items-center gap-2">
-                    <ImageUploadButton
-                      folder="fundo-chat"
-                      onUploaded={(url) => setForm({ ...form, chatBackgroundUrl: url })}
-                    />
-                    {form.chatBackgroundUrl && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setForm({ ...form, chatBackgroundUrl: "" })}
-                      >
-                        Remover
-                      </Button>
-                    )}
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Temas prontos</p>
+                    <p className="text-xs text-muted-foreground">Escolha uma opção e veja a mudança imediatamente.</p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Importe um arquivo do computador ou cole um endereço seguro de imagem.
-                  </p>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {BRANDING_THEMES.map((theme) => {
+                      const selected =
+                        form.primaryColor.toLowerCase() === theme.primary.toLowerCase() &&
+                        form.accentColor.toLowerCase() === theme.accent.toLowerCase();
+                      return (
+                        <Button
+                          key={theme.id}
+                          type="button"
+                          variant="outline"
+                          aria-pressed={selected}
+                          onClick={() => selectColors(theme.primary, theme.accent)}
+                          className={`relative h-auto min-w-0 flex-col items-stretch gap-2 overflow-hidden p-2 text-left whitespace-normal ${selected ? "border-primary ring-2 ring-primary/20" : ""}`}
+                        >
+                          <span className="flex h-10 w-full overflow-hidden rounded border border-border/60 bg-background" aria-hidden>
+                            <span className="w-1/4" style={{ backgroundColor: theme.primary }} />
+                            <span className="flex flex-1 items-center justify-center bg-muted/60">
+                              <span className="h-2 w-3/5 rounded-full" style={{ backgroundColor: theme.accent }} />
+                            </span>
+                          </span>
+                          <span className="flex min-w-0 items-start gap-1.5">
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-xs font-semibold text-foreground">{theme.name}</span>
+                              <span className="block truncate text-[11px] font-normal text-muted-foreground">{theme.description}</span>
+                            </span>
+                            {selected && <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-label="Selecionado" />}
+                          </span>
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="headline">Título</Label>
+                    <Input
+                      id="headline"
+                      value={form.headline}
+                      onChange={(e) => setForm({ ...form, headline: e.target.value })}
+                      placeholder="Central de Atendimento"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="tagline">Subtítulo</Label>
+                    <Input
+                      id="tagline"
+                      value={form.tagline}
+                      onChange={(e) => setForm({ ...form, tagline: e.target.value })}
+                      placeholder="Multi atendimento"
+                    />
+                  </div>
                 </div>
               </div>
-              <div
-                className="min-h-40 rounded-lg border border-border bg-repeat bg-center p-4"
-                style={{
-                  backgroundColor: form.chatBackgroundColor,
-                  backgroundImage: form.chatBackgroundUrl
-                    ? `url(${JSON.stringify(form.chatBackgroundUrl)})`
-                    : undefined,
-                }}
-              >
-                <div className="ml-auto w-fit max-w-[75%] rounded-2xl rounded-br-sm bg-message-sent px-3 py-2 text-sm text-message-sent-foreground shadow-sm">
-                  Esta é uma prévia do fundo escolhido.
+            </ConfigSectionCard>
+
+            <ConfigSectionCard
+              icon={ImageIcon}
+              title="Plano de fundo do chat"
+              description="Cor ou imagem de fundo usada dentro das conversas."
+              status={chatBgStatus}
+            >
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <ColorField
+                      id="chatBackgroundColor"
+                      label="Cor de fundo"
+                      value={form.chatBackgroundColor}
+                      onChange={(v) => setForm({ ...form, chatBackgroundColor: v })}
+                    />
+                    <label
+                      htmlFor="chatBackgroundAuto"
+                      className="flex cursor-pointer items-center gap-2 text-sm"
+                    >
+                      <input
+                        id="chatBackgroundAuto"
+                        type="checkbox"
+                        checked={
+                          !form.chatBackgroundColor.trim() ||
+                          form.chatBackgroundColor.trim().toLowerCase() === "#f1f5f9"
+                        }
+                        onChange={(e) =>
+                          setForm({ ...form, chatBackgroundColor: e.target.checked ? "#f1f5f9" : "#ffffff" })
+                        }
+                        className="size-4 accent-primary"
+                      />
+                      Automático (segue o tema claro/escuro)
+                    </label>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="chatBackgroundUrl">Imagem de fundo (opcional)</Label>
+                    <Input
+                      id="chatBackgroundUrl"
+                      type="url"
+                      value={form.chatBackgroundUrl}
+                      onChange={(e) => setForm({ ...form, chatBackgroundUrl: e.target.value })}
+                      placeholder="https://.../fundo.jpg"
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <ImageUploadButton
+                        folder="fundo-chat"
+                        onUploaded={(url) => setForm({ ...form, chatBackgroundUrl: url })}
+                      />
+                      {form.chatBackgroundUrl && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setForm({ ...form, chatBackgroundUrl: "" })}
+                        >
+                          Remover
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Importe um arquivo do computador ou cole um endereço seguro de imagem.
+                    </p>
+                  </div>
                 </div>
-                <div className="mt-3 w-fit max-w-[75%] rounded-2xl rounded-bl-sm border border-border bg-message-received px-3 py-2 text-sm text-message-received-foreground shadow-sm">
-                  As mensagens continuam fáceis de ler.
+                <div
+                  className="min-h-40 rounded-lg border border-border bg-repeat bg-center p-4"
+                  style={{
+                    backgroundColor: form.chatBackgroundColor,
+                    backgroundImage: form.chatBackgroundUrl
+                      ? `url(${JSON.stringify(form.chatBackgroundUrl)})`
+                      : undefined,
+                  }}
+                >
+                  <div className="ml-auto w-fit max-w-[75%] rounded-2xl rounded-br-sm bg-message-sent px-3 py-2 text-sm text-message-sent-foreground shadow-sm">
+                    Esta é uma prévia do fundo escolhido.
+                  </div>
+                  <div className="mt-3 w-fit max-w-[75%] rounded-2xl rounded-bl-sm border border-border bg-message-received px-3 py-2 text-sm text-message-received-foreground shadow-sm">
+                    As mensagens continuam fáceis de ler.
+                  </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </ConfigSectionCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <ImageIcon className="size-4 text-primary" /> Logos
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
-              <LogoField
-                id="loginLogoUrl"
-                label="Logo da tela de início"
-                hint="Aparece na tela de entrada do sistema."
-                value={form.loginLogoUrl}
-                onChange={(v) => setForm({ ...form, loginLogoUrl: v })}
-              />
-              <LogoField
-                id="dashboardLogoUrl"
-                label="Logo do dashboard"
-                hint="Aparece no topo do dashboard."
-                value={form.dashboardLogoUrl}
-                onChange={(v) => setForm({ ...form, dashboardLogoUrl: v })}
-              />
-              <LogoField
-                id="logoUrl"
-                label="Logo do menu lateral"
-                hint="Ícone exibido ao lado do nome da central."
-                value={form.logoUrl}
-                onChange={(v) => setForm({ ...form, logoUrl: v })}
-              />
-              <LogoField
-                id="faviconUrl"
-                label="Ícone da aba do navegador"
-                hint="Favicon exibido na aba do navegador."
-                value={form.faviconUrl}
-                onChange={(v) => setForm({ ...form, faviconUrl: v })}
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Identificação</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="headline">Título</Label>
-                <Input
-                  id="headline"
-                  value={form.headline}
-                  onChange={(e) => setForm({ ...form, headline: e.target.value })}
-                  placeholder="Central de Atendimento"
+            <ConfigSectionCard
+              icon={Headset}
+              title="Logos"
+              description="Logo da tela de entrada, dashboard, menu lateral e favicon."
+              status={`${logosCount} logo(s) configurada(s)`}
+              statusOk={logosCount > 0}
+            >
+              <div className="grid gap-4 sm:grid-cols-2">
+                <LogoField
+                  id="loginLogoUrl"
+                  label="Logo da tela de início"
+                  hint="Aparece na tela de entrada do sistema."
+                  value={form.loginLogoUrl}
+                  onChange={(v) => setForm({ ...form, loginLogoUrl: v })}
+                />
+                <LogoField
+                  id="dashboardLogoUrl"
+                  label="Logo do dashboard"
+                  hint="Aparece no topo do dashboard."
+                  value={form.dashboardLogoUrl}
+                  onChange={(v) => setForm({ ...form, dashboardLogoUrl: v })}
+                />
+                <LogoField
+                  id="logoUrl"
+                  label="Logo do menu lateral"
+                  hint="Ícone exibido ao lado do nome da central."
+                  value={form.logoUrl}
+                  onChange={(v) => setForm({ ...form, logoUrl: v })}
+                />
+                <LogoField
+                  id="faviconUrl"
+                  label="Ícone da aba do navegador"
+                  hint="Favicon exibido na aba do navegador."
+                  value={form.faviconUrl}
+                  onChange={(v) => setForm({ ...form, faviconUrl: v })}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="tagline">Subtítulo</Label>
-                <Input
-                  id="tagline"
-                  value={form.tagline}
-                  onChange={(e) => setForm({ ...form, tagline: e.target.value })}
-                  placeholder="Multi atendimento"
-                />
-              </div>
-            </CardContent>
-          </Card>
+            </ConfigSectionCard>
 
-          <GroupMessagesCard />
-          <ButtonMenusCard />
-          <MisticpayCard />
-          <EfiCard />
-          <AltispayCard />
-          <WavoipCard />
-          <OtimizacaoCard />
+            <GroupMessagesCard />
+            <ButtonMenusCard />
+            <MisticpayCard />
+            <EfiCard />
+            <AltispayCard />
+            <WavoipCard />
+            <OtimizacaoCard />
+          </div>
 
-          <div className="flex justify-end">
+          <div className="mt-6 flex justify-end">
             <Button type="submit" disabled={mutation.isPending}>
               {mutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
-              Salvar configurações
+              Salvar configurações visuais
             </Button>
           </div>
         </form>
