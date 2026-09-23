@@ -144,15 +144,19 @@ export async function resolveConversationConfigId(
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: conversa } = await supabaseAdmin
     .from("conversations")
-    .select("contact_id, contact:contacts(phone, wa_jid, project_id)")
+    .select("contact_id, sem_conexao, contact:contacts(phone, wa_jid, project_id)")
     .eq("id", conversationId)
     .maybeSingle();
   const row = conversa as {
     contact_id?: string;
+    sem_conexao?: boolean;
     contact?: { phone?: string | null; wa_jid?: string | null; project_id?: string | null } | null;
   } | null;
   const contactId = row?.contact_id;
   if (!contactId) return null;
+  // O aparelho desta conversa foi removido: ela fica sem conexão até que
+  // alguém escolha manualmente outra. Nada é herdado automaticamente.
+  if (row?.sem_conexao) return null;
 
   // Primeiro procura outra conversa do mesmo cadastro. Se o contato tiver sido
   // duplicado, inclui todos os cadastros do mesmo telefone/JID no mesmo projeto.
@@ -189,6 +193,31 @@ export async function resolveConversationConfigId(
     .update({ whatsapp_config_id: herdado } as never)
     .eq("id", conversationId);
   return herdado;
+}
+
+/**
+ * Aparelho que deve responder a conversa. Se o aparelho dela foi removido,
+ * recusa o envio em vez de usar o aparelho padrão.
+ */
+export async function ensureConversationDevice(
+  conversationId: string,
+  current?: string | null,
+): Promise<EvolutionConfig> {
+  const configId = await resolveConversationConfigId(conversationId, current);
+  if (!configId) {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("conversations")
+      .select("sem_conexao")
+      .eq("id", conversationId)
+      .maybeSingle();
+    if ((data as { sem_conexao?: boolean } | null)?.sem_conexao) {
+      throw new Error(
+        "O aparelho desta conversa foi removido. Transfira a conversa para a conexão desejada antes de responder.",
+      );
+    }
+  }
+  return ensureEvolutionDevice(configId);
 }
 
 /** Lista todos os dispositivos de WhatsApp cadastrados na central. */

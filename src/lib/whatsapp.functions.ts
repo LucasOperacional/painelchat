@@ -323,10 +323,9 @@ export const deleteWhatsappDevice = createServerFn({ method: "POST" })
       .from("whatsapp_config")
       .select("id, is_default")
       .order("created_at");
-    const list = (rest ?? []) as { id: string; is_default: boolean }[];
-    if (list.length && !list.some((d) => d.is_default)) {
-      await supabaseAdmin.from("whatsapp_config").update({ is_default: true }).eq("id", list[0]!.id);
-    }
+    // Nenhum outro aparelho é promovido automaticamente: as conversas do
+    // aparelho removido ficam sem conexão até a escolha manual.
+    void rest;
     return { ok: true };
   });
 
@@ -1065,7 +1064,7 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
       conversation.id,
       conversation.whatsapp_config_id ?? null,
     );
-    const config = await ensureEvolutionDevice(configIdDaConversa);
+    const config = await (await import("@/lib/evolution.server")).ensureConversationDevice(data.conversationId, configIdDaConversa);
     const { loadEvolutionApiKey } = await import("@/lib/evolution.server");
 
     const canSend =
@@ -1689,7 +1688,7 @@ export const deleteWhatsappMessage = createServerFn({ method: "POST" })
         const { ensureEvolutionDevice, evolutionDeleteMessage, loadEvolutionApiKey } =
           await import("@/lib/evolution.server");
         const { digitsOnly } = await import("@/lib/phone");
-        const config = await ensureEvolutionDevice(conversation?.whatsapp_config_id ?? null);
+        const config = await (await import("@/lib/evolution.server")).ensureConversationDevice(conversation!.id, conversation?.whatsapp_config_id ?? null);
         if (!config.base_url || !config.instance_id || !(await loadEvolutionApiKey(config.id))) {
           throw new Error("Dispositivo de WhatsApp não configurado.");
         }
@@ -1756,7 +1755,7 @@ export const markWhatsappRead = createServerFn({ method: "POST" })
 
     const { ensureEvolutionDevice, evolutionMarkRead } = await import("@/lib/evolution.server");
     const { digitsOnly } = await import("@/lib/phone");
-    const config = await ensureEvolutionDevice(conversation.whatsapp_config_id ?? null);
+    const config = await (await import("@/lib/evolution.server")).ensureConversationDevice(conversation.id, conversation.whatsapp_config_id ?? null);
     if (!config.base_url || !config.instance_id) throw new Error("Dispositivo de WhatsApp não configurado.");
     const isGroup = !!contact.wa_jid?.includes("@g.us");
     const jidDigits = contact.wa_jid ? digitsOnly(contact.wa_jid.split("@")[0] ?? "") : "";
