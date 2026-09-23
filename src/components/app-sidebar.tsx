@@ -19,7 +19,6 @@ import {
   Receipt,
   PlugZap,
   LayoutGrid,
-  Megaphone,
   Bot,
   PhoneCall,
    ChevronDown,
@@ -91,7 +90,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/processos", label: "Processos judiciais", icon: Gavel, adminOnly: false },
       { to: "/chatbot", label: "Chatbot", icon: Bot, adminOnly: true },
-      { to: "/divulgazap", label: "DivulgaZap", icon: Megaphone, adminOnly: true },
       { to: "/divulgacao", label: "Divulgação em grupos", icon: Users, adminOnly: true },
       { to: "/postagens", label: "Postagens e Stories", icon: CalendarClock, adminOnly: true },
       { to: "/stories", label: "Stories e canais", icon: Images, adminOnly: false },
