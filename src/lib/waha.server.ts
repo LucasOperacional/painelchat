@@ -234,41 +234,38 @@ async function ensureScanState(options: WahaCall, session: string): Promise<stri
   let status = await sessionStatus(options, session);
   if (status === "WORKING" || status === "SCAN_QR_CODE") return status;
 
-  const act = status === "FAILED" ? "restart" : "start";
-  try {
-    await call({
-      baseUrl: options.baseUrl,
-      apiKey: options.apiKey,
-      path: `/api/sessions/${encodeURIComponent(session)}/${act}`,
-      method: "POST",
-      body: {},
-      timeoutMs: 30_000,
-    });
-  } catch (error) {
-    if (!isAlreadyError(error)) {
-      // Sessão em estado ruim que não aceita start: reinicia de vez.
-      try {
-        await call({
-          baseUrl: options.baseUrl,
-          apiKey: options.apiKey,
-          path: `/api/sessions/${encodeURIComponent(session)}/restart`,
-          method: "POST",
-          body: {},
-          timeoutMs: 30_000,
-        });
-      } catch {
-        /* segue: o laço abaixo confere a situação */
-      }
+  const action = async (act: "stop" | "start" | "restart") => {
+    try {
+      await call({
+        baseUrl: options.baseUrl,
+        apiKey: options.apiKey,
+        path: `/api/sessions/${encodeURIComponent(session)}/${act}`,
+        method: "POST",
+        body: {},
+        timeoutMs: 30_000,
+      });
+      return true;
+    } catch {
+      return false;
     }
-  }
+  };
 
-  for (let attempt = 0; attempt < 12; attempt += 1) {
+  // Sessão com falha: o "restart" do servidor costuma responder erro 500, então
+  // paramos e iniciamos de novo — foi o que voltou a gerar o QR Code.
+  if (status === "FAILED") {
+    await action("stop");
+    await new Promise((resolve) => setTimeout(resolve, 800));
+  }
+  if (!(await action("start")) && status !== "FAILED") await action("restart");
+
+  for (let attempt = 0; attempt < 15; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     status = await sessionStatus(options, session);
     if (status === "SCAN_QR_CODE" || status === "WORKING") break;
   }
   return status;
 }
+
 
 /** QR Code da sessão, já no formato aceito pela central (data URL). */
 async function readQr(options: WahaCall, session: string): Promise<string | null> {
