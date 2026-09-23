@@ -931,7 +931,7 @@ function WhatsappPage() {
                                 ? "Este dispositivo já está conectado."
                                 : "Clique em “Conectar via QR Code” para ler o código aqui mesmo."}
                             </p>
-                          )}
+                          ))}
 
                         </div>
                       </>
