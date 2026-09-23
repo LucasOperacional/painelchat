@@ -1,5 +1,5 @@
 import type { ReactNode, KeyboardEvent } from "react";
-import { AlertTriangle, Clock, Pencil, Phone, Trash2, ChevronsUpDown } from "lucide-react";
+import { AlertTriangle, Clock, Pencil, Phone, Star, Trash2, ChevronsUpDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
