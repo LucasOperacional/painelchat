@@ -256,6 +256,7 @@ export function useCentralSync() {
     return () => {
       ativo = false;
       if (reconectando !== null) window.clearTimeout(reconectando);
+      if (agrupando !== null) window.clearTimeout(agrupando);
       window.clearInterval(timer);
       window.removeEventListener("online", acordar);
       window.removeEventListener("focus", acordar);
