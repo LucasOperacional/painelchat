@@ -45,7 +45,21 @@ function inboundUrlFor(origin: string, webhookToken: string) {
 
 
 
-const PROVIDERS = ["evolution", "wuzapi"] as const;
+const PROVIDERS = ["evolution", "wuzapi", "waha"] as const;
+
+type ProviderId = (typeof PROVIDERS)[number];
+
+/** Integração salva no dispositivo, sempre em um dos valores conhecidos. */
+function normalizeProvider(value: string | null | undefined): ProviderId {
+  const raw = (value || "evolution").trim().toLowerCase();
+  return (PROVIDERS as readonly string[]).includes(raw) ? (raw as ProviderId) : "evolution";
+}
+
+/** Nome da integração como o usuário vê na tela. */
+function providerName(value: string | null | undefined): string {
+  const provider = normalizeProvider(value);
+  return provider === "wuzapi" ? "WuzAPI" : provider === "waha" ? "WAHA" : "Evolution Go";
+}
 
 const deviceInput = z.object({ deviceId: z.string().uuid().nullable().default(null) });
 
@@ -106,7 +120,7 @@ export const createWhatsappDevice = createServerFn({ method: "POST" })
     const sameProvider = existing.filter((device) => device.provider === data.provider);
     const sharedConfig = sameProvider.find((device) => device.is_default) ?? sameProvider[0] ?? null;
     const baseUrl = sharedConfig?.base_url || (await defaultBaseUrlFor(data.provider));
-    const providerLabel = data.provider === "wuzapi" ? "WuzAPI" : "Evolution Go";
+    const providerLabel = providerName(data.provider);
 
     const start = 352;
     // O número de identificação é único em todo o sistema (todas as franquias),
@@ -330,9 +344,7 @@ export const getWhatsappStatus = createServerFn({ method: "GET" })
       ensureEvolutionInstance,
     } = await import("@/lib/evolution.server");
     const config = await loadEvolutionConfig(data.deviceId);
-    const provider = ((config?.provider || "evolution").trim().toLowerCase() === "wuzapi"
-      ? "wuzapi"
-      : "evolution") as "evolution" | "wuzapi";
+    const provider = normalizeProvider(config?.provider);
     const hasApiKey = !!(await loadEvolutionApiKey(config?.id ?? null));
 
     const origin = publicOrigin(getRequest().url);
@@ -369,7 +381,7 @@ export const getWhatsappStatus = createServerFn({ method: "GET" })
         // aguardando leitura do QR: não é uma conexão pareada.
         const nextStatus = isLinked
           ? "connected"
-          : provider === "wuzapi"
+          : provider !== "evolution"
             ? "connecting"
             : wasConnected
               ? perdaConfirmada && lostOnce
@@ -378,7 +390,7 @@ export const getWhatsappStatus = createServerFn({ method: "GET" })
               : config.status;
         const nextEvent = isLinked
           ? "webhooks-ready"
-          : provider === "wuzapi"
+          : provider !== "evolution"
             ? "qr"
             : wasConnected && perdaConfirmada && !lostOnce
               ? "link-lost"
@@ -539,11 +551,7 @@ export const saveWhatsappConfig = createServerFn({ method: "POST" })
     // Regra: a integração de um dispositivo nunca troca depois de criada.
     // Um dispositivo da WuzAPI continua na WuzAPI e um da Evolution Go
     // continua na Evolution Go — para usar a outra, crie um dispositivo novo.
-    const lockedProvider = config
-      ? (((config.provider || "evolution").trim().toLowerCase() === "wuzapi"
-          ? "wuzapi"
-          : "evolution") as "evolution" | "wuzapi")
-      : data.provider;
+    const lockedProvider = config ? normalizeProvider(config.provider) : data.provider;
     const EVOLUTION_DEFAULT_BASE_URL = await defaultBaseUrlFor(lockedProvider);
 
     const baseUrl = data.baseUrl.trim().replace(/\/+$/, "") || EVOLUTION_DEFAULT_BASE_URL;
@@ -688,7 +696,7 @@ export const connectWhatsapp = createServerFn({ method: "POST" })
     const { digitsOnly } = await import("@/lib/phone");
 
     const config = await ensureEvolutionDevice(data.deviceId);
-    const providerLabel = (config.provider || "evolution") === "wuzapi" ? "WuzAPI" : "Evolution Go";
+    const providerLabel = providerName(config.provider);
     if (!(await loadEvolutionApiKey(config.id))) {
       return {
         qrcode: null,
@@ -827,7 +835,7 @@ export const fetchWhatsappQr = createServerFn({ method: "GET" })
     if (!config.base_url || !(await loadEvolutionApiKey(config.id))) {
       return {
         qrcode: null,
-        warning: `Cadastre o token da ${(config.provider || "evolution") === "wuzapi" ? "WuzAPI" : "Evolution Go"} em API de conexão antes de gerar o QR Code.`,
+        warning: `Cadastre o token da ${providerName(config.provider)} em API de conexão antes de gerar o QR Code.`,
         connected: false,
       };
     }
@@ -1301,6 +1309,20 @@ export const testApiConnection = createServerFn({ method: "POST" })
     if (!ref?.base_url) {
       return { ok: false, instances: 0, message: "Cadastre o endereço da API e salve." };
     }
+    if (provider === "waha") {
+      const { loadWahaApiKey } = await import("@/lib/evolution.server");
+      const apiKey = await loadWahaApiKey(ref.id);
+      if (!apiKey) {
+        return { ok: false, instances: 0, message: "Cadastre a chave da API da WAHA e salve." };
+      }
+      try {
+        const { testWahaConnection } = await import("@/lib/waha.server");
+        const sessions = await testWahaConnection(ref.base_url, apiKey);
+        return { ok: true, instances: sessions, message: "Conexão com a WAHA confirmada." };
+      } catch (error) {
+        return { ok: false, instances: 0, message: (error as Error).message };
+      }
+    }
     if (provider === "wuzapi") {
       const adminToken = await loadWuzapiAdminToken(ref.id);
       if (!adminToken) {
@@ -1348,7 +1370,13 @@ export const saveApiSettings = createServerFn({ method: "POST" })
       saveProviderApiKey,
       saveProviderGlobalCredentials,
     } = await import("@/lib/evolution.server");
-    const defaultBase = data.provider === "wuzapi" ? WUZAPI_DEFAULT_BASE_URL : EVOLUTION_DEFAULT_BASE_URL;
+    const { WAHA_DEFAULT_BASE_URL } = await import("@/lib/waha.server");
+    const defaultBase =
+      data.provider === "wuzapi"
+        ? WUZAPI_DEFAULT_BASE_URL
+        : data.provider === "waha"
+          ? WAHA_DEFAULT_BASE_URL
+          : EVOLUTION_DEFAULT_BASE_URL;
     const baseUrl = data.baseUrl.trim().replace(/\/+$/, "") || defaultBase;
 
     // Guarda token + endereço da integração no backend imediatamente, antes de
@@ -1388,7 +1416,7 @@ export const saveApiSettings = createServerFn({ method: "POST" })
         .insert({
           ...patch,
           provider: data.provider,
-          label: data.provider === "wuzapi" ? "Dispositivo WuzAPI" : "Dispositivo Evolution Go",
+          label: `Dispositivo ${providerName(data.provider)}`,
           is_default: total === 0,
         })
         .select("id")
@@ -1446,8 +1474,9 @@ async function linkProviderDevices(
   const { getRequest } = await import("@tanstack/react-start/server");
   const { digitsOnly } = await import("@/lib/phone");
 
+  const { loadProviderSharedKey } = await import("@/lib/evolution.server");
   const credential =
-    provider === "wuzapi" ? await loadWuzapiAdminToken(null) : await loadEvolutionApiKey(null);
+    provider === "wuzapi" ? await loadWuzapiAdminToken(null) : await loadProviderSharedKey(provider);
   const { invalidateProviderCache } = await import("@/lib/evolution.server");
   invalidateProviderCache();
   if (!credential) {

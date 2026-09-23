@@ -62,6 +62,7 @@ import { Route as ApiPublicMonitorRouteImport } from './routes/api/public/monito
 import { Route as ApiPublicOtimizacaoRouteImport } from './routes/api/public/otimizacao'
 import { Route as ApiPublicPostagensRouteImport } from './routes/api/public/postagens'
 import { Route as ApiPublicSentinelaRouteImport } from './routes/api/public/sentinela'
+import { Route as ApiPublicWahaRouteImport } from './routes/api/public/waha'
 import { Route as ApiPublicWebviewProxyRouteImport } from './routes/api/public/webview-proxy'
 
 const IndexRoute = IndexRouteImport.update({
@@ -338,6 +339,11 @@ const ApiPublicSentinelaRoute = ApiPublicSentinelaRouteImport.update({
   path: '/api/public/sentinela',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicWahaRoute = ApiPublicWahaRouteImport.update({
+  id: '/api/public/waha',
+  path: '/api/public/waha',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicWebviewProxyRoute = ApiPublicWebviewProxyRouteImport.update({
   id: '/api/public/webview-proxy',
   path: '/api/public/webview-proxy',
@@ -395,6 +401,7 @@ export interface FileRoutesByFullPath {
   '/api/public/otimizacao': typeof ApiPublicOtimizacaoRoute
   '/api/public/postagens': typeof ApiPublicPostagensRoute
   '/api/public/sentinela': typeof ApiPublicSentinelaRoute
+  '/api/public/waha': typeof ApiPublicWahaRoute
   '/api/public/webview-proxy': typeof ApiPublicWebviewProxyRoute
   '/das-mei/': typeof AuthenticatedDasMeiIndexRoute
   '/webview/': typeof AuthenticatedWebviewIndexRoute
@@ -450,6 +457,7 @@ export interface FileRoutesByTo {
   '/api/public/otimizacao': typeof ApiPublicOtimizacaoRoute
   '/api/public/postagens': typeof ApiPublicPostagensRoute
   '/api/public/sentinela': typeof ApiPublicSentinelaRoute
+  '/api/public/waha': typeof ApiPublicWahaRoute
   '/api/public/webview-proxy': typeof ApiPublicWebviewProxyRoute
   '/das-mei': typeof AuthenticatedDasMeiIndexRoute
   '/webview': typeof AuthenticatedWebviewIndexRoute
@@ -507,6 +515,7 @@ export interface FileRoutesById {
   '/api/public/otimizacao': typeof ApiPublicOtimizacaoRoute
   '/api/public/postagens': typeof ApiPublicPostagensRoute
   '/api/public/sentinela': typeof ApiPublicSentinelaRoute
+  '/api/public/waha': typeof ApiPublicWahaRoute
   '/api/public/webview-proxy': typeof ApiPublicWebviewProxyRoute
   '/_authenticated/das-mei/': typeof AuthenticatedDasMeiIndexRoute
   '/_authenticated/webview/': typeof AuthenticatedWebviewIndexRoute
@@ -564,6 +573,7 @@ export interface FileRouteTypes {
     | '/api/public/otimizacao'
     | '/api/public/postagens'
     | '/api/public/sentinela'
+    | '/api/public/waha'
     | '/api/public/webview-proxy'
     | '/das-mei/'
     | '/webview/'
@@ -619,6 +629,7 @@ export interface FileRouteTypes {
     | '/api/public/otimizacao'
     | '/api/public/postagens'
     | '/api/public/sentinela'
+    | '/api/public/waha'
     | '/api/public/webview-proxy'
     | '/das-mei'
     | '/webview'
@@ -675,6 +686,7 @@ export interface FileRouteTypes {
     | '/api/public/otimizacao'
     | '/api/public/postagens'
     | '/api/public/sentinela'
+    | '/api/public/waha'
     | '/api/public/webview-proxy'
     | '/_authenticated/das-mei/'
     | '/_authenticated/webview/'
@@ -696,6 +708,7 @@ export interface RootRouteChildren {
   ApiPublicOtimizacaoRoute: typeof ApiPublicOtimizacaoRoute
   ApiPublicPostagensRoute: typeof ApiPublicPostagensRoute
   ApiPublicSentinelaRoute: typeof ApiPublicSentinelaRoute
+  ApiPublicWahaRoute: typeof ApiPublicWahaRoute
   ApiPublicWebviewProxyRoute: typeof ApiPublicWebviewProxyRoute
 }
 
@@ -1072,6 +1085,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicSentinelaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/waha': {
+      id: '/api/public/waha'
+      path: '/api/public/waha'
+      fullPath: '/api/public/waha'
+      preLoaderRoute: typeof ApiPublicWahaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/webview-proxy': {
       id: '/api/public/webview-proxy'
       path: '/api/public/webview-proxy'
@@ -1183,6 +1203,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicOtimizacaoRoute: ApiPublicOtimizacaoRoute,
   ApiPublicPostagensRoute: ApiPublicPostagensRoute,
   ApiPublicSentinelaRoute: ApiPublicSentinelaRoute,
+  ApiPublicWahaRoute: ApiPublicWahaRoute,
   ApiPublicWebviewProxyRoute: ApiPublicWebviewProxyRoute,
 }
 export const routeTree = rootRouteImport

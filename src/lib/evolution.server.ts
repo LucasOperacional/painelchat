@@ -277,7 +277,9 @@ export async function saveProviderGlobalCredentials(input: {
 /** Endereço salvo (ou padrão) do servidor conforme a integração escolhida. */
 export async function defaultBaseUrlFor(provider: string): Promise<string> {
   const { WUZAPI_DEFAULT_BASE_URL: wuz } = await import("@/lib/wuzapi.server");
-  const fallback = provider === "wuzapi" ? wuz : EVOLUTION_DEFAULT_BASE_URL;
+  const { WAHA_DEFAULT_BASE_URL: waha } = await import("@/lib/waha.server");
+  const fallback =
+    provider === "wuzapi" ? wuz : provider === "waha" ? waha : EVOLUTION_DEFAULT_BASE_URL;
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data } = await supabaseAdmin
@@ -328,6 +330,26 @@ export async function evolutionRequest<T = unknown>(options: {
       adminToken: await loadWuzapiAdminToken(options.configId ?? null),
     })) as T;
   }
+  // Conexões da WAHA: cada dispositivo é uma "session" no servidor WAHA.
+  if (resolvedProvider === "waha") {
+    const { wahaDispatch } = await import("@/lib/waha.server");
+    let session = (options.instanceId ?? "").trim();
+    if (!session) {
+      const config = await loadEvolutionConfig(options.configId ?? null);
+      session = (config?.instance_id || config?.instance_name || "").trim();
+    }
+    return (await wahaDispatch({
+      baseUrl: options.baseUrl,
+      path: options.path,
+      ...(options.method ? { method: options.method } : {}),
+      body: options.body,
+      ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
+      ...(session ? { session } : {}),
+      apiKey: await loadWahaApiKey(options.configId ?? null),
+    })) as T;
+  }
+
+
 
   const apiKey = instanceToken || (await loadEvolutionApiKey(options.configId ?? null));
   if (!apiKey)
@@ -453,7 +475,7 @@ export async function evolutionCreateInstance(
   const id = res?.data?.id ?? "";
   if (!id)
     throw new Error(
-      `O servidor ${target.provider === "wuzapi" ? "WuzAPI" : "Evolution Go"} não retornou o identificador da conexão criada.`,
+      `O servidor ${target.provider === "wuzapi" ? "WuzAPI" : target.provider === "waha" ? "WAHA" : "Evolution Go"} não retornou o identificador da conexão criada.`,
     );
   return {
     id,
@@ -1519,25 +1541,35 @@ async function loadProviderApiToken(provider: string, envName: string, configId?
 
 /**
  * Credencial global do servidor deste dispositivo. Dispositivos da WuzAPI usam
- * o token de administrador; os demais usam a API Key global da Evolution Go.
+ * o token de administrador, os da WAHA usam a chave da API e os demais usam a
+ * API Key global da Evolution Go.
  */
 export async function loadEvolutionApiKey(configId?: string | null): Promise<string> {
-  if ((await providerOf(configId ?? null)) === "wuzapi") {
+  const provider = await providerOf(configId ?? null);
+  if (provider === "wuzapi") {
     return loadProviderApiToken("wuzapi", "WUZAPI_ADMIN_TOKEN", configId);
+  }
+  if (provider === "waha") {
+    return loadProviderApiToken("waha", "WAHA_API_KEY", configId);
   }
   return loadProviderApiToken("evolution", "EVOLUTION_API_KEY", configId);
 }
 
 /** Credencial global salva para uma integração específica (sem depender do dispositivo). */
 export async function loadProviderSharedKey(provider: string): Promise<string> {
-  return provider === "wuzapi"
-    ? loadProviderApiToken("wuzapi", "WUZAPI_ADMIN_TOKEN", null)
-    : loadProviderApiToken("evolution", "EVOLUTION_API_KEY", null);
+  if (provider === "wuzapi") return loadProviderApiToken("wuzapi", "WUZAPI_ADMIN_TOKEN", null);
+  if (provider === "waha") return loadProviderApiToken("waha", "WAHA_API_KEY", null);
+  return loadProviderApiToken("evolution", "EVOLUTION_API_KEY", null);
 }
 
 /** Token de administrador do WuzAPI salvo na central, com fallback do ambiente. */
 export async function loadWuzapiAdminToken(configId?: string | null): Promise<string> {
   return loadProviderApiToken("wuzapi", "WUZAPI_ADMIN_TOKEN", configId);
+}
+
+/** Chave da API da WAHA salva na central, com fallback do ambiente. */
+export async function loadWahaApiKey(configId?: string | null): Promise<string> {
+  return loadProviderApiToken("waha", "WAHA_API_KEY", configId);
 }
 
 /** Guarda a API Key global de um provedor (evolution/wuzapi). */
@@ -1669,11 +1701,8 @@ export async function ensureEvolutionDevice(configId?: string | null): Promise<E
     .maybeSingle();
   const ownToken = ((own as { instance_token?: string } | null)?.instance_token ?? "").trim();
   if (!ownToken) {
-    // Replica a credencial global da MESMA integração (Evolution ou WuzAPI).
-    const shared =
-      provider === "wuzapi"
-        ? await loadProviderApiToken("wuzapi", "WUZAPI_ADMIN_TOKEN", null)
-        : await loadProviderApiToken("evolution", "EVOLUTION_API_KEY", null);
+    // Replica a credencial global da MESMA integração (Evolution, WuzAPI, WAHA).
+    const shared = await loadProviderSharedKey(provider);
     if (shared) await saveProviderApiKey({ configId: config.id, provider, apiKey: shared });
   }
 
@@ -1825,6 +1854,15 @@ export async function downloadInboundMedia(input: {
 }): Promise<{ base64: string; mimetype: string } | null> {
   if (!input.media) return null;
   const provider = await providerOf(input.configId);
+  if (provider === "waha") {
+    const configWaha = await loadEvolutionConfig(input.configId);
+    const { wahaDownloadMedia } = await import("@/lib/waha.server");
+    return wahaDownloadMedia({
+      baseUrl: normalizeBaseUrl(configWaha?.base_url ?? "") || (await defaultBaseUrlFor("waha")),
+      apiKey: await loadWahaApiKey(input.configId),
+      media: input.media,
+    });
+  }
   if (provider !== "wuzapi") {
     return evolutionDownloadMedia({
       configId: input.configId,

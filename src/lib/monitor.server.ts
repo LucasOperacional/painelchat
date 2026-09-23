@@ -113,7 +113,7 @@ export async function registrarOcorrencia(input: {
     const linhas = [
       `${icone} NXS Multi Atendimento`,
       input.deviceLabel ? `Aparelho: ${input.deviceLabel}` : null,
-      input.provider ? `API: ${input.provider === "wuzapi" ? "WuzAPI" : "Evolution Go"}` : null,
+      input.provider ? `API: ${input.provider === "wuzapi" ? "WuzAPI" : input.provider === "waha" ? "WAHA" : "Evolution Go"}` : null,
       `Ocorrência: ${input.tipo}`,
       input.mensagem,
       `Data: ${quando}`,
@@ -331,7 +331,7 @@ export async function verificarConexoes(
       // Avisa no WhatsApp sempre que o aparelho passa a ficar on-line
       // (inclusive na primeira verificação, sem estado anterior).
       if (estadoAnterior !== "online") {
-        const api = device.provider === "wuzapi" ? "WuzAPI" : "Evolution Go";
+        const api = device.provider === "wuzapi" ? "WuzAPI" : device.provider === "waha" ? "WAHA" : "Evolution Go";
         const linhas = [
           estadoAnterior === "offline"
             ? `O aparelho ${nome} voltou a ficar on-line.`

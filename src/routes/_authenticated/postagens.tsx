@@ -434,7 +434,7 @@ function PostagensPage() {
                     {(devices.data ?? []).map((d) => (
                       <SelectItem key={d.id} value={d.id}>
                         {d.label || d.phone || "WhatsApp"} —{" "}
-                        {d.provider === "wuzapi" ? "WuzAPI" : "Evolution Go"}
+                        {d.provider === "wuzapi" ? "WuzAPI" : d.provider === "waha" ? "WAHA" : "Evolution Go"}
                       </SelectItem>
                     ))}
                   </SelectContent>
