@@ -11,3 +11,4 @@
 - [x] Modulo Postagens & Stories: tabelas, motor, tela /postagens, menu e agendador (*/5 min)
 - [x] Mostrar no chat quando uma mensagem for apagada ou editada (Evolution + WuzAPI)
 - [x] Varredura: agendador apontava para endereço antigo (autocorreção pela Sentinela)
+- [x] WAHA: recebimento, envio, mídia, edição, deduplicação e recuperação pelo diário
