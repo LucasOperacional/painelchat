@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import {
   QrCode,
+  Phone,
   RefreshCw,
   Save,
   Plug,
@@ -115,6 +116,10 @@ function WhatsappPage() {
   const [queueId, setQueueId] = useState("auto");
   const [qr, setQr] = useState<string | null>(null);
   const [autoQr, setAutoQr] = useState(false);
+  // Modo de conexão: QR Code (padrão) ou código de pareamento por número.
+  const [connectMode, setConnectMode] = useState<"qr" | "code">("qr");
+  const [pairPhone, setPairPhone] = useState("");
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
 
   const cardsRef = useRef<HTMLDivElement>(null);
 
@@ -188,6 +193,7 @@ function WhatsappPage() {
   useEffect(() => {
     setQr(null);
     setAutoQr(false);
+    setPairingCode(null);
     formLoadedFor.current = null;
     setFormLoaded(false);
   }, [deviceId]);
@@ -367,7 +373,13 @@ function WhatsappPage() {
   });
 
   const connect = useMutation({
-    mutationFn: () => connectFn({ data: { phone: "", deviceId } }),
+    mutationFn: () =>
+      connectFn({
+        data: {
+          deviceId,
+          phone: connectMode === "code" ? pairPhone.replace(/\D/g, "") : "",
+        },
+      }),
     onSuccess: (res) => {
       if (res.needsConfiguration) {
         setAutoQr(false);
@@ -384,10 +396,15 @@ function WhatsappPage() {
         refresh();
         return;
       }
-      setQr(res.qrcode ?? null);
+      setPairingCode(res.pairingCode ?? null);
+      setQr(connectMode === "qr" ? (res.qrcode ?? null) : null);
       if (!res.connected) setAutoQr(true);
       toast.success(
-        res.connected ? "WhatsApp conectado" : "Leia o QR Code no WhatsApp para conectar",
+        res.connected
+          ? "WhatsApp conectado"
+          : res.pairingCode
+            ? "Digite o código no WhatsApp do celular para conectar"
+            : "Leia o QR Code no WhatsApp para conectar",
       );
       refresh();
     },
@@ -400,6 +417,7 @@ function WhatsappPage() {
       setAutoQr(false);
       return;
     }
+    setPairingCode(null);
     setQr(null);
     connect.mutate();
   };
@@ -424,6 +442,7 @@ function WhatsappPage() {
     mutationFn: (id: string) => disconnectFn({ data: { deviceId: id } }),
     onSuccess: (res) => {
       setQr(null);
+      setPairingCode(null);
       if (res?.warning) toast.warning("Desconectado na central", { description: res.warning });
       else toast.success("WhatsApp desconectado");
       refresh();
@@ -453,7 +472,7 @@ function WhatsappPage() {
           toast.success("WhatsApp conectado");
           return;
         }
-        if (res.qrcode) {
+        if (res.qrcode && connectMode === "qr") {
           failures = 0;
           setQr(res.qrcode);
           return;
@@ -483,7 +502,7 @@ function WhatsappPage() {
       active = false;
       clearInterval(id);
     };
-  }, [autoQr, provider, isConnected, qrFn, queryClient, deviceId]);
+  }, [autoQr, provider, isConnected, qrFn, queryClient, deviceId, connectMode]);
 
   useEffect(() => {
     if (isConnected && autoQr) {
