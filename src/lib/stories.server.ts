@@ -161,7 +161,7 @@ function nomeProfundo(valor: unknown, nivel = 0): string {
   for (const [chave, item] of Object.entries(bag)) {
     if (typeof item === "string" && CHAVES_NOME.includes(chave.toLowerCase())) {
       const limpo = item.trim();
-      if (limpo && !pareceIdentificador(limpo)) return limpo;
+      if (nomeValido(limpo)) return limpo;
     }
   }
   for (const item of Object.values(bag)) {
@@ -226,7 +226,7 @@ async function nomesConhecidos(): Promise<Map<string, string>> {
     for (const r of (data ?? []) as { chat_jid: string | null; autor_nome: string | null }[]) {
       const jid = (r.chat_jid ?? "").trim();
       const nome = (r.autor_nome ?? "").trim();
-      if (jid && nome && !pareceIdentificador(nome) && !mapa.has(jid)) mapa.set(jid, nome);
+      if (jid && nomeValido(nome) && !mapa.has(jid)) mapa.set(jid, nome);
     }
   } catch {
     /* sem histórico: segue só com a API */
