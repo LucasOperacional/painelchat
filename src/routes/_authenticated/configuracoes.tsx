@@ -72,6 +72,68 @@ import {
   otimizarAgora,
 } from "@/lib/otimizacao.functions";
 
+type ConfigSectionProps = {
+  id: string;
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  status?: string;
+  statusOk?: boolean;
+  children: React.ReactNode;
+};
+
+function ConfigSectionCard({
+  icon: Icon,
+  title,
+  description,
+  status,
+  statusOk,
+  children,
+}: ConfigSectionProps) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Card
+        className="cursor-pointer transition-colors hover:bg-muted/40"
+        onClick={() => setOpen(true)}
+      >
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Icon className="size-4" />
+            </span>
+            <span className="flex-1">{title}</span>
+            <ChevronRight className="size-4 text-muted-foreground" />
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">{description}</p>
+          {status && (
+            <p
+              className={`text-xs font-medium ${
+                statusOk === false ? "text-destructive" : "text-success"
+              }`}
+            >
+              {status}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Icon className="size-5 text-primary" /> {title}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">{children}</div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 function formatarBytes(valor: number | null | undefined) {
   const n = Number(valor ?? 0);
   if (!Number.isFinite(n) || n <= 0) return "0 MB";
