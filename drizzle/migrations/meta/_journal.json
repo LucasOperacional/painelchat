@@ -610,6 +610,13 @@
       "when": 1790084952140,
       "tag": "0086_mensagens_apagadas",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1790189134983,
+      "tag": "0087_conversa_sem_conexao",
+      "breakpoints": true
     }
   ]
 }

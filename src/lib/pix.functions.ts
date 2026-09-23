@@ -218,7 +218,7 @@ export const sendPixCard = createServerFn({ method: "POST" })
     const { ensureEvolutionDevice, loadEvolutionApiKey } = await import("@/lib/evolution.server");
     const { digitsOnly } = await import("@/lib/phone");
 
-    const config = await ensureEvolutionDevice(conversation.whatsapp_config_id ?? null);
+    const config = await (await import("@/lib/evolution.server")).ensureConversationDevice(conversation.id, conversation.whatsapp_config_id ?? null);
     const canSend =
       !!config?.base_url && !!config?.instance_id && !!(await loadEvolutionApiKey(config.id));
 
@@ -425,7 +425,7 @@ export const sendMisticpayCharge = createServerFn({ method: "POST" })
     const { ensureEvolutionDevice, loadEvolutionApiKey } = await import("@/lib/evolution.server");
     const { digitsOnly } = await import("@/lib/phone");
 
-    const config = await ensureEvolutionDevice(conversation.whatsapp_config_id ?? null);
+    const config = await (await import("@/lib/evolution.server")).ensureConversationDevice(conversation.id, conversation.whatsapp_config_id ?? null);
     const canSend =
       !!config?.base_url && !!config?.instance_id && !!(await loadEvolutionApiKey(config.id));
 
@@ -564,7 +564,7 @@ export const sendEfiCharge = createServerFn({ method: "POST" })
     const { ensureEvolutionDevice, loadEvolutionApiKey } = await import("@/lib/evolution.server");
     const { digitsOnly } = await import("@/lib/phone");
 
-    const config = await ensureEvolutionDevice(conversation.whatsapp_config_id ?? null);
+    const config = await (await import("@/lib/evolution.server")).ensureConversationDevice(conversation.id, conversation.whatsapp_config_id ?? null);
     const canSend =
       !!config?.base_url && !!config?.instance_id && !!(await loadEvolutionApiKey(config.id));
 
@@ -717,7 +717,7 @@ export const sendAltispayCharge = createServerFn({ method: "POST" })
     const { ensureEvolutionDevice, loadEvolutionApiKey } = await import("@/lib/evolution.server");
     const { digitsOnly } = await import("@/lib/phone");
 
-    const config = await ensureEvolutionDevice(conversation.whatsapp_config_id ?? null);
+    const config = await (await import("@/lib/evolution.server")).ensureConversationDevice(conversation.id, conversation.whatsapp_config_id ?? null);
     const canSend =
       !!config?.base_url && !!config?.instance_id && !!(await loadEvolutionApiKey(config.id));
 

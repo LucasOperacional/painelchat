@@ -155,7 +155,7 @@ export const enviarLoja = createServerFn({ method: "POST" })
 
     const { ensureEvolutionDevice } = await import("@/lib/evolution.server");
     const { digitsOnly } = await import("@/lib/phone");
-    const config = await ensureEvolutionDevice(conversation.whatsapp_config_id ?? null);
+    const config = await (await import("@/lib/evolution.server")).ensureConversationDevice(conversation.id, conversation.whatsapp_config_id ?? null);
     if (!config?.base_url || !config?.instance_id) {
       throw new Error("Conecte um dispositivo de WhatsApp para enviar a loja.");
     }
