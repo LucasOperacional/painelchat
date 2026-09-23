@@ -113,9 +113,9 @@ function nomeDoCanal(bag: Record<string, unknown>): string {
     campoTexto(bag["subject"]),
     campoTexto(bag["Subject"]),
   ];
-  for (const c of candidatos) if (c && !pareceIdentificador(c)) return c;
+  for (const c of candidatos) if (nomeValido(c)) return c;
   const profundo = nomeProfundo(bag);
-  return pareceIdentificador(profundo) ? "" : profundo;
+  return nomeValido(profundo) ? profundo : "";
 }
 
 function descricaoDoCanal(bag: Record<string, unknown>): string {
