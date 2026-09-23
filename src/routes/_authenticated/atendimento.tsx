@@ -1176,7 +1176,7 @@ function AtendimentoPage() {
                   setListCollapsed(true);
                 }}
                 className={cn(
-                  "mx-2 mb-1 flex w-[calc(100%-1rem)] items-start gap-2.5 rounded-[8px] border border-transparent px-2.5 py-2 text-left transition-colors hover:bg-muted/60",
+                  "mx-2 mb-1 flex w-[calc(100%-1rem)] touch-manipulation items-start gap-2.5 rounded-[8px] border border-transparent px-2.5 py-3 text-left transition-colors hover:bg-muted/60 active:bg-muted md:py-2",
                   selectedId === c.id && "border-primary/30 bg-primary/10",
                 )}
               >
