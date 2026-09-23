@@ -1024,7 +1024,8 @@ function AtendimentoPage() {
       <section
         className={cn(
           "flex min-h-0 min-w-0 flex-1 flex-col border-border bg-card transition-[width] duration-200 ease-in-out md:flex-none md:border-r",
-          listCollapsed ? "hidden md:flex md:w-16" : "w-full md:w-[288px] lg:w-[320px]",
+          listCollapsed ? "md:flex md:w-16" : "w-full md:w-[288px] lg:w-[320px]",
+          mostrarConversaNoCelular ? "hidden" : "flex",
         )}
       >
         <div className={cn(listCollapsed ? "p-2" : "space-y-2 border-b border-border p-3")}>
