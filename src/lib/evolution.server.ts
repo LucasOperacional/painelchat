@@ -1552,14 +1552,19 @@ export async function loadEvolutionApiKey(configId?: string | null): Promise<str
 
 /** Credencial global salva para uma integração específica (sem depender do dispositivo). */
 export async function loadProviderSharedKey(provider: string): Promise<string> {
-  return provider === "wuzapi"
-    ? loadProviderApiToken("wuzapi", "WUZAPI_ADMIN_TOKEN", null)
-    : loadProviderApiToken("evolution", "EVOLUTION_API_KEY", null);
+  if (provider === "wuzapi") return loadProviderApiToken("wuzapi", "WUZAPI_ADMIN_TOKEN", null);
+  if (provider === "waha") return loadProviderApiToken("waha", "WAHA_API_KEY", null);
+  return loadProviderApiToken("evolution", "EVOLUTION_API_KEY", null);
 }
 
 /** Token de administrador do WuzAPI salvo na central, com fallback do ambiente. */
 export async function loadWuzapiAdminToken(configId?: string | null): Promise<string> {
   return loadProviderApiToken("wuzapi", "WUZAPI_ADMIN_TOKEN", configId);
+}
+
+/** Chave da API da WAHA salva na central, com fallback do ambiente. */
+export async function loadWahaApiKey(configId?: string | null): Promise<string> {
+  return loadProviderApiToken("waha", "WAHA_API_KEY", configId);
 }
 
 /** Guarda a API Key global de um provedor (evolution/wuzapi). */
