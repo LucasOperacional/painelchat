@@ -237,6 +237,7 @@ export function invalidateProviderCache() {
   memoClear("provider:");
   memoClear("token:");
   memoClear("key:");
+  memoClear("apikey:");
 }
 
 /**
@@ -310,27 +311,15 @@ export async function evolutionRequest<T = unknown>(options: {
   // Rotas globais (/instance/all e /instance/create) usam a API Key global.
   // As demais são da instância e exigem o token dela como apikey.
   const isGlobalPath = /^\/instance\/(all|create)$/.test(options.path);
-  const instanceToken = isGlobalPath
-    ? ""
-    : await loadEvolutionInstanceToken(options.configId ?? null);
 
   // Conexões da WuzAPI falam outro dialeto: traduzimos a chamada mantendo a
   // mesma resposta { data } que o restante da central já consome.
   const resolvedProvider =
     (options.provider ?? "").trim().toLowerCase() || (await providerOf(options.configId ?? null));
-  if (resolvedProvider === "wuzapi") {
-    const { wuzapiDispatch } = await import("@/lib/wuzapi.server");
-    return (await wuzapiDispatch({
-      baseUrl: options.baseUrl,
-      path: options.path,
-      ...(options.method ? { method: options.method } : {}),
-      body: options.body,
-      ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
-      token: instanceToken || (await loadEvolutionInstanceToken(options.configId ?? null)),
-      adminToken: await loadWuzapiAdminToken(options.configId ?? null),
-    })) as T;
-  }
+
   // Conexões da WAHA: cada dispositivo é uma "session" no servidor WAHA.
+  // A WAHA usa somente a chave da API, então nem buscamos o token da instância
+  // (uma consulta a menos no banco antes de cada envio).
   if (resolvedProvider === "waha") {
     const { wahaDispatch } = await import("@/lib/waha.server");
     let session = (options.instanceId ?? "").trim();
@@ -348,6 +337,24 @@ export async function evolutionRequest<T = unknown>(options: {
       apiKey: await loadWahaApiKey(options.configId ?? null),
     })) as T;
   }
+
+  const instanceToken = isGlobalPath
+    ? ""
+    : await loadEvolutionInstanceToken(options.configId ?? null);
+
+  if (resolvedProvider === "wuzapi") {
+    const { wuzapiDispatch } = await import("@/lib/wuzapi.server");
+    return (await wuzapiDispatch({
+      baseUrl: options.baseUrl,
+      path: options.path,
+      ...(options.method ? { method: options.method } : {}),
+      body: options.body,
+      ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
+      token: instanceToken || (await loadEvolutionInstanceToken(options.configId ?? null)),
+      adminToken: await loadWuzapiAdminToken(options.configId ?? null),
+    })) as T;
+  }
+
 
 
 
@@ -1520,6 +1527,12 @@ async function loadProviderApiToken(provider: string, envName: string, configId?
   const envKey = (process.env[envName] ?? "").trim();
   if (envKey) return envKey;
 
+  // A chave muda muito pouco; guardá-la por alguns minutos evita uma consulta
+  // ao banco em cada mensagem enviada (ganho direto no tempo de entrega).
+  const cacheKey = `apikey:${provider}:${configId ?? "default"}`;
+  const cached = memoGet<string>(cacheKey);
+  if (cached !== undefined) return cached;
+
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const query = supabaseAdmin.from("whatsapp_secrets").select("instance_token").eq("provider", provider);
   const { data } = configId
@@ -1536,6 +1549,7 @@ async function loadProviderApiToken(provider: string, envName: string, configId?
       .maybeSingle();
     result = ((shared as { instance_token?: string } | null)?.instance_token ?? "").trim();
   }
+  if (result) memoSet(cacheKey, result, 300_000);
   return result;
 }
 
