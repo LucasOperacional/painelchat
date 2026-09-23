@@ -208,6 +208,68 @@ type SessionInfo = {
   config?: { webhooks?: Array<{ url?: string; events?: string[] }> } | null;
 };
 
+/** Situação atual da sessão na WAHA (em maiúsculas). */
+async function sessionStatus(options: WahaCall, session: string): Promise<string> {
+  try {
+    const info = await call<SessionInfo>({
+      baseUrl: options.baseUrl,
+      apiKey: options.apiKey,
+      path: `/api/sessions/${encodeURIComponent(session)}`,
+      method: "GET",
+      timeoutMs: 10_000,
+    });
+    return String(info?.status ?? "").toUpperCase();
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * A WAHA só entrega o QR Code quando a sessão está em SCAN_QR_CODE. Se ela
+ * estiver parada ou com falha (FAILED), o pedido do QR volta com erro 422 e a
+ * tela ficava sem imagem: aqui a sessão é iniciada/reiniciada até chegar nesse
+ * estado.
+ */
+async function ensureScanState(options: WahaCall, session: string): Promise<string> {
+  let status = await sessionStatus(options, session);
+  if (status === "WORKING" || status === "SCAN_QR_CODE") return status;
+
+  const act = status === "FAILED" ? "restart" : "start";
+  try {
+    await call({
+      baseUrl: options.baseUrl,
+      apiKey: options.apiKey,
+      path: `/api/sessions/${encodeURIComponent(session)}/${act}`,
+      method: "POST",
+      body: {},
+      timeoutMs: 30_000,
+    });
+  } catch (error) {
+    if (!isAlreadyError(error)) {
+      // Sessão em estado ruim que não aceita start: reinicia de vez.
+      try {
+        await call({
+          baseUrl: options.baseUrl,
+          apiKey: options.apiKey,
+          path: `/api/sessions/${encodeURIComponent(session)}/restart`,
+          method: "POST",
+          body: {},
+          timeoutMs: 30_000,
+        });
+      } catch {
+        /* segue: o laço abaixo confere a situação */
+      }
+    }
+  }
+
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    status = await sessionStatus(options, session);
+    if (status === "SCAN_QR_CODE" || status === "WORKING") break;
+  }
+  return status;
+}
+
 /** QR Code da sessão, já no formato aceito pela central (data URL). */
 async function readQr(options: WahaCall, session: string): Promise<string | null> {
   try {
@@ -228,6 +290,7 @@ async function readQr(options: WahaCall, session: string): Promise<string | null
   }
   return null;
 }
+
 
 function sessionOf(options: WahaCall): string {
   const body = (options.body ?? {}) as Record<string, any>;
