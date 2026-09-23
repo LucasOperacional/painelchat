@@ -71,6 +71,16 @@ function pareceIdentificador(valor: string): boolean {
 }
 
 /**
+ * Nome apresentável: precisa de ao menos 2 caracteres e não pode ser um
+ * identificador. Respostas de uma letra só ("A", "B"…) são ignoradas e o
+ * nome real é buscado no histórico e nos metadados do canal.
+ */
+function nomeValido(valor: string): boolean {
+  const limpo = valor.trim();
+  return limpo.length >= 2 && !pareceIdentificador(limpo);
+}
+
+/**
  * Formato real da Evolution Go: o canal vem em
  * { id, thread_metadata: { name: { text }, description: { text }, subscribers_count } }.
  */
@@ -103,9 +113,9 @@ function nomeDoCanal(bag: Record<string, unknown>): string {
     campoTexto(bag["subject"]),
     campoTexto(bag["Subject"]),
   ];
-  for (const c of candidatos) if (c && !pareceIdentificador(c)) return c;
+  for (const c of candidatos) if (nomeValido(c)) return c;
   const profundo = nomeProfundo(bag);
-  return pareceIdentificador(profundo) ? "" : profundo;
+  return nomeValido(profundo) ? profundo : "";
 }
 
 function descricaoDoCanal(bag: Record<string, unknown>): string {
@@ -151,7 +161,7 @@ function nomeProfundo(valor: unknown, nivel = 0): string {
   for (const [chave, item] of Object.entries(bag)) {
     if (typeof item === "string" && CHAVES_NOME.includes(chave.toLowerCase())) {
       const limpo = item.trim();
-      if (limpo && !pareceIdentificador(limpo)) return limpo;
+      if (nomeValido(limpo)) return limpo;
     }
   }
   for (const item of Object.values(bag)) {
@@ -216,7 +226,7 @@ async function nomesConhecidos(): Promise<Map<string, string>> {
     for (const r of (data ?? []) as { chat_jid: string | null; autor_nome: string | null }[]) {
       const jid = (r.chat_jid ?? "").trim();
       const nome = (r.autor_nome ?? "").trim();
-      if (jid && nome && !pareceIdentificador(nome) && !mapa.has(jid)) mapa.set(jid, nome);
+      if (jid && nomeValido(nome) && !mapa.has(jid)) mapa.set(jid, nome);
     }
   } catch {
     /* sem histórico: segue só com a API */
@@ -275,7 +285,7 @@ export async function listarCanais(deviceId: string | null): Promise<{
   // Quem ficou sem nome recebe o nome real: primeiro do histórico recebido,
   // depois consultando os metadados do canal na API.
   const historico = await nomesConhecidos();
-  const pendentes = Array.from(encontrados.values()).filter((c) => !c.nome);
+  const pendentes = Array.from(encontrados.values()).filter((c) => !nomeValido(c.nome));
   for (const canal of pendentes) {
     const doHistorico = historico.get(canal.id);
     if (doHistorico) {
@@ -297,7 +307,7 @@ export async function listarCanais(deviceId: string | null): Promise<{
   }
 
   const canais = Array.from(encontrados.values())
-    .map((c) => ({ ...c, nome: c.nome || "Canal sem nome" }))
+    .map((c) => ({ ...c, nome: nomeValido(c.nome) ? c.nome : "Canal sem nome" }))
     .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
   const aviso =
     canais.length === 0
@@ -308,6 +318,54 @@ export async function listarCanais(deviceId: string | null): Promise<{
     (a, b) => Number(b.podeEnviar) - Number(a.podeEnviar) || a.nome.localeCompare(b.nome, "pt-BR"),
   );
   return { canais: comOrdem, aviso };
+}
+
+/** Cache curto dos nomes resolvidos, para não consultar a API a cada leitura. */
+const cacheNomesCanais = new Map<string, { nome: string; em: number }>();
+
+/**
+ * Resolve o nome real de cada canal (jid). Usado para que as publicações
+ * recebidas mostrem o nome do canal, mesmo quando o webhook não o enviou.
+ */
+export async function nomesDosCanais(
+  deviceId: string | null,
+  jids: string[],
+): Promise<Map<string, string>> {
+  const resposta = new Map<string, string>();
+  const unicos = Array.from(new Set(jids.map((j) => j.trim()).filter(Boolean))).slice(0, 12);
+  const pendentes: string[] = [];
+  const agora = Date.now();
+  for (const jid of unicos) {
+    const emCache = cacheNomesCanais.get(jid);
+    if (emCache && agora - emCache.em < 10 * 60 * 1000) {
+      if (nomeValido(emCache.nome)) resposta.set(jid, emCache.nome);
+    } else {
+      pendentes.push(jid);
+    }
+  }
+  if (pendentes.length === 0) return resposta;
+
+  let device;
+  try {
+    device = await resolverDispositivo(deviceId);
+  } catch {
+    return resposta;
+  }
+  const historico = await nomesConhecidos();
+  for (const jid of pendentes) {
+    const doHistorico = historico.get(jid) ?? "";
+    const nome = nomeValido(doHistorico)
+      ? doHistorico
+      : (
+          await buscarNomeCanal(
+            { base_url: device.base_url, instance_id: device.instance_id, id: device.id },
+            jid,
+          )
+        ).nome;
+    cacheNomesCanais.set(jid, { nome, em: Date.now() });
+    if (nomeValido(nome)) resposta.set(jid, nome);
+  }
+  return resposta;
 }
 
 /**

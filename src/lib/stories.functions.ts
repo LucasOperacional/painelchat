@@ -96,7 +96,7 @@ export const listStoriesRecebidos = createServerFn({ method: "POST" })
       }
     }
 
-    return ((rows ?? []) as unknown as {
+    const itens = ((rows ?? []) as unknown as {
       id: string;
       tipo: string;
       chat_jid: string;
@@ -119,6 +119,39 @@ export const listStoriesRecebidos = createServerFn({ method: "POST" })
       createdAt: r.created_at,
       conexao: (r.config_id && nomes.get(r.config_id)) || "WhatsApp",
     }));
+
+    // Publicações de canal sem nome: resolve o nome real na conexão,
+    // ignora valores de uma letra só e grava o nome encontrado no histórico.
+    const semNome = Array.from(
+      new Set(
+        itens
+          .filter((i) => i.tipo === "canal" && i.autorNome.trim().length < 2)
+          .map((i) => i.chatJid),
+      ),
+    );
+    if (semNome.length > 0) {
+      try {
+        const { nomesDosCanais } = await import("@/lib/stories.server");
+        const resolvidos = await nomesDosCanais(data.deviceId, semNome);
+        for (const item of itens) {
+          const nome = resolvidos.get(item.chatJid);
+          if (nome && item.autorNome.trim().length < 2) item.autorNome = nome;
+        }
+        for (const [jid, nome] of resolvidos) {
+          void supabaseAdmin
+            .from("stories_recebidos")
+            .update({ autor_nome: nome })
+            .eq("tipo", "canal")
+            .eq("chat_jid", jid)
+            .or("autor_nome.is.null,autor_nome.eq.")
+            .then(() => undefined, () => undefined);
+        }
+      } catch {
+        /* mantém como está; a próxima leitura tenta de novo */
+      }
+    }
+
+    return itens;
   });
 
 /** Canais (newsletters) que o número conectado acompanha, lidos direto na API. */
