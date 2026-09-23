@@ -569,6 +569,141 @@ function fromWuzapi(raw: Record<string, any>): EvolutionWebhook {
   } as EvolutionWebhook;
 }
 
+/** Estado da sessão da WAHA convertido nos nomes já usados pela central. */
+const WAHA_STATUS_EVENT: Record<string, string> = {
+  WORKING: "PairSuccess",
+  SCAN_QR_CODE: "QRCode",
+  STARTING: "Connected",
+  STOPPED: "Disconnected",
+  FAILED: "Disconnected",
+};
+
+/** Reconhece o envelope da WAHA: { event, session, payload }. */
+function pareceWaha(raw: Record<string, any> | null | undefined): boolean {
+  if (!raw) return false;
+  return (
+    typeof raw["event"] === "string" &&
+    typeof raw["session"] === "string" &&
+    !!raw["payload"] &&
+    typeof raw["payload"] === "object"
+  );
+}
+
+/**
+ * A WAHA (https://waha.devlike.pro) envia { event, session, payload }. Aqui o
+ * evento vira o mesmo formato Info/Message da Evolution Go, sem tocar no
+ * restante do fluxo. A mídia já vem descriptografada em /api/files/…, então só
+ * acrescentamos a chave da API para permitir o download.
+ */
+async function fromWaha(raw: Record<string, any>): Promise<EvolutionWebhook> {
+  const evento = String(raw["event"] ?? "");
+  const sessao = String(raw["session"] ?? "");
+  const payload = (raw["payload"] ?? {}) as Record<string, any>;
+  const base = {
+    ...(sessao ? { instanceId: sessao, instanceName: sessao } : {}),
+  };
+
+  if (evento === "session.status") {
+    const status = String(payload["status"] ?? "").toUpperCase();
+    return {
+      event: WAHA_STATUS_EVENT[status] ?? "Connected",
+      data: { jid: String(payload["me"]?.["id"] ?? "") },
+      ...base,
+    } as EvolutionWebhook;
+  }
+
+  if (evento === "message.ack" || evento === "message.waiting") {
+    return { event: "Receipt", data: {}, ...base } as EvolutionWebhook;
+  }
+
+  const jidDe = (value: unknown) => {
+    const valor = String(value ?? "").trim();
+    if (!valor) return "";
+    return valor.replace(/@c\.us$/i, "@s.whatsapp.net");
+  };
+
+  if (evento === "message.revoked") {
+    const antes = (payload["before"] ?? {}) as Record<string, any>;
+    const chat = jidDe(antes["from"] ?? payload["after"]?.["from"]);
+    return {
+      event: "Message",
+      data: {
+        Info: { Chat: chat, Sender: chat, ID: String(antes["id"] ?? "") },
+        Message: {
+          protocolMessage: { type: "REVOKE", key: { id: String(antes["id"] ?? "") } },
+        },
+      },
+      ...base,
+    } as EvolutionWebhook;
+  }
+
+  const fromMe = payload["fromMe"] === true;
+  const chat = jidDe(payload["from"]);
+  const participante = jidDe(payload["participant"] ?? payload["author"]);
+  const isGroup = /@g\.us$/i.test(chat);
+  const interno = (payload["_data"] ?? {}) as Record<string, any>;
+  const info: Record<string, unknown> = {
+    Chat: chat,
+    Sender: (isGroup ? participante : chat) || chat,
+    IsFromMe: fromMe,
+    IsGroup: isGroup,
+    ID: String(payload["id"] ?? ""),
+    PushName: payload["notifyName"] ?? interno["notifyName"] ?? interno["pushName"] ?? null,
+    ...(isGroup && participante ? { Participant: participante } : {}),
+  };
+  // Mensagem enviada pelo celular: o outro lado da conversa é o destino.
+  if (fromMe && !isGroup) info["RecipientAlt"] = jidDe(payload["to"]);
+
+  const texto = String(payload["body"] ?? "");
+  const midia = (payload["media"] ?? null) as Record<string, any> | null;
+  let mensagem: Record<string, unknown> = { conversation: texto };
+
+  if (evento === "message.reaction") {
+    const reacao = (payload["reaction"] ?? {}) as Record<string, any>;
+    mensagem = {
+      reactionMessage: {
+        text: String(reacao["text"] ?? ""),
+        key: { id: String(reacao["messageId"] ?? "") },
+      },
+    };
+  } else if (midia && typeof midia === "object") {
+    let url = String(midia["url"] ?? "");
+    if (url) {
+      try {
+        const { loadProviderSharedKey } = await import("@/lib/evolution.server");
+        const { wahaSignedMediaUrl } = await import("@/lib/waha.server");
+        const apiKey = await loadProviderSharedKey("waha");
+        url = wahaSignedMediaUrl(url, apiKey);
+      } catch {
+        /* sem chave salva: segue com a URL original */
+      }
+    }
+    const mimetype = String(midia["mimetype"] ?? interno["mimetype"] ?? "");
+    const fileName = String(midia["filename"] ?? interno["filename"] ?? "");
+    const comum = { url, mediaUrl: url, mimetype, ...(texto ? { caption: texto } : {}) };
+    if (/^image\//i.test(mimetype)) {
+      mensagem = interno["isSticker"] === true
+        ? { stickerMessage: { url, mediaUrl: url, mimetype: mimetype || "image/webp" } }
+        : { imageMessage: comum };
+    } else if (/^video\//i.test(mimetype)) {
+      mensagem = { videoMessage: comum };
+    } else if (/^audio\//i.test(mimetype)) {
+      mensagem = { audioMessage: { url, mediaUrl: url, mimetype, ptt: interno["isPtt"] === true } };
+    } else {
+      mensagem = { documentMessage: { ...comum, fileName: fileName || "arquivo" } };
+    }
+  } else if (!texto) {
+    mensagem = {};
+  }
+
+  return {
+    event: fromMe ? "SendMessage" : "Message",
+    data: { Info: info, Message: mensagem },
+    ...base,
+  } as EvolutionWebhook;
+}
+
+
 /**
  * Lê o corpo do webhook. A Evolution Go envia JSON puro; a WuzAPI pode enviar
  * formulário com o campo jsonData ou JSON no formato dela.
