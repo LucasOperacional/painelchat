@@ -18,6 +18,8 @@ import {
   Check,
   Gauge,
   Sparkles,
+  ChevronRight,
+  type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
