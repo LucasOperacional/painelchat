@@ -329,31 +329,52 @@ function StoriesPage() {
                   {canais.data?.aviso ? (
                     <p className="text-sm text-muted-foreground">{canais.data.aviso}</p>
                   ) : null}
-                  {(canais.data?.canais ?? []).map((c) => (
-                    <div
-                      key={c.id}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card p-3"
-                    >
-                      <div>
-                        <p className="font-medium text-foreground">{c.nome}</p>
-                        {c.descricao ? (
-                          <p className="text-xs text-muted-foreground">{c.descricao}</p>
-                        ) : null}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {c.podeEnviar ? (
-                          <Badge>{c.papel === "owner" ? "Você é dono" : "Você é admin"}</Badge>
-                        ) : null}
-                        {c.inscritos !== null ? (
-                          <Badge variant="secondary">{c.inscritos} inscritos</Badge>
-                        ) : null}
-                        {c.podeEnviar ? (
-                          <Button size="sm" onClick={() => setCanalEnvio({ id: c.id, nome: c.nome })}>
-                            <Send className="mr-2 h-4 w-4" />
-                            Enviar mensagem
-                          </Button>
-                        ) : null}
-                      </div>
+                  {[
+                    {
+                      titulo: "Canais que você administra (pode enviar)",
+                      lista: (canais.data?.canais ?? []).filter((c) => c.podeEnviar),
+                      vazio: "Você não é dono nem admin de nenhum canal desta conexão.",
+                    },
+                    {
+                      titulo: "Canais que você apenas segue",
+                      lista: (canais.data?.canais ?? []).filter((c) => !c.podeEnviar),
+                      vazio: "Nenhum canal seguido.",
+                    },
+                  ].map((grupo) => (
+                    <div key={grupo.titulo} className="space-y-2">
+                      <h3 className="text-sm font-semibold text-foreground">
+                        {grupo.titulo} ({grupo.lista.length})
+                      </h3>
+                      {grupo.lista.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">{grupo.vazio}</p>
+                      ) : null}
+                      {grupo.lista.map((c) => (
+                        <div
+                          key={c.id}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card p-3"
+                        >
+                          <div>
+                            <p className="font-medium text-foreground">{c.nome}</p>
+                            {c.descricao ? (
+                              <p className="text-xs text-muted-foreground">{c.descricao}</p>
+                            ) : null}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {c.podeEnviar ? (
+                              <Badge>{c.papel === "owner" ? "Você é dono" : "Você é admin"}</Badge>
+                            ) : null}
+                            {c.inscritos !== null ? (
+                              <Badge variant="secondary">{c.inscritos} inscritos</Badge>
+                            ) : null}
+                            {c.podeEnviar ? (
+                              <Button size="sm" onClick={() => setCanalEnvio({ id: c.id, nome: c.nome })}>
+                                <Send className="mr-2 h-4 w-4" />
+                                Enviar mensagem
+                              </Button>
+                            ) : null}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   ))}
                 </>
