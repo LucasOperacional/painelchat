@@ -411,11 +411,8 @@ async function wahaDispatchOnce(options: WahaCall): Promise<unknown> {
         if (!isNotFoundError(error)) throw error;
         await run("/api/sessions", "POST", { name: session, start: true, config });
       }
-      try {
-        await run(`/api/sessions/${encodeURIComponent(session)}/start`, "POST", {});
-      } catch (error) {
-        if (!isAlreadyError(error)) throw error;
-      }
+      // Garante que a sessão esteja pronta para leitura (ou já conectada).
+      const state = await ensureScanState(options, session);
 
       let jid = "";
       try {
@@ -425,21 +422,27 @@ async function wahaDispatchOnce(options: WahaCall): Promise<unknown> {
         /* sessão iniciando: seguimos para o QR */
       }
       let qrcode: string | null = null;
-      if (!jid) {
-        for (let attempt = 0; attempt < 3 && !qrcode; attempt += 1) {
-          if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 600));
+      if (!jid && state !== "WORKING") {
+        for (let attempt = 0; attempt < 4 && !qrcode; attempt += 1) {
+          if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 800));
           qrcode = await readQr(options, session);
         }
       }
       return { data: { jid, webhookUrl: webhook, ...(qrcode ? { Qrcode: qrcode } : {}) } };
     }
     case "/instance/qr": {
-      let qrcode: string | null = null;
-      for (let attempt = 0; attempt < 3 && !qrcode; attempt += 1) {
-        if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 500));
-        qrcode = await readQr(options, session);
+      let qrcode = await readQr(options, session);
+      if (!qrcode) {
+        const state = await ensureScanState(options, session);
+        if (state !== "WORKING") {
+          for (let attempt = 0; attempt < 4 && !qrcode; attempt += 1) {
+            if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 800));
+            qrcode = await readQr(options, session);
+          }
+        }
       }
       if (!qrcode) throw new Error("No QR code available yet, wait a moment and try again.");
+
       return { data: { Qrcode: qrcode, Code: null } };
     }
     case "/instance/status": {
