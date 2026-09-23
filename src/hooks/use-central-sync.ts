@@ -61,8 +61,19 @@ export function useCentralSync() {
     let ultimoSinal = Date.now();
     let reconectando: number | null = null;
 
+    // Agrupa várias atualizações seguidas numa única recarga, para não
+    // sobrecarregar o banco a cada mensagem que chega.
+    const pendentes = new Set<string>();
+    let agrupando: number | null = null;
     const invalidate = (key: string) => {
-      void queryClient.invalidateQueries({ queryKey: [key] });
+      pendentes.add(key);
+      if (agrupando !== null) return;
+      agrupando = window.setTimeout(() => {
+        agrupando = null;
+        const chaves = [...pendentes];
+        pendentes.clear();
+        chaves.forEach((k) => void queryClient.invalidateQueries({ queryKey: [k] }));
+      }, 1_500);
     };
     const fullSync = () => {
       const now = Date.now();
@@ -245,6 +256,7 @@ export function useCentralSync() {
     return () => {
       ativo = false;
       if (reconectando !== null) window.clearTimeout(reconectando);
+      if (agrupando !== null) window.clearTimeout(agrupando);
       window.clearInterval(timer);
       window.removeEventListener("online", acordar);
       window.removeEventListener("focus", acordar);
