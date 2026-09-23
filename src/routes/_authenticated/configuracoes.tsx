@@ -800,136 +800,141 @@ function AltispayCard() {
       toast.error("Não foi possível remover", { description: error.message }),
   });
 
+  const altisStatus = status.data?.configured
+    ? `Chave cadastrada (${status.data.apiKeyPreview}) — ambiente ${
+        status.data.environment === "sandbox" ? "de teste" : "de produção"
+      }`
+    : "Não configurado";
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <QrCode className="size-4" /> AltisPay (cobrança Pix)
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm text-muted-foreground">
-          Gere a chave de API no painel da AltisPay em Integração → Chave de API e cole aqui. A
-          chave de teste começa com altis_sandbox_ e a de produção com altis_.
-        </p>
+    <ConfigSectionCard
+      icon={QrCode}
+      title="AltisPay (cobrança Pix)"
+      description="Cobre via AltisPay com chave de API e webhook de confirmação."
+      status={altisStatus}
+      statusOk={status.data?.configured}
+    >
+      <p className="text-sm text-muted-foreground">
+        Gere a chave de API no painel da AltisPay em Integração → Chave de API e cole aqui. A
+        chave de teste começa com altis_sandbox_ e a de produção com altis_.
+      </p>
 
-        {status.data?.configured && (
-          <div className="rounded-md border p-3 text-sm">
-            Chave cadastrada ({status.data.apiKeyPreview}) — ambiente{" "}
-            {status.data.environment === "sandbox" ? "de teste" : "de produção"}.
-          </div>
-        )}
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="altis-key">Chave de API</Label>
-            <Input
-              id="altis-key"
-              type="password"
-              value={form.apiKey}
-              onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
-              placeholder={status.data?.configured ? "Deixe em branco para manter" : "altis_..."}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="altis-env">Ambiente</Label>
-            <select
-              id="altis-env"
-              className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
-              value={form.environment}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  environment: e.target.value as "producao" | "sandbox",
-                  baseUrl: "",
-                }))
-              }
-            >
-              <option value="producao">Produção</option>
-              <option value="sandbox">Teste (sandbox)</option>
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="altis-base">Endereço da API (opcional)</Label>
-            <Input
-              id="altis-base"
-              value={form.baseUrl}
-              onChange={(e) => setForm((f) => ({ ...f, baseUrl: e.target.value }))}
-              placeholder="https://app.altispay.com.br/api/v1"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="altis-payer">Nome padrão do pagador</Label>
-            <Input
-              id="altis-payer"
-              value={form.defaultPayerName}
-              onChange={(e) => setForm((f) => ({ ...f, defaultPayerName: e.target.value }))}
-              placeholder="Cliente"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="altis-doc">CPF/CNPJ padrão</Label>
-            <Input
-              id="altis-doc"
-              value={form.defaultPayerDocument}
-              onChange={(e) => setForm((f) => ({ ...f, defaultPayerDocument: e.target.value }))}
-              placeholder="Usado quando o cliente não informa"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="altis-email">E-mail padrão do pagador</Label>
-            <Input
-              id="altis-email"
-              value={form.defaultPayerEmail}
-              onChange={(e) => setForm((f) => ({ ...f, defaultPayerEmail: e.target.value }))}
-              placeholder="financeiro@suaempresa.com.br"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="altis-webhook">Segredo do webhook</Label>
-            <Input
-              id="altis-webhook"
-              type="password"
-              value={form.webhookToken}
-              onChange={(e) => setForm((f) => ({ ...f, webhookToken: e.target.value }))}
-              placeholder={
-                status.data?.webhookConfigured ? "Deixe em branco para manter" : "X-Altis-Token"
-              }
-            />
-          </div>
+      {status.data?.configured && (
+        <div className="rounded-md border p-3 text-sm">
+          Chave cadastrada ({status.data.apiKeyPreview}) — ambiente{" "}
+          {status.data.environment === "sandbox" ? "de teste" : "de produção"}.
         </div>
+      )}
 
-        <p className="text-xs text-muted-foreground">
-          No painel da AltisPay, em Integração → Webhook, aponte os eventos PAYMENT_CONFIRMED e
-          PAYMENT_RECEIVED para {typeof window !== "undefined" ? window.location.origin : ""}
-          /api/public/altispay e use o mesmo segredo informado acima. Assim o cliente recebe o
-          aviso de pagamento confirmado na hora.
-        </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label htmlFor="altis-key">Chave de API</Label>
+          <Input
+            id="altis-key"
+            type="password"
+            value={form.apiKey}
+            onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
+            placeholder={status.data?.configured ? "Deixe em branco para manter" : "altis_..."}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="altis-env">Ambiente</Label>
+          <select
+            id="altis-env"
+            className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
+            value={form.environment}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                environment: e.target.value as "producao" | "sandbox",
+                baseUrl: "",
+              }))
+            }
+          >
+            <option value="producao">Produção</option>
+            <option value="sandbox">Teste (sandbox)</option>
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="altis-base">Endereço da API (opcional)</Label>
+          <Input
+            id="altis-base"
+            value={form.baseUrl}
+            onChange={(e) => setForm((f) => ({ ...f, baseUrl: e.target.value }))}
+            placeholder="https://app.altispay.com.br/api/v1"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="altis-payer">Nome padrão do pagador</Label>
+          <Input
+            id="altis-payer"
+            value={form.defaultPayerName}
+            onChange={(e) => setForm((f) => ({ ...f, defaultPayerName: e.target.value }))}
+            placeholder="Cliente"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="altis-doc">CPF/CNPJ padrão</Label>
+          <Input
+            id="altis-doc"
+            value={form.defaultPayerDocument}
+            onChange={(e) => setForm((f) => ({ ...f, defaultPayerDocument: e.target.value }))}
+            placeholder="Usado quando o cliente não informa"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="altis-email">E-mail padrão do pagador</Label>
+          <Input
+            id="altis-email"
+            value={form.defaultPayerEmail}
+            onChange={(e) => setForm((f) => ({ ...f, defaultPayerEmail: e.target.value }))}
+            placeholder="financeiro@suaempresa.com.br"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="altis-webhook">Segredo do webhook</Label>
+          <Input
+            id="altis-webhook"
+            type="password"
+            value={form.webhookToken}
+            onChange={(e) => setForm((f) => ({ ...f, webhookToken: e.target.value }))}
+            placeholder={
+              status.data?.webhookConfigured ? "Deixe em branco para manter" : "X-Altis-Token"
+            }
+          />
+        </div>
+      </div>
 
-        <div className="flex flex-wrap gap-2">
+      <p className="text-xs text-muted-foreground">
+        No painel da AltisPay, em Integração → Webhook, aponte os eventos PAYMENT_CONFIRMED e
+        PAYMENT_RECEIVED para {typeof window !== "undefined" ? window.location.origin : ""}
+        /api/public/altispay e use o mesmo segredo informado acima. Assim o cliente recebe o
+        aviso de pagamento confirmado na hora.
+      </p>
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          disabled={
+            saveMutation.isPending || (!form.apiKey.trim() && !status.data?.configured)
+          }
+          onClick={() => saveMutation.mutate()}
+        >
+          {saveMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+          Salvar credenciais
+        </Button>
+        {status.data?.configured && (
           <Button
             type="button"
-            disabled={
-              saveMutation.isPending || (!form.apiKey.trim() && !status.data?.configured)
-            }
-            onClick={() => saveMutation.mutate()}
+            variant="outline"
+            disabled={clearMutation.isPending}
+            onClick={() => clearMutation.mutate()}
           >
-            {saveMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
-            Salvar credenciais
+            Remover
           </Button>
-          {status.data?.configured && (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={clearMutation.isPending}
-              onClick={() => clearMutation.mutate()}
-            >
-              Remover
-            </Button>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+        )}
+      </div>
+    </ConfigSectionCard>
   );
 }
 
