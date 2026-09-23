@@ -234,7 +234,7 @@ async function ensureScanState(options: WahaCall, session: string): Promise<stri
   let status = await sessionStatus(options, session);
   if (status === "WORKING" || status === "SCAN_QR_CODE") return status;
 
-  const action = async (act: "stop" | "start" | "restart") => {
+  const action = async (act: "stop" | "start" | "restart" | "logout") => {
     try {
       await call({
         baseUrl: options.baseUrl,
@@ -250,21 +250,33 @@ async function ensureScanState(options: WahaCall, session: string): Promise<stri
     }
   };
 
+  const waitScan = async (rounds: number) => {
+    for (let attempt = 0; attempt < rounds; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      status = await sessionStatus(options, session);
+      if (status === "SCAN_QR_CODE" || status === "WORKING") return true;
+    }
+    return false;
+  };
+
   // Sessão com falha: o "restart" do servidor costuma responder erro 500, então
-  // paramos e iniciamos de novo — foi o que voltou a gerar o QR Code.
+  // paramos e iniciamos de novo.
   if (status === "FAILED") {
     await action("stop");
     await new Promise((resolve) => setTimeout(resolve, 800));
   }
   if (!(await action("start")) && status !== "FAILED") await action("restart");
+  if (await waitScan(10)) return status;
 
-  for (let attempt = 0; attempt < 15; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    status = await sessionStatus(options, session);
-    if (status === "SCAN_QR_CODE" || status === "WORKING") break;
-  }
+  // Ainda com falha: a credencial guardada no servidor está corrompida. Limpar
+  // o login (logout) e iniciar de novo devolve a sessão ao estado de leitura.
+  await action("logout");
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+  await action("start");
+  await waitScan(12);
   return status;
 }
+
 
 
 /** QR Code da sessão, já no formato aceito pela central (data URL). */
