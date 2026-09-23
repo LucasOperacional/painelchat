@@ -60,6 +60,7 @@ export function DeviceCard({
   onEdit,
   onDelete,
   onDisconnect,
+  onMakeDefault,
   children,
 }: DeviceCardProps) {
   const initial = label.trim().charAt(0).toUpperCase() || "?";
