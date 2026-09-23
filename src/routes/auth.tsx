@@ -42,14 +42,25 @@ function AuthPage() {
     // fazia a tela entrar em vai-e-vem com o atendimento, recarregando sem
     // parar e apagando o que estava sendo digitado.
     (async () => {
-      const { data, error } = await supabase.auth.getUser();
-      if (!ativo) return;
-      if (data?.user && !error) {
-        navigate({ to: "/atendimento", replace: true });
-        return;
+      try {
+        const { data, error } = await supabase.auth.getUser();
+        if (!ativo) return;
+        if (data?.user && !error) {
+          navigate({ to: "/atendimento", replace: true });
+          return;
+        }
+      } catch {
+        // Sem internet ou acesso antigo inválido: segue para o formulário.
       }
+      if (!ativo) return;
       const { data: local } = await supabase.auth.getSession();
-      if (local.session) await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+      if (local.session) {
+        try {
+          await supabase.auth.signOut({ scope: "local" });
+        } catch {
+          // ignora
+        }
+      }
     })();
     return () => {
       ativo = false;
@@ -65,17 +76,59 @@ function AuthPage() {
   async function signIn(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email: toLoginEmail(email),
-      password,
-    });
+
+    // Um acesso antigo guardado no navegador pode travar a entrada, então ele é
+    // apagado antes de tentar de novo.
+    try {
+      const { data: local } = await supabase.auth.getSession();
+      if (local.session) await supabase.auth.signOut({ scope: "local" });
+    } catch {
+      // ignora
+    }
+
+    const tentar = () =>
+      supabase.auth.signInWithPassword({
+        email: toLoginEmail(email),
+        password,
+      });
+
+    let resultado: Awaited<ReturnType<typeof tentar>> | null = null;
+    let falhaDeRede = false;
+
+    for (let tentativa = 0; tentativa < 3; tentativa += 1) {
+      try {
+        resultado = await tentar();
+        falhaDeRede = false;
+        if (!resultado.error) break;
+        // Erros de credencial não devem ser repetidos.
+        const status = resultado.error.status ?? 0;
+        if (status >= 400 && status < 500) break;
+      } catch {
+        falhaDeRede = true;
+      }
+      if (tentativa < 2) await new Promise((r) => setTimeout(r, 700 * (tentativa + 1)));
+    }
+
     setLoading(false);
-    if (error) {
-      toast.error("Não foi possível entrar", { description: error.message });
+
+    if (falhaDeRede || !resultado) {
+      toast.error("Sem conexão com o servidor", {
+        description: "Verifique sua internet e toque em Entrar novamente.",
+      });
       return;
     }
+
+    if (resultado.error) {
+      const mensagem = /invalid login credentials/i.test(resultado.error.message)
+        ? "Usuário ou senha incorretos."
+        : resultado.error.message;
+      toast.error("Não foi possível entrar", { description: mensagem });
+      return;
+    }
+
     navigate({ to: "/atendimento", replace: true });
   }
+
 
 
   const fieldClass =
