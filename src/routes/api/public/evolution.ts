@@ -1303,13 +1303,23 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
 
         const memorizarLid = async () => {
           // Memoriza o @lid no contato para os próximos eventos do celular.
+          // Um mesmo id interno não pode ficar em dois contatos: isso misturava
+          // pessoas diferentes na mesma conversa.
           if (isGroup || !lidJid) return;
+          const { data: jaUsado } = await supabaseAdmin
+            .from("contacts")
+            .select("phone")
+            .eq("lid", lidJid)
+            .limit(1);
+          const donoAtual = (jaUsado as Array<{ phone?: string }> | null)?.[0]?.phone ?? "";
+          if (donoAtual && donoAtual !== phoneDigits) return;
           await supabaseAdmin
             .from("contacts")
             .update({ lid: lidJid })
             .eq("phone", phoneDigits)
             .is("lid", null);
         };
+
 
         // Configuração da central: ignorar mensagens de grupos.
         if (isGroup) {
