@@ -1020,6 +1020,7 @@ export type Database = {
           last_message_at: string
           project_id: string | null
           queue_id: string | null
+          sem_conexao: boolean
           status: Database["public"]["Enums"]["conversation_status"]
           whatsapp_config_id: string | null
         }
@@ -1035,6 +1036,7 @@ export type Database = {
           last_message_at?: string
           project_id?: string | null
           queue_id?: string | null
+          sem_conexao?: boolean
           status?: Database["public"]["Enums"]["conversation_status"]
           whatsapp_config_id?: string | null
         }
@@ -1050,6 +1052,7 @@ export type Database = {
           last_message_at?: string
           project_id?: string | null
           queue_id?: string | null
+          sem_conexao?: boolean
           status?: Database["public"]["Enums"]["conversation_status"]
           whatsapp_config_id?: string | null
         }
