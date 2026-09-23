@@ -237,6 +237,7 @@ export function invalidateProviderCache() {
   memoClear("provider:");
   memoClear("token:");
   memoClear("key:");
+  memoClear("apikey:");
 }
 
 /**
@@ -1520,6 +1521,12 @@ async function loadProviderApiToken(provider: string, envName: string, configId?
   const envKey = (process.env[envName] ?? "").trim();
   if (envKey) return envKey;
 
+  // A chave muda muito pouco; guardá-la por alguns minutos evita uma consulta
+  // ao banco em cada mensagem enviada (ganho direto no tempo de entrega).
+  const cacheKey = `apikey:${provider}:${configId ?? "default"}`;
+  const cached = memoGet<string>(cacheKey);
+  if (cached !== undefined) return cached;
+
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const query = supabaseAdmin.from("whatsapp_secrets").select("instance_token").eq("provider", provider);
   const { data } = configId
@@ -1536,6 +1543,7 @@ async function loadProviderApiToken(provider: string, envName: string, configId?
       .maybeSingle();
     result = ((shared as { instance_token?: string } | null)?.instance_token ?? "").trim();
   }
+  if (result) memoSet(cacheKey, result, 300_000);
   return result;
 }
 
