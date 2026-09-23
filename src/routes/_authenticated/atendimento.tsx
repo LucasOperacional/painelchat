@@ -68,6 +68,7 @@ import { ContactBilling } from "@/components/contact-billing";
 import { listarCategoriasAtivas } from "@/lib/estoque.functions";
 import { enviarLoja, produtosDaLoja } from "@/lib/loja.functions";
 import { useMe } from "@/hooks/use-session";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useProjectBranding } from "@/hooks/use-project";
 import { useTheme } from "@/hooks/use-theme";
 import {
