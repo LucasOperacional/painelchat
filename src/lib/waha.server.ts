@@ -109,23 +109,28 @@ async function call<T = unknown>(options: WahaCall & { raw?: boolean }): Promise
     "X-Api-Key": options.apiKey,
   };
 
-  const init: RequestInit = { method: options.method ?? "GET", headers };
+  const method = options.method ?? "GET";
+  const init: RequestInit = { method, headers };
   if (options.body !== undefined) init.body = JSON.stringify(options.body);
 
+  // Envio de mensagem não é repetido em erro do servidor: repetir atrasaria a
+  // entrega e poderia duplicar a mensagem. Só consultas são repetidas.
+  const isSend = method === "POST" && /^\/api\/send/i.test(options.path);
   let response!: Response;
   let text = "";
-  const maxAttempts = 4;
+  const maxAttempts = isSend ? 2 : 3;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 20_000);
     try {
       response = await fetch(`${base}${options.path}`, { ...init, signal: controller.signal });
     } catch (error) {
-      if (attempt < maxAttempts) {
-        await new Promise((resolve) => setTimeout(resolve, attempt * 1200));
+      const aborted = (error as Error).name === "AbortError";
+      if (attempt < maxAttempts && !aborted) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
         continue;
       }
-      if ((error as Error).name === "AbortError") {
+      if (aborted) {
         throw new Error("O servidor WAHA não respondeu no tempo esperado. Tente novamente.");
       }
       throw new Error(
@@ -136,12 +141,14 @@ async function call<T = unknown>(options: WahaCall & { raw?: boolean }): Promise
     }
 
     text = await response.text();
-    if ((response.status === 429 || response.status >= 500) && attempt < maxAttempts) {
-      await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
+    const retryable = response.status === 429 || response.status >= 500;
+    if (retryable && !isSend && attempt < maxAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, attempt * 400));
       continue;
     }
     break;
   }
+
 
   let payload: unknown = null;
   try {
