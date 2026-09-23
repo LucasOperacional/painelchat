@@ -76,8 +76,8 @@ type ConfigSectionProps = {
   icon: LucideIcon;
   title: string;
   description: string;
-  status?: string;
-  statusOk?: boolean;
+  status?: string | undefined;
+  statusOk?: boolean | undefined;
   children: React.ReactNode;
 };
 
