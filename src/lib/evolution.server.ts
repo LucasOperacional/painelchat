@@ -1035,6 +1035,12 @@ async function assertLoggedIn(target: SendTarget) {
   const cacheKey = `login:${target.instanceId}`;
   if (memoGet<boolean>(cacheKey) === true) return;
 
+  // A WAHA responde na hora quando a sessão não está ativa, então a conferência
+  // prévia só somaria uma ida e volta ao servidor antes de cada mensagem.
+  if ((await providerOf(target.configId ?? null)) === "waha") return;
+
+
+
   // A sessão pode estar apenas reconectando (queda rápida de rede do celular).
   // Damos duas chances antes de dizer que o aparelho está desconectado.
   for (let attempt = 1; attempt <= 2; attempt++) {
