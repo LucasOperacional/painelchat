@@ -558,187 +558,194 @@ function EfiCard() {
       toast.error("Não foi possível remover", { description: error.message }),
   });
 
+  const efiStatus = status.data?.configured
+    ? status.data.connected
+      ? `Conectado à Efí (${status.data.environment})`
+      : status.data.error
+        ? "Erro na conexão"
+        : "Credenciais cadastradas"
+    : "Não configurado";
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <QrCode className="size-4" /> Efí Bank (cobrança Pix)
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm text-muted-foreground">
-          A Efí exige o certificado digital da conta em toda chamada. Informe o endereço do seu
-          servidor intermediário (que guarda o certificado e repassa os pedidos para a Efí) junto
-          das credenciais da aplicação.
-        </p>
+    <ConfigSectionCard
+      icon={QrCode}
+      title="Efí Bank (cobrança Pix)"
+      description="Cobre via Pix com certificado digital e intermediário seguro."
+      status={efiStatus}
+      statusOk={status.data?.configured && status.data?.connected}
+    >
+      <p className="text-sm text-muted-foreground">
+        A Efí exige o certificado digital da conta em toda chamada. Informe o endereço do seu
+        servidor intermediário (que guarda o certificado e repassa os pedidos para a Efí) junto
+        das credenciais da aplicação.
+      </p>
 
-        {status.data?.configured && (
-          <div className="rounded-md border p-3 text-sm">
-            {status.data.connected ? (
-              <span>Conectado à Efí ({status.data.environment}).</span>
-            ) : status.data.error ? (
-              <span className="text-destructive">{status.data.error}</span>
-            ) : (
-              <span>Credenciais cadastradas.</span>
-            )}
-          </div>
-        )}
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="efi-client-id">Client ID</Label>
-            <Input
-              id="efi-client-id"
-              value={form.clientId}
-              onChange={(e) => setForm((f) => ({ ...f, clientId: e.target.value }))}
-              placeholder="Client_Id_..."
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="efi-client-secret">Client Secret</Label>
-            <Input
-              id="efi-client-secret"
-              type="password"
-              value={form.clientSecret}
-              onChange={(e) => setForm((f) => ({ ...f, clientSecret: e.target.value }))}
-              placeholder={status.data?.configured ? "•••••• (salvo)" : "Client_Secret_..."}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="efi-env">Ambiente</Label>
-            <select
-              id="efi-env"
-              className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-              value={form.environment}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  environment: e.target.value as "producao" | "homologacao",
-                }))
-              }
-            >
-              <option value="producao">Produção</option>
-              <option value="homologacao">Homologação (testes)</option>
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="efi-key">Chave Pix da conta Efí</Label>
-            <Input
-              id="efi-key"
-              value={form.pixKey}
-              onChange={(e) => setForm((f) => ({ ...f, pixKey: e.target.value }))}
-              placeholder="chave@email.com"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="efi-relay">Endereço do intermediário</Label>
-            <Input
-              id="efi-relay"
-              value={form.relayUrl}
-              onChange={(e) => setForm((f) => ({ ...f, relayUrl: e.target.value }))}
-              placeholder="https://meuservidor.com.br/efi"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="efi-relay-token">Senha do intermediário (opcional)</Label>
-            <Input
-              id="efi-relay-token"
-              type="password"
-              value={form.relayToken}
-              onChange={(e) => setForm((f) => ({ ...f, relayToken: e.target.value }))}
-              placeholder={status.data?.relayTokenSet ? "•••••• (salvo)" : "Enviada como x-relay-token"}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="efi-cert">Certificado digital (.p12)</Label>
-            <Input
-              id="efi-cert"
-              type="file"
-              accept=".p12,.pfx,application/x-pkcs12"
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                if (file.size > 250_000) {
-                  toast.error("Arquivo muito grande para um certificado .p12");
-                  return;
-                }
-                const buffer = new Uint8Array(await file.arrayBuffer());
-                let binary = "";
-                buffer.forEach((b) => {
-                  binary += String.fromCharCode(b);
-                });
-                setForm((f) => ({
-                  ...f,
-                  certificateP12: btoa(binary),
-                  certificateName: file.name,
-                }));
-                toast.success(`Certificado ${file.name} pronto para salvar`);
-              }}
-            />
-            <p className="text-xs text-muted-foreground">
-              {form.certificateName
-                ? `Selecionado: ${form.certificateName}`
-                : status.data?.certificateSet
-                  ? `Salvo: ${status.data.certificateName || "certificado.p12"}`
-                  : "Baixe o certificado no painel da Efí e envie o arquivo aqui."}
-            </p>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="efi-cert-pass">Senha do certificado (se houver)</Label>
-            <Input
-              id="efi-cert-pass"
-              type="password"
-              value={form.certificatePassword}
-              onChange={(e) => setForm((f) => ({ ...f, certificatePassword: e.target.value }))}
-              placeholder="Normalmente em branco"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="efi-exp">Validade da cobrança (segundos)</Label>
-            <Input
-              id="efi-exp"
-              inputMode="numeric"
-              value={String(form.expirationSeconds)}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  expirationSeconds: Number(e.target.value.replace(/\D/g, "")) || 3600,
-                }))
-              }
-            />
-          </div>
-        </div>
-
-        <p className="text-xs text-muted-foreground">
-          O certificado fica guardado com segurança aqui e é enviado ao seu intermediário nos
-          cabeçalhos x-efi-certificate (arquivo em base64) e x-efi-certificate-password. O
-          intermediário repassa caminho, método, corpo e autorização para{" "}
-          {form.environment === "homologacao" ? "pix-h.api.efipay.com.br" : "pix.api.efipay.com.br"}{" "}
-          usando esse certificado.
-        </p>
-
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            disabled={saveMutation.isPending || !form.clientId.trim() || !form.clientSecret.trim()}
-            onClick={() => saveMutation.mutate()}
-          >
-            {saveMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
-            Salvar credenciais
-          </Button>
-          {status.data?.configured && (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={clearMutation.isPending}
-              onClick={() => clearMutation.mutate()}
-            >
-              Remover
-            </Button>
+      {status.data?.configured && (
+        <div className="rounded-md border p-3 text-sm">
+          {status.data.connected ? (
+            <span>Conectado à Efí ({status.data.environment}).</span>
+          ) : status.data.error ? (
+            <span className="text-destructive">{status.data.error}</span>
+          ) : (
+            <span>Credenciais cadastradas.</span>
           )}
         </div>
-      </CardContent>
-    </Card>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="efi-client-id">Client ID</Label>
+          <Input
+            id="efi-client-id"
+            value={form.clientId}
+            onChange={(e) => setForm((f) => ({ ...f, clientId: e.target.value }))}
+            placeholder="Client_Id_..."
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="efi-client-secret">Client Secret</Label>
+          <Input
+            id="efi-client-secret"
+            type="password"
+            value={form.clientSecret}
+            onChange={(e) => setForm((f) => ({ ...f, clientSecret: e.target.value }))}
+            placeholder={status.data?.configured ? "•••••• (salvo)" : "Client_Secret_..."}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="efi-env">Ambiente</Label>
+          <select
+            id="efi-env"
+            className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+            value={form.environment}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                environment: e.target.value as "producao" | "homologacao",
+              }))
+            }
+          >
+            <option value="producao">Produção</option>
+            <option value="homologacao">Homologação (testes)</option>
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="efi-key">Chave Pix da conta Efí</Label>
+          <Input
+            id="efi-key"
+            value={form.pixKey}
+            onChange={(e) => setForm((f) => ({ ...f, pixKey: e.target.value }))}
+            placeholder="chave@email.com"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="efi-relay">Endereço do intermediário</Label>
+          <Input
+            id="efi-relay"
+            value={form.relayUrl}
+            onChange={(e) => setForm((f) => ({ ...f, relayUrl: e.target.value }))}
+            placeholder="https://meuservidor.com.br/efi"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="efi-relay-token">Senha do intermediário (opcional)</Label>
+          <Input
+            id="efi-relay-token"
+            type="password"
+            value={form.relayToken}
+            onChange={(e) => setForm((f) => ({ ...f, relayToken: e.target.value }))}
+            placeholder={status.data?.relayTokenSet ? "•••••• (salvo)" : "Enviada como x-relay-token"}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="efi-cert">Certificado digital (.p12)</Label>
+          <Input
+            id="efi-cert"
+            type="file"
+            accept=".p12,.pfx,application/x-pkcs12"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              if (file.size > 250_000) {
+                toast.error("Arquivo muito grande para um certificado .p12");
+                return;
+              }
+              const buffer = new Uint8Array(await file.arrayBuffer());
+              let binary = "";
+              buffer.forEach((b) => {
+                binary += String.fromCharCode(b);
+              });
+              setForm((f) => ({
+                ...f,
+                certificateP12: btoa(binary),
+                certificateName: file.name,
+              }));
+              toast.success(`Certificado ${file.name} pronto para salvar`);
+            }}
+          />
+          <p className="text-xs text-muted-foreground">
+            {form.certificateName
+              ? `Selecionado: ${form.certificateName}`
+              : status.data?.certificateSet
+                ? `Salvo: ${status.data.certificateName || "certificado.p12"}`
+                : "Baixe o certificado no painel da Efí e envie o arquivo aqui."}
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="efi-cert-pass">Senha do certificado (se houver)</Label>
+          <Input
+            id="efi-cert-pass"
+            type="password"
+            value={form.certificatePassword}
+            onChange={(e) => setForm((f) => ({ ...f, certificatePassword: e.target.value }))}
+            placeholder="Normalmente em branco"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="efi-exp">Validade da cobrança (segundos)</Label>
+          <Input
+            id="efi-exp"
+            inputMode="numeric"
+            value={String(form.expirationSeconds)}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                expirationSeconds: Number(e.target.value.replace(/\D/g, "")) || 3600,
+              }))
+            }
+          />
+        </div>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        O certificado fica guardado com segurança aqui e é enviado ao seu intermediário nos
+        cabeçalhos x-efi-certificate (arquivo em base64) e x-efi-certificate-password. O
+        intermediário repassa caminho, método, corpo e autorização para{" "}
+        {form.environment === "homologacao" ? "pix-h.api.efipay.com.br" : "pix.api.efipay.com.br"}{" "}
+        usando esse certificado.
+      </p>
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          disabled={saveMutation.isPending || !form.clientId.trim() || !form.clientSecret.trim()}
+          onClick={() => saveMutation.mutate()}
+        >
+          {saveMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+          Salvar credenciais
+        </Button>
+        {status.data?.configured && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={clearMutation.isPending}
+            onClick={() => clearMutation.mutate()}
+          >
+            Remover
+          </Button>
+        )}
+      </div>
+    </ConfigSectionCard>
   );
 }
 
