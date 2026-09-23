@@ -303,18 +303,28 @@ function sessionOf(options: WahaCall): string {
  * seguinte também ficaria esperando sem resposta.
  */
 async function reviveSession(options: WahaCall, session: string): Promise<boolean> {
-  try {
-    await call({
-      baseUrl: options.baseUrl,
-      apiKey: options.apiKey,
-      path: `/api/sessions/${encodeURIComponent(session)}/restart`,
-      method: "POST",
-      body: {},
-      timeoutMs: 30_000,
-    });
-  } catch {
-    return false;
+  const post = async (act: "restart" | "stop" | "start") => {
+    try {
+      await call({
+        baseUrl: options.baseUrl,
+        apiKey: options.apiKey,
+        path: `/api/sessions/${encodeURIComponent(session)}/${act}`,
+        method: "POST",
+        body: {},
+        timeoutMs: 30_000,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  if (!(await post("restart"))) {
+    // Alguns estados recusam o "restart": parar e iniciar resolve.
+    await post("stop");
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    if (!(await post("start"))) return false;
   }
+
   for (let attempt = 0; attempt < 10; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 1200));
     try {
