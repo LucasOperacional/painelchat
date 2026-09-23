@@ -616,6 +616,13 @@ async function fromWaha(raw: Record<string, any>): Promise<EvolutionWebhook> {
     return { event: "Receipt", data: {}, ...base } as EvolutionWebhook;
   }
 
+  // A WAHA envia "message" e "message.any" para a mesma mensagem recebida.
+  // Só "message.any" é processado (ele também traz as enviadas pelo celular),
+  // senão a mesma mensagem entraria duas vezes na conversa.
+  if (evento === "message") {
+    return { event: "Receipt", data: {}, ...base } as EvolutionWebhook;
+  }
+
   const jidDe = (value: unknown) => {
     const valor = String(value ?? "").trim();
     if (!valor) return "";
@@ -637,22 +644,37 @@ async function fromWaha(raw: Record<string, any>): Promise<EvolutionWebhook> {
     } as EvolutionWebhook;
   }
 
-  const fromMe = payload["fromMe"] === true;
-  const chat = jidDe(payload["from"]);
-  const participante = jidDe(payload["participant"] ?? payload["author"]);
-  const isGroup = /@g\.us$/i.test(chat);
   const interno = (payload["_data"] ?? {}) as Record<string, any>;
+  // O WhatsApp novo entrega o chat como @lid (um id interno, sem telefone).
+  // A WAHA traz o telefone real dentro de _data.Info (SenderAlt/RecipientAlt);
+  // sem ele a mensagem virava um contato fantasma e não aparecia no chat.
+  const infoBruto = (interno["Info"] ?? {}) as Record<string, any>;
+  const fromMe = payload["fromMe"] === true || infoBruto["IsFromMe"] === true;
+  const chat = jidDe(payload["from"] ?? infoBruto["Chat"]);
+  const senderAlt = jidDe(infoBruto["SenderAlt"]);
+  const recipientAlt = jidDe(infoBruto["RecipientAlt"]);
+  const participante = jidDe(
+    payload["participant"] ?? payload["author"] ?? infoBruto["Participant"],
+  );
+  const isGroup = /@g\.us$/i.test(chat) || infoBruto["IsGroup"] === true;
   const info: Record<string, unknown> = {
     Chat: chat,
     Sender: (isGroup ? participante : chat) || chat,
     IsFromMe: fromMe,
     IsGroup: isGroup,
-    ID: String(payload["id"] ?? ""),
-    PushName: payload["notifyName"] ?? interno["notifyName"] ?? interno["pushName"] ?? null,
+    ID: String(payload["id"] ?? infoBruto["ID"] ?? ""),
+    PushName:
+      payload["notifyName"] ?? interno["notifyName"] ?? interno["pushName"] ?? infoBruto["PushName"] ?? null,
     ...(isGroup && participante ? { Participant: participante } : {}),
+    ...(senderAlt ? { SenderAlt: senderAlt } : {}),
   };
   // Mensagem enviada pelo celular: o outro lado da conversa é o destino.
-  if (fromMe && !isGroup) info["RecipientAlt"] = jidDe(payload["to"]);
+  if (fromMe && !isGroup) {
+    info["RecipientAlt"] = recipientAlt || jidDe(payload["to"]) || chat;
+  } else if (recipientAlt) {
+    info["RecipientAlt"] = recipientAlt;
+  }
+
 
   const texto = String(payload["body"] ?? "");
   const midia = (payload["media"] ?? null) as Record<string, any> | null;
