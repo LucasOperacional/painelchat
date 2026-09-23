@@ -71,6 +71,16 @@ function pareceIdentificador(valor: string): boolean {
 }
 
 /**
+ * Nome apresentável: precisa de ao menos 2 caracteres e não pode ser um
+ * identificador. Respostas de uma letra só ("A", "B"…) são ignoradas e o
+ * nome real é buscado no histórico e nos metadados do canal.
+ */
+function nomeValido(valor: string): boolean {
+  const limpo = valor.trim();
+  return limpo.length >= 2 && !pareceIdentificador(limpo);
+}
+
+/**
  * Formato real da Evolution Go: o canal vem em
  * { id, thread_metadata: { name: { text }, description: { text }, subscribers_count } }.
  */
