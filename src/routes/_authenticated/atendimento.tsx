@@ -68,6 +68,7 @@ import { ContactBilling } from "@/components/contact-billing";
 import { listarCategoriasAtivas } from "@/lib/estoque.functions";
 import { enviarLoja, produtosDaLoja } from "@/lib/loja.functions";
 import { useMe } from "@/hooks/use-session";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useProjectBranding } from "@/hooks/use-project";
 import { useTheme } from "@/hooks/use-theme";
 import {
@@ -238,6 +239,7 @@ function AtendimentoPage() {
   useEffect(() => {
     if (searchParams.conversation) {
       setSelectedId(searchParams.conversation);
+      setListCollapsed(true);
     }
   }, [searchParams.conversation]);
   const [draft, setDraft] = useState("");
@@ -470,6 +472,7 @@ function AtendimentoPage() {
 
 
   const [showContactPanel, setShowContactPanel] = useState(false);
+  const isMobile = useIsMobile();
   const [listCollapsed, setListCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem("atendimento-list-collapsed") === "true";
@@ -493,6 +496,13 @@ function AtendimentoPage() {
       window.localStorage.setItem("atendimento-list-collapsed", String(listCollapsed));
     }
   }, [listCollapsed]);
+
+  // No celular só cabe uma tela por vez: sem conversa escolhida, a lista volta a aparecer.
+  useEffect(() => {
+    if (isMobile && listCollapsed && !selectedId) setListCollapsed(false);
+  }, [isMobile, listCollapsed, selectedId]);
+
+  const mostrarConversaNoCelular = listCollapsed && !!selectedId;
 
   // Usado pelo aviso de menção: descobre o nome do grupo sem refazer o canal.
   const conversationsRef = useRef<typeof conversations.data>(undefined);
@@ -1009,12 +1019,13 @@ function AtendimentoPage() {
     (profiles.data ?? []).find((p) => p.id === id)?.full_name ?? "—";
 
   return (
-    <div className="flex h-[calc(100svh-3rem)] flex-col overflow-hidden bg-background md:h-screen md:flex-row">
+    <div className="flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden bg-background md:h-screen md:flex-row">
       {/* Lista */}
       <section
         className={cn(
           "flex min-h-0 min-w-0 flex-1 flex-col border-border bg-card transition-[width] duration-200 ease-in-out md:flex-none md:border-r",
-          listCollapsed ? "hidden md:flex md:w-16" : "w-full md:w-[288px] lg:w-[320px]",
+          listCollapsed ? "md:flex md:w-16" : "w-full md:w-[288px] lg:w-[320px]",
+          mostrarConversaNoCelular ? "hidden" : "flex",
         )}
       >
         <div className={cn(listCollapsed ? "p-2" : "space-y-2 border-b border-border p-3")}>
@@ -1176,7 +1187,7 @@ function AtendimentoPage() {
                   setListCollapsed(true);
                 }}
                 className={cn(
-                  "mx-2 mb-1 flex w-[calc(100%-1rem)] items-start gap-2.5 rounded-[8px] border border-transparent px-2.5 py-2 text-left transition-colors hover:bg-muted/60",
+                  "mx-2 mb-1 flex w-[calc(100%-1rem)] touch-manipulation items-start gap-2.5 rounded-[8px] border border-transparent px-2.5 py-3 text-left transition-colors hover:bg-muted/60 active:bg-muted md:py-2",
                   selectedId === c.id && "border-primary/30 bg-primary/10",
                 )}
               >
@@ -1309,7 +1320,12 @@ function AtendimentoPage() {
       </section>
 
       {/* Conversa */}
-      <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-card">
+      <section
+        className={cn(
+          "min-h-0 min-w-0 flex-1 flex-col bg-card md:flex",
+          mostrarConversaNoCelular ? "flex" : "hidden",
+        )}
+      >
         {!selected ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 p-10 text-center">
             <div className="flex size-20 items-center justify-center rounded-full bg-muted">
