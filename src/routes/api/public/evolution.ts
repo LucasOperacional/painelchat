@@ -10,6 +10,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { digitsOnly, exactGroupName, jidToPhone } from "@/lib/phone";
 
 type EvolutionWebhook = {
+  /** Origem detectada antes de normalizar o envelope. */
+  sourceProvider?: "evolution" | "wuzapi" | "waha";
   event?: string;
   state?: string;
   instanceId?: string;
@@ -563,6 +565,7 @@ function fromWuzapi(raw: Record<string, any>): EvolutionWebhook {
   if (!data["jid"] && typeof inner["ID"] === "string") data["jid"] = inner["ID"];
 
   return {
+    sourceProvider: "wuzapi",
     event: WUZAPI_EVENT[type] ?? type,
     data,
     ...(typeof raw["token"] === "string" ? { instanceId: raw["token"] } : {}),
@@ -838,8 +841,11 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
             .select(COLUNAS_CONFIG);
           const lista = (todos ?? []) as unknown as ConfigWebhook[];
           const nomeInstancia = (payload.instanceName ?? "").trim().toLowerCase();
-          // A Evolution Go sempre envia instanceId/instanceName; a WuzAPI não.
-          const provedorProvavel = payload.instanceId || payload.instanceName ? "evolution" : "wuzapi";
+          // O campo `token` da WuzAPI identifica o usuário/sessão dela e é
+          // normalizado como instanceId. Por isso, a presença de instanceId não
+          // pode ser usada para concluir que o evento veio da Evolution Go.
+          const provedorProvavel =
+            payload.sourceProvider ?? (payload.instanceId || payload.instanceName ? "evolution" : "wuzapi");
           const doProvedor = lista.filter(
             (item) => (item.provider ?? "evolution") === provedorProvavel,
           );
