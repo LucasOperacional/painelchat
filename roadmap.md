@@ -12,3 +12,4 @@
 - [x] Mostrar no chat quando uma mensagem for apagada ou editada (Evolution + WuzAPI)
 - [x] Varredura: agendador apontava para endereço antigo (autocorreção pela Sentinela)
 - [x] WAHA: recebimento, envio, mídia, edição, deduplicação e recuperação pelo diário
+- [x] Melhorar o Pix manual com nome, banco, tipo, chave e botão de cópia direta

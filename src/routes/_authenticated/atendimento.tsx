@@ -39,6 +39,8 @@ import {
   Check,
   Ban,
   CheckCheck,
+  Landmark,
+  KeyRound,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -330,10 +332,11 @@ function AtendimentoPage() {
   const [pixForm, setPixForm] = useState({
     title: "Pagamento via Pix",
     description: "",
-    buttonText: "Pagar com Pix",
+    buttonText: "Copiar chave Pix",
     keyType: "random" as PixKeyType,
     key: "",
     name: "",
+    bank: "",
     city: "SAO PAULO",
     amount: "",
   });
@@ -2172,7 +2175,7 @@ function AtendimentoPage() {
             <DialogHeader>
               <DialogTitle>Enviar Pix</DialogTitle>
               <DialogDescription>
-                O contato recebe o QR Code e o código Pix copia e cola para pagar.
+                Envie os dados organizados, com QR Code e botão para copiar a chave Pix.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-1.5">
@@ -2299,17 +2302,30 @@ function AtendimentoPage() {
               </div>
             ) : (
             <>
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="pix-name">Nome do recebedor</Label>
-                <Input
-                  id="pix-name"
-                  value={pixForm.name}
-                  onChange={(e) => setPixForm((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="Ex.: NXS Telecom"
-                />
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="pix-name">Nome do recebedor</Label>
+                  <Input
+                    id="pix-name"
+                    maxLength={60}
+                    value={pixForm.name}
+                    onChange={(e) => setPixForm((f) => ({ ...f, name: e.target.value }))}
+                    placeholder="Ex.: NXS Telecom"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="pix-bank">Banco</Label>
+                  <Input
+                    id="pix-bank"
+                    maxLength={60}
+                    value={pixForm.bank}
+                    onChange={(e) => setPixForm((f) => ({ ...f, bank: e.target.value }))}
+                    placeholder="Ex.: Nubank"
+                  />
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label>Tipo de chave</Label>
                   <Select
@@ -2342,6 +2358,7 @@ function AtendimentoPage() {
                 <Label htmlFor="pix-key">Chave Pix</Label>
                 <Input
                   id="pix-key"
+                  maxLength={120}
                   value={pixForm.key}
                   onChange={(e) => setPixForm((f) => ({ ...f, key: e.target.value }))}
                   placeholder="chave@email.com"
@@ -2355,6 +2372,49 @@ function AtendimentoPage() {
                   onChange={(e) => setPixForm((f) => ({ ...f, city: e.target.value }))}
                   placeholder="SAO PAULO"
                 />
+              </div>
+              <div className="rounded-lg border border-border bg-muted/40 p-3">
+                <div className="mb-3 flex items-center gap-2">
+                  <div className="grid size-8 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground">
+                    <QrCode className="size-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">Prévia para o cliente</p>
+                    <p className="text-xs text-muted-foreground">Confira os dados antes de enviar</p>
+                  </div>
+                </div>
+                <dl className="grid gap-2 text-sm sm:grid-cols-2">
+                  <div className="flex min-w-0 items-start gap-2">
+                    <ContactRound className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0">
+                      <dt className="text-xs text-muted-foreground">Nome</dt>
+                      <dd className="truncate font-medium">{pixForm.name.trim() || "Não informado"}</dd>
+                    </div>
+                  </div>
+                  <div className="flex min-w-0 items-start gap-2">
+                    <Landmark className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0">
+                      <dt className="text-xs text-muted-foreground">Banco</dt>
+                      <dd className="truncate font-medium">{pixForm.bank.trim() || "Não informado"}</dd>
+                    </div>
+                  </div>
+                  <div className="flex min-w-0 items-start gap-2 sm:col-span-2">
+                    <KeyRound className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0">
+                      <dt className="text-xs text-muted-foreground">
+                        {PIX_KEY_TYPES.find((tipo) => tipo.value === pixForm.keyType)?.label ?? "Chave Pix"}
+                      </dt>
+                      <dd className="break-all font-medium">{pixForm.key.trim() || "Não informada"}</dd>
+                    </div>
+                  </div>
+                </dl>
+                <div className="mt-3 flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground">
+                  <KeyRound className="size-4" />
+                  {pixForm.buttonText.trim() || "Copiar chave Pix"}
+                </div>
+                <p className="mt-2 text-center text-xs text-muted-foreground">
+                  Ao tocar, o cliente copia somente a chave Pix.
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="pix-title">Título</Label>
@@ -2392,6 +2452,7 @@ function AtendimentoPage() {
                   !selectedId ||
                   !pixForm.key.trim() ||
                   !pixForm.name.trim() ||
+                  !pixForm.bank.trim() ||
                   sendPixMutation.isPending
                 }
                 onClick={() => sendPixMutation.mutate()}
