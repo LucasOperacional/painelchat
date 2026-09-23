@@ -21,6 +21,7 @@ const pixSchema = z.object({
   keyType: z.enum(["phone", "email", "cpf", "cnpj", "random"]),
   key: z.string().trim().min(3, "Informe a chave Pix").max(120),
   name: z.string().trim().min(1, "Informe o nome do recebedor").max(60),
+  bank: z.string().trim().min(2, "Informe o banco").max(60),
   city: z.string().trim().max(40).default("SAO PAULO"),
   amount: z.string().trim().max(20).default(""),
   estoqueCategoriaId: z.string().uuid().nullable().default(null),
@@ -91,6 +92,8 @@ function pixText(input: {
   title: string;
   description: string;
   name: string;
+    bank: string;
+    keyType: PixKeyType;
   key: string;
   amount: string;
   payload: string;
@@ -100,8 +103,12 @@ function pixText(input: {
   if (input.amount) lines.push("", `Valor: R$ ${input.amount}`);
   lines.push(
     "",
-    `Recebedor: ${input.name}`,
-    `Chave Pix: \`\`\`${input.key}\`\`\``,
+    `*Nome:* ${input.name}`,
+    `*Banco:* ${input.bank}`,
+    `*Tipo de chave:* ${PIX_KEY_TYPES.find((tipo) => tipo.value === input.keyType)?.label ?? "Chave Pix"}`,
+    `*Chave Pix:* \`\`\`${input.key}\`\`\``,
+    "",
+    "Toque no botão abaixo para copiar a chave Pix e cole no aplicativo do seu banco.",
     "",
     "Pix copia e cola:",
     `\`\`\`${input.payload}\`\`\``,
@@ -238,8 +245,12 @@ export const sendPixCard = createServerFn({ method: "POST" })
 
       const descricao = [
         data.description,
-        `${PIX_KEY_TYPES.find((t) => t.value === data.keyType)?.label ?? "Chave"}: ${data.key}`,
+        `Nome: ${data.name}`,
+        `Banco: ${data.bank}`,
+        `Tipo de chave: ${PIX_KEY_TYPES.find((t) => t.value === data.keyType)?.label ?? "Chave Pix"}`,
+        `Chave Pix: ${data.key}`,
         data.amount ? `Valor: R$ ${data.amount}` : "",
+        "Toque no botão abaixo para copiar a chave Pix.",
       ]
         .filter(Boolean)
         .join("\n");
@@ -249,7 +260,7 @@ export const sendPixCard = createServerFn({ method: "POST" })
         title: data.name || data.title,
         description: descricao,
         footer: data.title,
-        copyCode: payload,
+        copyCode: normalizePixKey(data.key, data.keyType),
         buttonLabel: data.buttonText || "Copiar chave Pix",
         imageUrl: qrUrl,
         texto: body,
