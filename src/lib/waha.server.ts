@@ -208,6 +208,77 @@ type SessionInfo = {
   config?: { webhooks?: Array<{ url?: string; events?: string[] }> } | null;
 };
 
+/** Situação atual da sessão na WAHA (em maiúsculas). */
+async function sessionStatus(options: WahaCall, session: string): Promise<string> {
+  try {
+    const info = await call<SessionInfo>({
+      baseUrl: options.baseUrl,
+      apiKey: options.apiKey,
+      path: `/api/sessions/${encodeURIComponent(session)}`,
+      method: "GET",
+      timeoutMs: 10_000,
+    });
+    return String(info?.status ?? "").toUpperCase();
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * A WAHA só entrega o QR Code quando a sessão está em SCAN_QR_CODE. Se ela
+ * estiver parada ou com falha (FAILED), o pedido do QR volta com erro 422 e a
+ * tela ficava sem imagem: aqui a sessão é iniciada/reiniciada até chegar nesse
+ * estado.
+ */
+async function ensureScanState(options: WahaCall, session: string): Promise<string> {
+  let status = await sessionStatus(options, session);
+  if (status === "WORKING" || status === "SCAN_QR_CODE") return status;
+
+  const action = async (act: "stop" | "start" | "restart" | "logout") => {
+    try {
+      await call({
+        baseUrl: options.baseUrl,
+        apiKey: options.apiKey,
+        path: `/api/sessions/${encodeURIComponent(session)}/${act}`,
+        method: "POST",
+        body: {},
+        timeoutMs: 30_000,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const waitScan = async (rounds: number) => {
+    for (let attempt = 0; attempt < rounds; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      status = await sessionStatus(options, session);
+      if (status === "SCAN_QR_CODE" || status === "WORKING") return true;
+    }
+    return false;
+  };
+
+  // Sessão com falha: o "restart" do servidor costuma responder erro 500, então
+  // paramos e iniciamos de novo.
+  if (status === "FAILED") {
+    await action("stop");
+    await new Promise((resolve) => setTimeout(resolve, 800));
+  }
+  if (!(await action("start")) && status !== "FAILED") await action("restart");
+  if (await waitScan(10)) return status;
+
+  // Ainda com falha: a credencial guardada no servidor está corrompida. Limpar
+  // o login (logout) e iniciar de novo devolve a sessão ao estado de leitura.
+  await action("logout");
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+  await action("start");
+  await waitScan(12);
+  return status;
+}
+
+
+
 /** QR Code da sessão, já no formato aceito pela central (data URL). */
 async function readQr(options: WahaCall, session: string): Promise<string | null> {
   try {
@@ -229,6 +300,7 @@ async function readQr(options: WahaCall, session: string): Promise<string | null
   return null;
 }
 
+
 function sessionOf(options: WahaCall): string {
   const body = (options.body ?? {}) as Record<string, any>;
   return (
@@ -243,18 +315,28 @@ function sessionOf(options: WahaCall): string {
  * seguinte também ficaria esperando sem resposta.
  */
 async function reviveSession(options: WahaCall, session: string): Promise<boolean> {
-  try {
-    await call({
-      baseUrl: options.baseUrl,
-      apiKey: options.apiKey,
-      path: `/api/sessions/${encodeURIComponent(session)}/restart`,
-      method: "POST",
-      body: {},
-      timeoutMs: 30_000,
-    });
-  } catch {
-    return false;
+  const post = async (act: "restart" | "stop" | "start") => {
+    try {
+      await call({
+        baseUrl: options.baseUrl,
+        apiKey: options.apiKey,
+        path: `/api/sessions/${encodeURIComponent(session)}/${act}`,
+        method: "POST",
+        body: {},
+        timeoutMs: 30_000,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  if (!(await post("restart"))) {
+    // Alguns estados recusam o "restart": parar e iniciar resolve.
+    await post("stop");
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    if (!(await post("start"))) return false;
   }
+
   for (let attempt = 0; attempt < 10; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 1200));
     try {
@@ -348,11 +430,8 @@ async function wahaDispatchOnce(options: WahaCall): Promise<unknown> {
         if (!isNotFoundError(error)) throw error;
         await run("/api/sessions", "POST", { name: session, start: true, config });
       }
-      try {
-        await run(`/api/sessions/${encodeURIComponent(session)}/start`, "POST", {});
-      } catch (error) {
-        if (!isAlreadyError(error)) throw error;
-      }
+      // Garante que a sessão esteja pronta para leitura (ou já conectada).
+      const state = await ensureScanState(options, session);
 
       let jid = "";
       try {
@@ -362,21 +441,27 @@ async function wahaDispatchOnce(options: WahaCall): Promise<unknown> {
         /* sessão iniciando: seguimos para o QR */
       }
       let qrcode: string | null = null;
-      if (!jid) {
-        for (let attempt = 0; attempt < 3 && !qrcode; attempt += 1) {
-          if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 600));
+      if (!jid && state !== "WORKING") {
+        for (let attempt = 0; attempt < 4 && !qrcode; attempt += 1) {
+          if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 800));
           qrcode = await readQr(options, session);
         }
       }
       return { data: { jid, webhookUrl: webhook, ...(qrcode ? { Qrcode: qrcode } : {}) } };
     }
     case "/instance/qr": {
-      let qrcode: string | null = null;
-      for (let attempt = 0; attempt < 3 && !qrcode; attempt += 1) {
-        if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 500));
-        qrcode = await readQr(options, session);
+      let qrcode = await readQr(options, session);
+      if (!qrcode) {
+        const state = await ensureScanState(options, session);
+        if (state !== "WORKING") {
+          for (let attempt = 0; attempt < 4 && !qrcode; attempt += 1) {
+            if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 800));
+            qrcode = await readQr(options, session);
+          }
+        }
       }
       if (!qrcode) throw new Error("No QR code available yet, wait a moment and try again.");
+
       return { data: { Qrcode: qrcode, Code: null } };
     }
     case "/instance/status": {
