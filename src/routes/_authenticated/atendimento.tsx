@@ -38,13 +38,14 @@ import {
   Archive,
   Check,
   Ban,
+  CheckCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 
 
 import { supabase } from "@/integrations/supabase/client";
 import { MessageBody, parseAttachments, parseGroupMessage } from "@/components/message-body";
-import { deleteWhatsappMessage, sendWhatsappMessage } from "@/lib/whatsapp.functions";
+import { deleteWhatsappMessage, markWhatsappRead, sendWhatsappMessage } from "@/lib/whatsapp.functions";
 import {
   listButtonMenus,
   formatButtonMenuText,
@@ -984,6 +985,7 @@ function AtendimentoPage() {
   });
 
   const deleteMessageFn = useServerFn(deleteWhatsappMessage);
+  const markReadFn = useServerFn(markWhatsappRead);
   const removeMessage = useMutation({
     mutationFn: async (messageId: string) => deleteMessageFn({ data: { messageId } }),
     onSuccess: (res) => {
@@ -1403,6 +1405,22 @@ function AtendimentoPage() {
 
                 {selected.status !== "closed" && (
                   <>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      aria-label="Marcar como vista no WhatsApp"
+                      title="Marcar como vista no WhatsApp"
+                      onClick={async () => {
+                        try {
+                          const r = await markReadFn({ data: { conversationId: selectedId! } });
+                          toast.success(r.count ? "Mensagens marcadas como vistas no WhatsApp" : "Nenhuma mensagem recebida para marcar");
+                        } catch (e) {
+                          toast.error(`Não foi possível marcar como vista: ${(e as Error).message}`);
+                        }
+                      }}
+                    >
+                      <CheckCheck className="size-4 text-primary" />
+                    </Button>
                     <Button size="icon" variant="outline" aria-label="Transferir" title="Transferir" onClick={() => setTransferOpen(true)}>
                       <ArrowRightLeft className="size-4" />
                     </Button>

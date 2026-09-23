@@ -521,6 +521,16 @@ export async function wuzapiDispatch(options: WuzapiCall): Promise<unknown> {
       });
       return { data: data ?? {} };
     }
+    case "/message/markread": {
+      const raw = String(body["number"] ?? "");
+      const chat = raw.includes("@") ? raw : `${toPhone(raw)}@s.whatsapp.net`;
+      const data = await run("/chat/markread", "POST", {
+        Id: ((body["id"] ?? []) as string[]).filter(Boolean),
+        Chat: chat,
+        ChatPhone: raw.includes("@") ? undefined : toPhone(raw),
+      });
+      return { data: data ?? {} };
+    }
 
     // -------------------------------------------------------- contatos/grupos
     case "/user/avatar": {

@@ -28,6 +28,10 @@ export function ChatAudioPlayer({
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [rate, setRate] = useState(1);
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.playbackRate = rate;
+  }, [rate, src]);
   const progress = duration > 0 ? currentTime / duration : 0;
   const activeBars = useMemo(() => Math.round(progress * WAVEFORM.length), [progress]);
 
@@ -59,6 +63,12 @@ export function ChatAudioPlayer({
     if (!audio) return;
     if (audio.paused) await audio.play();
     else audio.pause();
+  }
+
+  function cycleRate() {
+    const next = rate === 1 ? 1.5 : rate === 1.5 ? 2 : 1;
+    setRate(next);
+    if (audioRef.current) audioRef.current.playbackRate = next;
   }
 
   function seek(value: number) {
@@ -110,14 +120,28 @@ export function ChatAudioPlayer({
             aria-label="Avançar ou voltar no áudio"
           />
         </label>
-        <span
-          className={cn(
-            "block text-[10px] tabular-nums",
-            mine ? "text-message-sent-foreground/70" : "text-muted-foreground",
-          )}
-        >
-          {formatTime(playing || currentTime > 0 ? currentTime : duration)}
-        </span>
+        <div className="flex items-center justify-between">
+          <span
+            className={cn(
+              "block text-[10px] tabular-nums",
+              mine ? "text-message-sent-foreground/70" : "text-muted-foreground",
+            )}
+          >
+            {formatTime(playing || currentTime > 0 ? currentTime : duration)}
+          </span>
+          <button
+            type="button"
+            onClick={cycleRate}
+            aria-label="Velocidade do áudio"
+            title="Velocidade do áudio"
+            className={cn(
+              "rounded-full px-1.5 text-[10px] font-semibold tabular-nums",
+              mine ? "bg-message-sent-foreground/20 text-message-sent-foreground" : "bg-primary/15 text-primary",
+            )}
+          >
+            {rate}x
+          </button>
+        </div>
       </div>
 
       <span className="relative shrink-0">

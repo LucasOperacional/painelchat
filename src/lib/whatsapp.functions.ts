@@ -1725,3 +1725,45 @@ export const deleteWhatsappMessage = createServerFn({ method: "POST" })
 
     return { ok: true, removedOnWhatsapp, warning };
   });
+
+/** Marca como vistas no WhatsApp as últimas mensagens recebidas da conversa. */
+export const markWhatsappRead = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: unknown) => z.object({ conversationId: z.string().uuid() }).parse(data))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { data: conversation, error } = await supabase
+      .from("conversations")
+      .select("id, whatsapp_config_id, contact:contacts(phone, wa_jid)")
+      .eq("id", data.conversationId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    const contact = (conversation?.contact ?? null) as { phone: string; wa_jid: string | null } | null;
+    if (!conversation || !contact) throw new Error("Conversa não encontrada.");
+
+    const { data: msgs } = await supabase
+      .from("messages")
+      .select("external_id")
+      .eq("conversation_id", data.conversationId)
+      .eq("direction", "inbound")
+      .not("external_id", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    const ids = ((msgs ?? []) as { external_id: string | null }[])
+      .map((m) => m.external_id)
+      .filter((v): v is string => !!v);
+    if (ids.length === 0) return { ok: true, count: 0 };
+
+    const { ensureEvolutionDevice, evolutionMarkRead } = await import("@/lib/evolution.server");
+    const { digitsOnly } = await import("@/lib/phone");
+    const config = await ensureEvolutionDevice(conversation.whatsapp_config_id ?? null);
+    if (!config.base_url || !config.instance_id) throw new Error("Dispositivo de WhatsApp não configurado.");
+    const isGroup = !!contact.wa_jid?.includes("@g.us");
+    const jidDigits = contact.wa_jid ? digitsOnly(contact.wa_jid.split("@")[0] ?? "") : "";
+    const number = isGroup ? contact.wa_jid! : `${jidDigits || digitsOnly(contact.phone)}@s.whatsapp.net`;
+    await evolutionMarkRead(
+      { baseUrl: config.base_url, instanceId: config.instance_id, configId: config.id },
+      { number, ids },
+    );
+    return { ok: true, count: ids.length };
+  });
