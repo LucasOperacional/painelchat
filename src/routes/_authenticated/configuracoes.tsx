@@ -202,132 +202,132 @@ function OtimizacaoCard() {
   const ultimo = status.data?.settings.ultimo_relatorio ?? null;
   const ultimaExec = status.data?.settings.ultima_execucao ?? null;
 
+  const statusText = ativo
+    ? ultimaExec
+      ? `Ativada — última em ${new Date(ultimaExec).toLocaleString("pt-BR")}`
+      : "Ativada — ainda não executada"
+    : "Desativada";
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Gauge className="size-4" /> Otimização automática do servidor
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        <p className="text-sm text-muted-foreground">
-          O sistema limpa registros antigos, apaga arquivos sem conversa e libera espaço sozinho, na
-          frequência escolhida abaixo.
-        </p>
+    <ConfigSectionCard
+      icon={Gauge}
+      title="Otimização automática do servidor"
+      description="Limpa registros antigos, apaga arquivos sem conversa e libera espaço sozinho."
+      status={statusText}
+      statusOk={ativo}
+    >
+      <p className="text-sm text-muted-foreground">
+        O sistema limpa registros antigos, apaga arquivos sem conversa e libera espaço sozinho, na
+        frequência escolhida abaixo.
+      </p>
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-md border border-border p-3">
-            <p className="text-xs text-muted-foreground">Espaço usado</p>
-            <p className="text-lg font-semibold text-foreground">
-              {formatarBytes(uso?.tamanho_banco)}
-            </p>
-          </div>
-          <div className="rounded-md border border-border p-3">
-            <p className="text-xs text-muted-foreground">Mensagens guardadas</p>
-            <p className="text-lg font-semibold text-foreground">{uso?.mensagens ?? 0}</p>
-          </div>
-          <div className="rounded-md border border-border p-3">
-            <p className="text-xs text-muted-foreground">Registros técnicos</p>
-            <p className="text-lg font-semibold text-foreground">{uso?.eventos ?? 0}</p>
-          </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-md border border-border p-3">
+          <p className="text-xs text-muted-foreground">Espaço usado</p>
+          <p className="text-lg font-semibold text-foreground">
+            {formatarBytes(uso?.tamanho_banco)}
+          </p>
         </div>
-
-        <div className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
-          <div>
-            <p className="text-sm font-medium text-foreground">Limpeza automática</p>
-            <p className="text-xs text-muted-foreground">
-              {ativo ? "Ativada" : "Desativada"}
-              {ultimaExec
-                ? ` — última em ${new Date(ultimaExec).toLocaleString("pt-BR")}`
-                : " — ainda não executada"}
-            </p>
-          </div>
-          <Switch checked={ativo} onCheckedChange={setAtivo} />
+        <div className="rounded-md border border-border p-3">
+          <p className="text-xs text-muted-foreground">Mensagens guardadas</p>
+          <p className="text-lg font-semibold text-foreground">{uso?.mensagens ?? 0}</p>
         </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="otim-intervalo">Rodar a cada (horas)</Label>
-            <Input
-              id="otim-intervalo"
-              inputMode="numeric"
-              value={intervalo}
-              onChange={(e) => setIntervalo(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="otim-eventos">Guardar registros técnicos por (horas)</Label>
-            <Input
-              id="otim-eventos"
-              inputMode="numeric"
-              value={eventos}
-              onChange={(e) => setEventos(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="otim-logs">Guardar relatórios de segurança por (dias)</Label>
-            <Input
-              id="otim-logs"
-              inputMode="numeric"
-              value={logs}
-              onChange={(e) => setLogs(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="otim-mensagens">Apagar conversas com mais de (dias)</Label>
-            <Input
-              id="otim-mensagens"
-              inputMode="numeric"
-              value={mensagens}
-              onChange={(e) => setMensagens(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Use 0 para nunca apagar mensagens do histórico.
-            </p>
-          </div>
+        <div className="rounded-md border border-border p-3">
+          <p className="text-xs text-muted-foreground">Registros técnicos</p>
+          <p className="text-lg font-semibold text-foreground">{uso?.eventos ?? 0}</p>
         </div>
+      </div>
 
-        <div className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
-          <div>
-            <p className="text-sm font-medium text-foreground">Apagar arquivos sem conversa</p>
-            <p className="text-xs text-muted-foreground">
-              Remove fotos e áudios de conversas que já não existem mais.
-            </p>
-          </div>
-          <Switch checked={anexos} onCheckedChange={setAnexos} />
+      <div className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
+        <div>
+          <p className="text-sm font-medium text-foreground">Limpeza automática</p>
+          <p className="text-xs text-muted-foreground">{statusText}</p>
         </div>
+        <Switch checked={ativo} onCheckedChange={setAtivo} />
+      </div>
 
-        {ultimo && (
-          <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
-            <p className="font-medium text-foreground">Última otimização</p>
-            <p>
-              Espaço liberado: {formatarBytes(ultimo.liberado)} · {ultimo.eventos_removidos} registro
-              (s) técnicos · {ultimo.mensagens_removidas} mensagem(ns) antigas.
-            </p>
-          </div>
-        )}
-
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" onClick={() => salvar.mutate()} disabled={salvar.isPending}>
-            {salvar.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
-            Salvar limpeza automática
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => rodar.mutate()}
-            disabled={rodar.isPending}
-          >
-            {rodar.isPending ? (
-              <Loader2 className="mr-2 size-4 animate-spin" />
-            ) : (
-              <Sparkles className="mr-2 size-4" />
-            )}
-            Otimizar agora
-          </Button>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="otim-intervalo">Rodar a cada (horas)</Label>
+          <Input
+            id="otim-intervalo"
+            inputMode="numeric"
+            value={intervalo}
+            onChange={(e) => setIntervalo(e.target.value)}
+          />
         </div>
-      </CardContent>
-    </Card>
+        <div className="space-y-2">
+          <Label htmlFor="otim-eventos">Guardar registros técnicos por (horas)</Label>
+          <Input
+            id="otim-eventos"
+            inputMode="numeric"
+            value={eventos}
+            onChange={(e) => setEventos(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="otim-logs">Guardar relatórios de segurança por (dias)</Label>
+          <Input
+            id="otim-logs"
+            inputMode="numeric"
+            value={logs}
+            onChange={(e) => setLogs(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="otim-mensagens">Apagar conversas com mais de (dias)</Label>
+          <Input
+            id="otim-mensagens"
+            inputMode="numeric"
+            value={mensagens}
+            onChange={(e) => setMensagens(e.target.value)}
+          />
+          <p className="text-xs text-muted-foreground">
+            Use 0 para nunca apagar mensagens do histórico.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
+        <div>
+          <p className="text-sm font-medium text-foreground">Apagar arquivos sem conversa</p>
+          <p className="text-xs text-muted-foreground">
+            Remove fotos e áudios de conversas que já não existem mais.
+          </p>
+        </div>
+        <Switch checked={anexos} onCheckedChange={setAnexos} />
+      </div>
+
+      {ultimo && (
+        <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">Última otimização</p>
+          <p>
+            Espaço liberado: {formatarBytes(ultimo.liberado)} · {ultimo.eventos_removidos} registro
+            (s) técnicos · {ultimo.mensagens_removidas} mensagem(ns) antigas.
+          </p>
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" onClick={() => salvar.mutate()} disabled={salvar.isPending}>
+          {salvar.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+          Salvar limpeza automática
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => rodar.mutate()}
+          disabled={rodar.isPending}
+        >
+          {rodar.isPending ? (
+            <Loader2 className="mr-2 size-4 animate-spin" />
+          ) : (
+            <Sparkles className="mr-2 size-4" />
+          )}
+          Otimizar agora
+        </Button>
+      </div>
+    </ConfigSectionCard>
   );
 }
 
