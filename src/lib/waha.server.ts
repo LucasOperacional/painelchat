@@ -97,6 +97,16 @@ function isNotFoundError(error: unknown): boolean {
   return /não encontrou essa sessão|not found/i.test(message);
 }
 
+/**
+ * Sessão travada: o servidor aceita a requisição e nunca responde (ou o proxy
+ * devolve 502/504). Nesse estado o envio ficava minutos "em andamento".
+ */
+function isStuckError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /não respondeu no tempo esperado|gateway time-?out|HTTP 50[24]|\b50[24]\b/i.test(message);
+}
+
+
 /** Requisição bruta a um endpoint da WAHA (já com repetição em 429/5xx). */
 async function call<T = unknown>(options: WahaCall & { raw?: boolean }): Promise<T> {
   const base = normalizeWahaBaseUrl(options.baseUrl);
@@ -219,15 +229,73 @@ async function readQr(options: WahaCall, session: string): Promise<string | null
   return null;
 }
 
+function sessionOf(options: WahaCall): string {
+  const body = (options.body ?? {}) as Record<string, any>;
+  return (
+    (options.session ?? "").trim() ||
+    String(body["name"] ?? body["session"] ?? "").trim() ||
+    "default"
+  );
+}
+
+/**
+ * Reinicia a sessão travada e espera ela voltar a funcionar. Sem isso o envio
+ * seguinte também ficaria esperando sem resposta.
+ */
+async function reviveSession(options: WahaCall, session: string): Promise<boolean> {
+  try {
+    await call({
+      baseUrl: options.baseUrl,
+      apiKey: options.apiKey,
+      path: `/api/sessions/${encodeURIComponent(session)}/restart`,
+      method: "POST",
+      body: {},
+      timeoutMs: 30_000,
+    });
+  } catch {
+    return false;
+  }
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    try {
+      const info = await call<SessionInfo>({
+        baseUrl: options.baseUrl,
+        apiKey: options.apiKey,
+        path: `/api/sessions/${encodeURIComponent(session)}`,
+        method: "GET",
+        timeoutMs: 10_000,
+      });
+      if (String(info?.status ?? "").toUpperCase() === "WORKING") return true;
+    } catch {
+      /* ainda iniciando */
+    }
+  }
+  return false;
+}
+
 /**
  * Executa uma chamada da central (formato Evolution Go) usando a WAHA.
- * Devolve sempre { data: ... } para manter o restante do sistema inalterado.
+ * Quando a sessão está travada (servidor sem resposta), reinicia e reenvia uma
+ * única vez, para a mensagem sair em segundos em vez de ficar minutos parada.
  */
 export async function wahaDispatch(options: WahaCall): Promise<unknown> {
+  try {
+    return await wahaDispatchOnce(options);
+  } catch (error) {
+    const isSend = options.path.startsWith("/send/");
+    if (!isSend || !isStuckError(error)) throw error;
+    const session = sessionOf(options);
+    console.error(`[waha] sessão ${session} travada — reiniciando e reenviando`);
+    if (!(await reviveSession(options, session))) throw error;
+    return await wahaDispatchOnce(options);
+  }
+}
+
+async function wahaDispatchOnce(options: WahaCall): Promise<unknown> {
   const { path } = options;
   const body = (options.body ?? {}) as Record<string, any>;
-  const session =
-    (options.session ?? "").trim() || String(body["name"] ?? body["session"] ?? "").trim() || "default";
+  const session = sessionOf(options);
+
 
   const run = <T = unknown>(innerPath: string, method: Method, innerBody?: unknown, timeoutMs?: number) =>
     call<T>({
@@ -254,8 +322,11 @@ export async function wahaDispatch(options: WahaCall): Promise<unknown> {
       : {}),
   });
 
+  // Texto não precisa de espera longa: se passar disso a sessão está travada e
+  // o envio é retomado depois de reiniciá-la.
+  const TEXT_TIMEOUT = 25_000;
   const sendText = async (chatId: string, text: string) =>
-    sentEnvelope(await run("/api/sendText", "POST", { session, chatId, text }));
+    sentEnvelope(await run("/api/sendText", "POST", { session, chatId, text }, TEXT_TIMEOUT));
 
   switch (path) {
     // ----------------------------------------------------------------- sessão
@@ -362,12 +433,17 @@ export async function wahaDispatch(options: WahaCall): Promise<unknown> {
     // ------------------------------------------------------------------ envio
     case "/send/text": {
       const quoted = body["quoted"] as { messageId?: string } | undefined;
-      const data = await run("/api/sendText", "POST", {
-        session,
-        chatId: toChatId(body["number"]),
-        text: String(body["text"] ?? ""),
-        ...(quoted?.messageId ? { reply_to: quoted.messageId } : {}),
-      });
+      const data = await run(
+        "/api/sendText",
+        "POST",
+        {
+          session,
+          chatId: toChatId(body["number"]),
+          text: String(body["text"] ?? ""),
+          ...(quoted?.messageId ? { reply_to: quoted.messageId } : {}),
+        },
+        TEXT_TIMEOUT,
+      );
       return sentEnvelope(data);
     }
     case "/send/link": {
