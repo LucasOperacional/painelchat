@@ -1617,6 +1617,13 @@ export async function ensureEvolutionDevice(configId?: string | null): Promise<E
   const envInstanceName = (process.env["EVOLUTION_INSTANCE_NAME"] ?? "central").trim();
 
   if (!config) {
+    // Só criamos o aparelho principal quando ninguém foi indicado. Com um
+    // aparelho indicado, um erro claro é melhor do que responder por outro número.
+    if (configId) {
+      throw new Error(
+        "O aparelho desta conversa não está mais disponível. Transfira a conversa para outro aparelho antes de responder.",
+      );
+    }
     const { data: created, error } = await supabaseAdmin
       .from("whatsapp_config")
       .insert({
