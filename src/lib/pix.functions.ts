@@ -17,7 +17,7 @@ const pixSchema = z.object({
   conversationId: z.string().uuid(),
   title: z.string().trim().max(60).default("Pagamento via Pix"),
   description: z.string().trim().max(600).default(""),
-  buttonText: z.string().trim().max(20).default("Pagar com Pix"),
+  buttonText: z.string().trim().max(20).default("Copiar chave Pix"),
   keyType: z.enum(["phone", "email", "cpf", "cnpj", "random"]),
   key: z.string().trim().min(3, "Informe a chave Pix").max(120),
   name: z.string().trim().min(1, "Informe o nome do recebedor").max(60),
@@ -92,8 +92,8 @@ function pixText(input: {
   title: string;
   description: string;
   name: string;
-    bank: string;
-    keyType: PixKeyType;
+  bank: string;
+  keyType: PixKeyType;
   key: string;
   amount: string;
   payload: string;

@@ -332,7 +332,7 @@ function AtendimentoPage() {
   const [pixForm, setPixForm] = useState({
     title: "Pagamento via Pix",
     description: "",
-    buttonText: "Pagar com Pix",
+    buttonText: "Copiar chave Pix",
     keyType: "random" as PixKeyType,
     key: "",
     name: "",
