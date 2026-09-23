@@ -431,6 +431,8 @@ async function reviveSession(options: WahaCall, session: string): Promise<boolea
  * Quando a sessão está travada (servidor sem resposta), reinicia e reenvia uma
  * única vez, para a mensagem sair em segundos em vez de ficar minutos parada.
  */
+const lastRevive = new Map<string, number>();
+
 export async function wahaDispatch(options: WahaCall): Promise<unknown> {
   try {
     return await wahaDispatchOnce(options);
@@ -438,7 +440,33 @@ export async function wahaDispatch(options: WahaCall): Promise<unknown> {
     const isSend = options.path.startsWith("/send/");
     if (!isSend || !isStuckError(error)) throw error;
     const session = sessionOf(options);
-    console.error(`[waha] sessão ${session} travada — reiniciando e reenviando`);
+    // Só reinicia se a sessão realmente não estiver funcionando. Reiniciar uma
+    // sessão ativa derrubava o WhatsApp por alguns segundos (perdendo avisos
+    // de mensagens) e o reenvio podia duplicar a mensagem já entregue.
+    let status = "";
+    try {
+      const info = await call<SessionInfo>({
+        baseUrl: options.baseUrl,
+        apiKey: options.apiKey,
+        path: `/api/sessions/${encodeURIComponent(session)}`,
+        method: "GET",
+        timeoutMs: 8_000,
+      });
+      status = String(info?.status ?? "").toUpperCase();
+    } catch {
+      status = "";
+    }
+    if (status === "WORKING") {
+      console.error(`[waha] sessão ${session} lenta, mas ativa — sem reinício nem reenvio`);
+      throw new Error(
+        "A WAHA demorou para confirmar o envio. A mensagem pode ter saído; confira no WhatsApp antes de reenviar.",
+      );
+    }
+    const agora = Date.now();
+    const ultimo = lastRevive.get(session) ?? 0;
+    if (agora - ultimo < 5 * 60_000) throw error;
+    lastRevive.set(session, agora);
+    console.error(`[waha] sessão ${session} parada (${status || "sem resposta"}) — reiniciando e reenviando`);
     if (!(await reviveSession(options, session))) throw error;
     return await wahaDispatchOnce(options);
   }
