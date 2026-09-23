@@ -10,9 +10,12 @@
 
 export const WAHA_DEFAULT_BASE_URL = "http://localhost:3000";
 
-/** Eventos assinados no webhook da sessão. */
+/**
+ * Eventos assinados no webhook da sessão.
+ * "message.any" já traz recebidas e enviadas, então "message" não é assinado
+ * para a mesma mensagem não chegar duas vezes.
+ */
 export const WAHA_EVENTS = [
-  "message",
   "message.any",
   "message.reaction",
   "message.ack",
@@ -20,6 +23,7 @@ export const WAHA_EVENTS = [
   "message.revoked",
   "session.status",
 ] as const;
+
 
 type Method = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
