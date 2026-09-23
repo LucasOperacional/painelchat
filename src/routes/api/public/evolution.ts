@@ -740,6 +740,8 @@ async function readWebhookBody(request: Request): Promise<EvolutionWebhook> {
       /* texto ilegível: segue com o corpo original */
     }
   }
+  // Envelope da WAHA: { event, session, payload }.
+  if (pareceWaha(raw)) return fromWaha(raw);
   // Envelope da WuzAPI: { type, event: { Info, Message }, contact, ... }.
   const pareceWuzapi =
     !!raw &&
