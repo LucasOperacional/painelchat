@@ -320,6 +320,54 @@ export async function listarCanais(deviceId: string | null): Promise<{
   return { canais: comOrdem, aviso };
 }
 
+/** Cache curto dos nomes resolvidos, para não consultar a API a cada leitura. */
+const cacheNomesCanais = new Map<string, { nome: string; em: number }>();
+
+/**
+ * Resolve o nome real de cada canal (jid). Usado para que as publicações
+ * recebidas mostrem o nome do canal, mesmo quando o webhook não o enviou.
+ */
+export async function nomesDosCanais(
+  deviceId: string | null,
+  jids: string[],
+): Promise<Map<string, string>> {
+  const resposta = new Map<string, string>();
+  const unicos = Array.from(new Set(jids.map((j) => j.trim()).filter(Boolean))).slice(0, 12);
+  const pendentes: string[] = [];
+  const agora = Date.now();
+  for (const jid of unicos) {
+    const emCache = cacheNomesCanais.get(jid);
+    if (emCache && agora - emCache.em < 10 * 60 * 1000) {
+      if (nomeValido(emCache.nome)) resposta.set(jid, emCache.nome);
+    } else {
+      pendentes.push(jid);
+    }
+  }
+  if (pendentes.length === 0) return resposta;
+
+  let device;
+  try {
+    device = await resolverDispositivo(deviceId);
+  } catch {
+    return resposta;
+  }
+  const historico = await nomesConhecidos();
+  for (const jid of pendentes) {
+    const doHistorico = historico.get(jid) ?? "";
+    const nome = nomeValido(doHistorico)
+      ? doHistorico
+      : (
+          await buscarNomeCanal(
+            { base_url: device.base_url, instance_id: device.instance_id, id: device.id },
+            jid,
+          )
+        ).nome;
+    cacheNomesCanais.set(jid, { nome, em: Date.now() });
+    if (nomeValido(nome)) resposta.set(jid, nome);
+  }
+  return resposta;
+}
+
 /**
  * Publica no canal. Só funciona quando o número conectado é dono (owner) ou
  * administrador (admin) do canal — a lista da API é a fonte da verdade.
