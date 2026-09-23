@@ -1197,222 +1197,226 @@ function ButtonMenusCard() {
       toast.error("Não foi possível remover", { description: error.message }),
   });
 
+  const menusCount = (menus.data ?? []).length;
+
   return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <ListOrdered className="size-4 text-primary" /> Menus de botão
-        </CardTitle>
-        <Button size="sm" variant="outline" onClick={() => openEditor(null)}>
-          <Plus className="size-4" /> Novo menu
-        </Button>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <ConfigSectionCard
+      icon={ListOrdered}
+      title="Menus de botão"
+      description="Menus numerados que o atendente envia ao iniciar uma conversa."
+      status={menus.isLoading ? "Carregando..." : `${menusCount} menu(s) criado(s)`}
+      statusOk={menusCount > 0}
+    >
+      <div className="flex items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
           Menus numerados que o atendente envia ao iniciar uma conversa. O cliente responde com o
           número da opção.
         </p>
-        {menus.isLoading ? (
-          <Loader2 className="size-4 animate-spin text-muted-foreground" />
-        ) : (menus.data ?? []).length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhum menu criado ainda.</p>
-        ) : (
-          <ul className="space-y-2">
-            {(menus.data ?? []).map((menu) => (
-              <li
-                key={menu.id}
-                className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{menu.title}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {MENU_KIND_LABELS[menu.kind ?? "text"]} · {menu.options.length} opção(ões):{" "}
-                    {menu.options.join(" · ")}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => openEditor(menu)}>
-                    <Pencil className="size-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    disabled={deleteMutation.isPending}
-                    onClick={() => deleteMutation.mutate(menu.id)}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+        <Button size="sm" variant="outline" onClick={() => openEditor(null)}>
+          <Plus className="size-4" /> Novo menu
+        </Button>
+      </div>
 
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>{editing ? "Editar menu" : "Novo menu de botão"}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="menu-title">Título</Label>
-                <Input
-                  id="menu-title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Ex.: Menu de atendimento"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="menu-message">Mensagem de introdução (opcional)</Label>
-                <Textarea
-                  id="menu-message"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Ex.: Olá! Escolha uma das opções abaixo:"
-                  rows={2}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="menu-options">Opções (uma por linha)</Label>
-                <Textarea
-                  id="menu-options"
-                  value={optionsText}
-                  onChange={(e) => setOptionsText(e.target.value)}
-                  placeholder={"Suporte\nVendas\nFinanceiro"}
-                  rows={4}
-                />
-              </div>
-              {optionLabels.length > 0 && (
-                <div className="space-y-2">
-                  <Label>Para onde enviar ao clicar</Label>
-                  <div className="space-y-3">
-                    {optionLabels.map((label, i) => {
-                      const route = routeAt(i);
-                      const value =
-                        route.action === "none" || !route.targetId
-                          ? "none"
-                          : `${route.action}:${route.targetId}`;
-                      return (
-                        <div key={`${label}-${i}`} className="rounded-lg border p-3 space-y-2">
-                          <p className="text-sm font-medium">
-                            {i + 1} - {label}
-                          </p>
-                          <select
-                            className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-                            value={value}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              if (v === "none") {
-                                updateRoute(i, { action: "none", targetId: null });
-                                return;
-                              }
-                              const [action, id] = v.split(":");
-                              updateRoute(i, {
-                                action: action as MenuOptionRoute["action"],
-                                targetId: id ?? null,
-                              });
-                            }}
-                          >
-                            <option value="none">Manter na conversa (sem transferir)</option>
-                            {(targets.data?.queues ?? []).map((q) => (
-                              <option key={q.id} value={`queue:${q.id}`}>
-                                Fila · {q.name}
-                              </option>
-                            ))}
-                            {(targets.data?.departments ?? []).map((d) => (
-                              <option key={d.id} value={`department:${d.id}`}>
-                                Departamento · {d.name}
-                              </option>
-                            ))}
-                          </select>
-                          <Input
-                            value={route.reply}
-                            onChange={(e) => updateRoute(i, { reply: e.target.value })}
-                            placeholder="Mensagem de resposta ao clicar (opcional)"
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label>Formato no WhatsApp</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(Object.keys(MENU_KIND_LABELS) as ButtonMenuKind[]).map((k) => (
-                    <button
-                      key={k}
-                      type="button"
-                      onClick={() => setKind(k)}
-                      className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
-                        kind === k
-                          ? "border-primary bg-primary/10 font-medium"
-                          : "border-border hover:bg-muted/50"
-                      }`}
-                    >
-                      {MENU_KIND_LABELS[k]}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {kind === "text"
-                    ? "Mensagem numerada; o cliente responde com o número."
-                    : kind === "button"
-                      ? "Botões de resposta rápida (máximo 3 opções)."
-                      : "Botão que abre uma lista com todas as opções."}
+      {menus.isLoading ? (
+        <Loader2 className="size-4 animate-spin text-muted-foreground" />
+      ) : menusCount === 0 ? (
+        <p className="text-sm text-muted-foreground">Nenhum menu criado ainda.</p>
+      ) : (
+        <ul className="space-y-2">
+          {(menus.data ?? []).map((menu) => (
+            <li
+              key={menu.id}
+              className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{menu.title}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {MENU_KIND_LABELS[menu.kind ?? "text"]} · {menu.options.length} opção(ões):{" "}
+                  {menu.options.join(" · ")}
                 </p>
               </div>
-              {(
-                <div className="space-y-2">
-                  <Label htmlFor="menu-footer">Rodapé (opcional)</Label>
-                  <Input
-                    id="menu-footer"
-                    value={footer}
-                    onChange={(e) => setFooter(e.target.value)}
-                    placeholder="Ex.: Atendimento das 8h às 18h"
-                  />
-                </div>
-              )}
-              {kind === "list" && (
-                <div className="space-y-2">
-                  <Label htmlFor="menu-button-text">Texto do botão que abre a lista</Label>
-                  <Input
-                    id="menu-button-text"
-                    value={buttonText}
-                    onChange={(e) => setButtonText(e.target.value)}
-                    placeholder="Ver menu"
-                  />
-                </div>
-              )}
-              {kind === "button" && (
-                <div className="space-y-2">
-                  <Label htmlFor="menu-image">Imagem no topo (opcional)</Label>
-                  <Input
-                    id="menu-image"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    placeholder="https://..."
-                  />
-                </div>
-              )}
+              <div className="flex shrink-0 items-center gap-1">
+                <Button size="icon" variant="ghost" onClick={() => openEditor(menu)}>
+                  <Pencil className="size-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  disabled={deleteMutation.isPending}
+                  onClick={() => deleteMutation.mutate(menu.id)}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Editar menu" : "Novo menu de botão"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="menu-title">Título</Label>
+              <Input
+                id="menu-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Ex.: Menu de atendimento"
+              />
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button
-                onClick={() => saveMutation.mutate()}
-                disabled={!title.trim() || !optionsText.trim() || saveMutation.isPending}
-              >
-                {saveMutation.isPending && <Loader2 className="size-4 animate-spin" />}
-                Salvar
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </CardContent>
-    </Card>
+            <div className="space-y-2">
+              <Label htmlFor="menu-message">Mensagem de introdução (opcional)</Label>
+              <Textarea
+                id="menu-message"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Ex.: Olá! Escolha uma das opções abaixo:"
+                rows={2}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="menu-options">Opções (uma por linha)</Label>
+              <Textarea
+                id="menu-options"
+                value={optionsText}
+                onChange={(e) => setOptionsText(e.target.value)}
+                placeholder={"Suporte\nVendas\nFinanceiro"}
+                rows={4}
+              />
+            </div>
+            {optionLabels.length > 0 && (
+              <div className="space-y-2">
+                <Label>Para onde enviar ao clicar</Label>
+                <div className="space-y-3">
+                  {optionLabels.map((label, i) => {
+                    const route = routeAt(i);
+                    const value =
+                      route.action === "none" || !route.targetId
+                        ? "none"
+                        : `${route.action}:${route.targetId}`;
+                    return (
+                      <div key={`${label}-${i}`} className="rounded-lg border p-3 space-y-2">
+                        <p className="text-sm font-medium">
+                          {i + 1} - {label}
+                        </p>
+                        <select
+                          className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                          value={value}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (v === "none") {
+                              updateRoute(i, { action: "none", targetId: null });
+                              return;
+                            }
+                            const [action, id] = v.split(":");
+                            updateRoute(i, {
+                              action: action as MenuOptionRoute["action"],
+                              targetId: id ?? null,
+                            });
+                          }}
+                        >
+                          <option value="none">Manter na conversa (sem transferir)</option>
+                          {(targets.data?.queues ?? []).map((q) => (
+                            <option key={q.id} value={`queue:${q.id}`}>
+                              Fila · {q.name}
+                            </option>
+                          ))}
+                          {(targets.data?.departments ?? []).map((d) => (
+                            <option key={d.id} value={`department:${d.id}`}>
+                              Departamento · {d.name}
+                            </option>
+                          ))}
+                        </select>
+                        <Input
+                          value={route.reply}
+                          onChange={(e) => updateRoute(i, { reply: e.target.value })}
+                          placeholder="Mensagem de resposta ao clicar (opcional)"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Formato no WhatsApp</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {(Object.keys(MENU_KIND_LABELS) as ButtonMenuKind[]).map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setKind(k)}
+                    className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
+                      kind === k
+                        ? "border-primary bg-primary/10 font-medium"
+                        : "border-border hover:bg-muted/50"
+                    }`}
+                  >
+                    {MENU_KIND_LABELS[k]}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {kind === "text"
+                  ? "Mensagem numerada; o cliente responde com o número."
+                  : kind === "button"
+                    ? "Botões de resposta rápida (máximo 3 opções)."
+                    : "Botão que abre uma lista com todas as opções."}
+              </p>
+            </div>
+            {(
+              <div className="space-y-2">
+                <Label htmlFor="menu-footer">Rodapé (opcional)</Label>
+                <Input
+                  id="menu-footer"
+                  value={footer}
+                  onChange={(e) => setFooter(e.target.value)}
+                  placeholder="Ex.: Atendimento das 8h às 18h"
+                />
+              </div>
+            )}
+            {kind === "list" && (
+              <div className="space-y-2">
+                <Label htmlFor="menu-button-text">Texto do botão que abre a lista</Label>
+                <Input
+                  id="menu-button-text"
+                  value={buttonText}
+                  onChange={(e) => setButtonText(e.target.value)}
+                  placeholder="Ver menu"
+                />
+              </div>
+            )}
+            {kind === "button" && (
+              <div className="space-y-2">
+                <Label htmlFor="menu-image">Imagem no topo (opcional)</Label>
+                <Input
+                  id="menu-image"
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  placeholder="https://..."
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => saveMutation.mutate()}
+              disabled={!title.trim() || !optionsText.trim() || saveMutation.isPending}
+            >
+              {saveMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </ConfigSectionCard>
   );
 }
 
