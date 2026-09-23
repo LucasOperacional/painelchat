@@ -315,6 +315,72 @@ function sessionOf(options: WahaCall): string {
   );
 }
 
+// --------------------------------------------------------------- destinatário
+// O WhatsApp novo endereça as conversas por um id interno (@lid). Enviar direto
+// para "55DD9XXXXXXXX@c.us" quando o número está registrado sem o nono dígito
+// (ou vice-versa) faz o servidor recusar com "no LID found" / erro 403. Por isso
+// perguntamos à WAHA qual é o destino correto antes de enviar.
+const chatIdCache = new Map<string, { chatId: string; at: number }>();
+const CHAT_ID_TTL = 10 * 60 * 1000;
+
+/** Variante brasileira do número: com e sem o nono dígito. */
+function brVariant(only: string): string | null {
+  if (!only.startsWith("55")) return null;
+  const rest = only.slice(4);
+  const head = only.slice(0, 4);
+  if (rest.length === 9 && rest.startsWith("9")) return `${head}${rest.slice(1)}`;
+  if (rest.length === 8) return `${head}9${rest}`;
+  return null;
+}
+
+async function checkExists(
+  options: WahaCall,
+  session: string,
+  only: string,
+): Promise<string | null> {
+  const data = await call<{ numberExists?: boolean; chatId?: string; pn?: string }>({
+    baseUrl: options.baseUrl,
+    apiKey: options.apiKey,
+    path: `/api/contacts/check-exists?phone=${encodeURIComponent(only)}&session=${encodeURIComponent(session)}`,
+    method: "GET",
+    timeoutMs: 12_000,
+  });
+  if (!data?.numberExists) return null;
+  return String(data.chatId || data.pn || `${only}@c.us`);
+}
+
+/** Destino confirmado para o envio (id interno quando a WAHA informa um). */
+async function resolveChatId(options: WahaCall, session: string, value: unknown): Promise<string> {
+  const chatId = toChatId(value);
+  if (!chatId || /@(g\.us|broadcast|newsletter|lid)$/i.test(chatId)) return chatId;
+  const only = digits(chatId.split("@")[0] ?? "");
+  if (only.length < 8) return chatId;
+
+  const key = `${normalizeWahaBaseUrl(options.baseUrl)}|${session}|${only}`;
+  const cached = chatIdCache.get(key);
+  if (cached && Date.now() - cached.at < CHAT_ID_TTL) return cached.chatId;
+
+  try {
+    let resolved = await checkExists(options, session, only);
+    if (!resolved) {
+      const alt = brVariant(only);
+      if (alt) resolved = await checkExists(options, session, alt);
+    }
+    if (!resolved) {
+      throw new Error(
+        "Esse número não está no WhatsApp com esses dígitos. Confira o DDD e o nono dígito e tente novamente.",
+      );
+    }
+    chatIdCache.set(key, { chatId: resolved, at: Date.now() });
+    return resolved;
+  } catch (error) {
+    // Consulta indisponível (servidor lento/erro): segue com o número original.
+    const message = error instanceof Error ? error.message : String(error ?? "");
+    if (/não está no WhatsApp/i.test(message)) throw error;
+    return chatId;
+  }
+}
+
 /**
  * Reinicia a sessão travada e espera ela voltar a funcionar. Sem isso o envio
  * seguinte também ficaria esperando sem resposta.
