@@ -378,122 +378,129 @@ function MisticpayCard() {
     onError: (error: Error) => toast.error("Não foi possível remover", { description: error.message }),
   });
 
+  const misticStatus = status.data?.configured
+    ? status.data.error
+      ? "Erro na conexão"
+      : status.data.account
+        ? `Conectado como ${status.data.account.name ?? status.data.account.email}`
+        : "Credenciais cadastradas"
+    : "Não configurado";
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <QrCode className="size-4" /> MisticPay (cobrança Pix)
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm text-muted-foreground">
-          Com as credenciais salvas, o atendimento gera a cobrança com valor e envia o QR Code
-          junto do código Pix copia e cola para o cliente.
-        </p>
+    <ConfigSectionCard
+      icon={QrCode}
+      title="MisticPay (cobrança Pix)"
+      description="Gere cobranças Pix e envie QR Code + copia e cola para o cliente."
+      status={misticStatus}
+      statusOk={status.data?.configured && !status.data?.error}
+    >
+      <p className="text-sm text-muted-foreground">
+        Com as credenciais salvas, o atendimento gera a cobrança com valor e envia o QR Code
+        junto do código Pix copia e cola para o cliente.
+      </p>
 
-        {status.data?.configured && (
-          <div className="rounded-md border p-3 text-sm">
-            {status.data.error ? (
-              <span className="text-destructive">{status.data.error}</span>
-            ) : status.data.account ? (
-              <span>
-                Conectado como <strong>{status.data.account.name ?? status.data.account.email}</strong>
-                {typeof status.data.account.availableBalance === "number" && (
-                  <> · saldo R$ {status.data.account.availableBalance.toFixed(2).replace(".", ",")}</>
-                )}
-              </span>
-            ) : (
-              <span>Credenciais cadastradas.</span>
-            )}
-          </div>
-        )}
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="mp-client-id">Client ID (pk_… ou ci_…)</Label>
-            <Input
-              id="mp-client-id"
-              value={form.clientId}
-              onChange={(e) => setForm((f) => ({ ...f, clientId: e.target.value }))}
-              placeholder="pk_..."
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="mp-client-secret">Client Secret (sk_… ou cs_…)</Label>
-            <Input
-              id="mp-client-secret"
-              type="password"
-              value={form.clientSecret}
-              onChange={(e) => setForm((f) => ({ ...f, clientSecret: e.target.value }))}
-              placeholder={status.data?.configured ? "•••••• (salvo)" : "sk_..."}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="mp-mode">Tipo de credencial</Label>
-            <select
-              id="mp-mode"
-              className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-              value={form.authMode}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, authMode: e.target.value as "basic" | "cics" }))
-              }
-            >
-              <option value="basic">Chave de acesso (pk_/sk_)</option>
-              <option value="cics">Credencial legada (ci/cs)</option>
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="mp-base">Endereço da API</Label>
-            <Input
-              id="mp-base"
-              value={form.baseUrl}
-              onChange={(e) => setForm((f) => ({ ...f, baseUrl: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="mp-payer-name">Nome padrão do pagador</Label>
-            <Input
-              id="mp-payer-name"
-              value={form.defaultPayerName}
-              onChange={(e) => setForm((f) => ({ ...f, defaultPayerName: e.target.value }))}
-              placeholder="Cliente"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="mp-payer-doc">CPF padrão do pagador</Label>
-            <Input
-              id="mp-payer-doc"
-              value={form.defaultPayerDocument}
-              onChange={(e) => setForm((f) => ({ ...f, defaultPayerDocument: e.target.value }))}
-              placeholder="12345678909"
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            disabled={
-              saveMutation.isPending || !form.clientId.trim() || !form.clientSecret.trim()
-            }
-            onClick={() => saveMutation.mutate()}
-          >
-            {saveMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
-            Salvar credenciais
-          </Button>
-          {status.data?.configured && (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={clearMutation.isPending}
-              onClick={() => clearMutation.mutate()}
-            >
-              Remover
-            </Button>
+      {status.data?.configured && (
+        <div className="rounded-md border p-3 text-sm">
+          {status.data.error ? (
+            <span className="text-destructive">{status.data.error}</span>
+          ) : status.data.account ? (
+            <span>
+              Conectado como <strong>{status.data.account.name ?? status.data.account.email}</strong>
+              {typeof status.data.account.availableBalance === "number" && (
+                <> · saldo R$ {status.data.account.availableBalance.toFixed(2).replace(".", ",")}</>
+              )}
+            </span>
+          ) : (
+            <span>Credenciais cadastradas.</span>
           )}
         </div>
-      </CardContent>
-    </Card>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="mp-client-id">Client ID (pk_… ou ci_…)</Label>
+          <Input
+            id="mp-client-id"
+            value={form.clientId}
+            onChange={(e) => setForm((f) => ({ ...f, clientId: e.target.value }))}
+            placeholder="pk_..."
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="mp-client-secret">Client Secret (sk_… ou cs_…)</Label>
+          <Input
+            id="mp-client-secret"
+            type="password"
+            value={form.clientSecret}
+            onChange={(e) => setForm((f) => ({ ...f, clientSecret: e.target.value }))}
+            placeholder={status.data?.configured ? "•••••• (salvo)" : "sk_..."}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="mp-mode">Tipo de credencial</Label>
+          <select
+            id="mp-mode"
+            className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+            value={form.authMode}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, authMode: e.target.value as "basic" | "cics" }))
+            }
+          >
+            <option value="basic">Chave de acesso (pk_/sk_)</option>
+            <option value="cics">Credencial legada (ci/cs)</option>
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="mp-base">Endereço da API</Label>
+          <Input
+            id="mp-base"
+            value={form.baseUrl}
+            onChange={(e) => setForm((f) => ({ ...f, baseUrl: e.target.value }))}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="mp-payer-name">Nome padrão do pagador</Label>
+          <Input
+            id="mp-payer-name"
+            value={form.defaultPayerName}
+            onChange={(e) => setForm((f) => ({ ...f, defaultPayerName: e.target.value }))}
+            placeholder="Cliente"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="mp-payer-doc">CPF padrão do pagador</Label>
+          <Input
+            id="mp-payer-doc"
+            value={form.defaultPayerDocument}
+            onChange={(e) => setForm((f) => ({ ...f, defaultPayerDocument: e.target.value }))}
+            placeholder="12345678909"
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          disabled={
+            saveMutation.isPending || !form.clientId.trim() || !form.clientSecret.trim()
+          }
+          onClick={() => saveMutation.mutate()}
+        >
+          {saveMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+          Salvar credenciais
+        </Button>
+        {status.data?.configured && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={clearMutation.isPending}
+            onClick={() => clearMutation.mutate()}
+          >
+            Remover
+          </Button>
+        )}
+      </div>
+    </ConfigSectionCard>
   );
 }
 
