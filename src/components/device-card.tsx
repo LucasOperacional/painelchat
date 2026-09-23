@@ -21,6 +21,7 @@ type DeviceCardProps = {
   onEdit?: (() => void) | undefined;
   onDelete?: (() => void) | undefined;
   onDisconnect?: (() => void) | undefined;
+  onMakeDefault?: (() => void) | undefined;
   children?: ReactNode;
 };
 
