@@ -112,24 +112,70 @@ export async function storeInboundAudio(input: {
   return { url: signed.data.signedUrl, transcript };
 }
 
-/** Transcreve o áudio com a IA da plataforma (melhor esforço, nunca travando o webhook). */
-const LIMITE_TRANSCRICAO_BYTES = 8 * 1024 * 1024; // áudios muito longos ficam sem transcrição
-const LIMITE_TRANSCRICAO_MS = 20_000;
+/** Transcrição do áudio com a IA da plataforma (melhor esforço, nunca travando o webhook). */
+const MODELO_TRANSCRICAO = "google/gemini-3.5-transcribe";
+const LIMITE_TRANSCRICAO_BYTES = 14 * 1024 * 1024; // limite do modelo de transcrição
+const LIMITE_TRANSCRICAO_MS = 60_000;
 
-async function transcribeAudio(bytes: Uint8Array, mime: string): Promise<string | null> {
-  const apiKey = process.env["LOVABLE_API_KEY"];
-  if (!apiKey) return null;
-  if (bytes.byteLength > LIMITE_TRANSCRICAO_BYTES) {
-    console.warn("[audio] áudio grande demais para transcrever:", bytes.byteLength);
-    return null;
+/** O modelo só aceita arquivos declarados como áudio (o navegador às vezes marca vídeo). */
+function mimeParaTranscricao(mime: string): string {
+  const base = mime.split(";")[0]!.trim().toLowerCase();
+  if (base.startsWith("audio/")) return base;
+  if (base === "video/webm") return "audio/webm";
+  if (base === "video/mp4" || base === "video/quicktime") return "audio/mp4";
+  return "audio/ogg";
+}
+
+/** Lê a resposta em fluxo (SSE) e junta o texto conforme ele chega. */
+async function lerTranscricao(res: Response): Promise<string | null> {
+  const tipo = res.headers.get("content-type") ?? "";
+  if (!tipo.includes("event-stream")) {
+    const data = (await res.json().catch(() => null)) as { text?: string } | null;
+    return data?.text?.trim() || null;
   }
+  const texto = await res.text();
+  let acumulado = "";
+  let completo: string | null = null;
+  for (const linha of texto.split("\n")) {
+    if (!linha.startsWith("data:")) continue;
+    const bruto = linha.slice(5).trim();
+    if (!bruto || bruto === "[DONE]") continue;
+    try {
+      const evento = JSON.parse(bruto) as { delta?: string; text?: string; type?: string };
+      if (typeof evento.delta === "string") acumulado += evento.delta;
+      if (typeof evento.text === "string" && evento.text.trim()) completo = evento.text;
+    } catch {
+      // linha parcial: ignora
+    }
+  }
+  const final = (completo ?? acumulado).trim();
+  return final || null;
+}
+
+/** Descarta respostas sem fala de verdade ("...", "[inaudível]", ruídos). */
+function transcricaoValida(texto: string): boolean {
+  const limpo = texto.replace(/[\s.…]+/g, "");
+  if (limpo.length < 2) return false;
+  if (/^\[.*\]$/.test(texto.trim())) return false;
+  return /[a-zà-úA-ZÀ-Ú0-9]/.test(texto);
+}
+
+async function pedirTranscricao(
+  bytes: Uint8Array,
+  mime: string,
+  apiKey: string,
+  idioma?: string,
+): Promise<{ texto: string | null; status: number }> {
   const controller = new AbortController();
   const parar = setTimeout(() => controller.abort(), LIMITE_TRANSCRICAO_MS);
   try {
+    const envio = mimeParaTranscricao(mime);
     const form = new FormData();
-    form.append("model", "google/gemini-3.5-transcribe");
-    form.append("language", "pt-BR");
-    form.append("file", new Blob([bytes as BlobPart], { type: mime }), `audio.${extFor(mime)}`);
+    form.append("model", MODELO_TRANSCRICAO);
+    form.append("response_format", "json");
+    form.append("stream", "true");
+    if (idioma) form.append("language", idioma);
+    form.append("file", new Blob([bytes as BlobPart], { type: envio }), `audio.${extFor(envio)}`);
     const res = await fetch("https://ai.gateway.lovable.dev/v1/audio/transcriptions", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}` },
@@ -138,17 +184,40 @@ async function transcribeAudio(bytes: Uint8Array, mime: string): Promise<string 
     });
     if (!res.ok) {
       console.error("[audio] transcrição falhou:", res.status, await res.text().catch(() => ""));
-      return null;
+      return { texto: null, status: res.status };
     }
-    const data = (await res.json()) as { text?: string };
-    const text = data.text?.trim();
-    return text ? text : null;
+    return { texto: await lerTranscricao(res), status: res.status };
   } catch (error) {
     console.error("[audio] transcrição falhou:", (error as Error).message);
-    return null;
+    return { texto: null, status: 0 };
   } finally {
     clearTimeout(parar);
   }
+}
+
+const esperar = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function transcribeAudio(bytes: Uint8Array, mime: string): Promise<string | null> {
+  const apiKey = process.env["LOVABLE_API_KEY"];
+  if (!apiKey) return null;
+  if (bytes.byteLength < 1024) return null;
+  if (bytes.byteLength > LIMITE_TRANSCRICAO_BYTES) {
+    console.warn("[audio] áudio grande demais para transcrever:", bytes.byteLength);
+    return null;
+  }
+
+  // 1ª tentativa em português; instabilidade passageira é repetida; se vier vazio,
+  // tenta de novo deixando o modelo detectar o idioma sozinho.
+  for (const idioma of ["pt-BR", undefined] as const) {
+    for (let tentativa = 1; tentativa <= 2; tentativa += 1) {
+      const { texto, status } = await pedirTranscricao(bytes, mime, apiKey, idioma);
+      if (texto && transcricaoValida(texto)) return texto;
+      const repetir = status === 429 || status >= 500 || status === 0;
+      if (!repetir) break;
+      if (tentativa === 1) await esperar(1200);
+    }
+  }
+  return null;
 }
 
 
