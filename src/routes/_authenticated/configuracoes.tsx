@@ -990,117 +990,122 @@ function WavoipCard() {
       toast.error("Não foi possível remover", { description: error.message }),
   });
 
+  const wavoipStatus = status.data?.configured
+    ? `Token cadastrado (${status.data.deviceTokenPreview})${
+        status.data.historyReady ? " — histórico liberado" : ""
+      }`
+    : "Não configurado";
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <PhoneCall className="size-4" /> Wavoip (ligações de WhatsApp)
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm text-muted-foreground">
-          Copie o token do aparelho no painel da Wavoip e cole abaixo para liberar o botão "Ligar"
-          nas conversas. O e-mail e a senha da sua conta Wavoip são usados só para mostrar o
-          histórico de chamadas.
-        </p>
+    <ConfigSectionCard
+      icon={PhoneCall}
+      title="Wavoip (ligações de WhatsApp)"
+      description="Libere o botão de ligar nas conversas e registre histórico de chamadas."
+      status={wavoipStatus}
+      statusOk={status.data?.configured}
+    >
+      <p className="text-sm text-muted-foreground">
+        Copie o token do aparelho no painel da Wavoip e cole abaixo para liberar o botão "Ligar"
+        nas conversas. O e-mail e a senha da sua conta Wavoip são usados só para mostrar o
+        histórico de chamadas.
+      </p>
 
-        {status.data?.configured && (
-          <div className="rounded-md border p-3 text-sm">
-            Token cadastrado ({status.data.deviceTokenPreview})
-            {status.data.historyReady ? " — histórico de chamadas liberado." : "."}
-          </div>
-        )}
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="wav-token">Token do aparelho</Label>
-            <Input
-              id="wav-token"
-              type="password"
-              value={form.deviceToken}
-              onChange={(e) => setForm((f) => ({ ...f, deviceToken: e.target.value }))}
-              placeholder={status.data?.configured ? "Deixe em branco para manter" : "Token Wavoip"}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="wav-email">E-mail da conta Wavoip</Label>
-            <Input
-              id="wav-email"
-              value={form.email}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-              placeholder="voce@suaempresa.com.br"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="wav-pass">Senha da conta Wavoip</Label>
-            <Input
-              id="wav-pass"
-              type="password"
-              value={form.password}
-              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-              placeholder={status.data?.historyReady ? "Deixe em branco para manter" : "••••••••"}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="wav-base">Endereço da API (opcional)</Label>
-            <Input
-              id="wav-base"
-              value={form.baseUrl}
-              onChange={(e) => setForm((f) => ({ ...f, baseUrl: e.target.value }))}
-              placeholder="https://api.wavoip.com"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="wav-call">Endereço da tela de ligação (opcional)</Label>
-            <Input
-              id="wav-call"
-              value={form.callUrl}
-              onChange={(e) => setForm((f) => ({ ...f, callUrl: e.target.value }))}
-              placeholder="https://app.wavoip.com/call"
-            />
-          </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.startIfReady}
-              onChange={(e) => setForm((f) => ({ ...f, startIfReady: e.target.checked }))}
-            />
-            Iniciar a chamada assim que a tela abrir
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.closeAfterCall}
-              onChange={(e) => setForm((f) => ({ ...f, closeAfterCall: e.target.checked }))}
-            />
-            Fechar a janela quando a ligação terminar
-          </label>
+      {status.data?.configured && (
+        <div className="rounded-md border p-3 text-sm">
+          Token cadastrado ({status.data.deviceTokenPreview})
+          {status.data.historyReady ? " — histórico de chamadas liberado." : "."}
         </div>
+      )}
 
-        <div className="flex flex-wrap gap-2">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label htmlFor="wav-token">Token do aparelho</Label>
+          <Input
+            id="wav-token"
+            type="password"
+            value={form.deviceToken}
+            onChange={(e) => setForm((f) => ({ ...f, deviceToken: e.target.value }))}
+            placeholder={status.data?.configured ? "Deixe em branco para manter" : "Token Wavoip"}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="wav-email">E-mail da conta Wavoip</Label>
+          <Input
+            id="wav-email"
+            value={form.email}
+            onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+            placeholder="voce@suaempresa.com.br"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="wav-pass">Senha da conta Wavoip</Label>
+          <Input
+            id="wav-pass"
+            type="password"
+            value={form.password}
+            onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+            placeholder={status.data?.historyReady ? "Deixe em branco para manter" : "••••••••"}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="wav-base">Endereço da API (opcional)</Label>
+          <Input
+            id="wav-base"
+            value={form.baseUrl}
+            onChange={(e) => setForm((f) => ({ ...f, baseUrl: e.target.value }))}
+            placeholder="https://api.wavoip.com"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="wav-call">Endereço da tela de ligação (opcional)</Label>
+          <Input
+            id="wav-call"
+            value={form.callUrl}
+            onChange={(e) => setForm((f) => ({ ...f, callUrl: e.target.value }))}
+            placeholder="https://app.wavoip.com/call"
+          />
+        </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={form.startIfReady}
+            onChange={(e) => setForm((f) => ({ ...f, startIfReady: e.target.checked }))}
+          />
+          Iniciar a chamada assim que a tela abrir
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={form.closeAfterCall}
+            onChange={(e) => setForm((f) => ({ ...f, closeAfterCall: e.target.checked }))}
+          />
+          Fechar a janela quando a ligação terminar
+        </label>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          disabled={
+            saveMutation.isPending || (!form.deviceToken.trim() && !status.data?.configured)
+          }
+          onClick={() => saveMutation.mutate()}
+        >
+          {saveMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+          Salvar dados
+        </Button>
+        {status.data?.configured && (
           <Button
             type="button"
-            disabled={
-              saveMutation.isPending || (!form.deviceToken.trim() && !status.data?.configured)
-            }
-            onClick={() => saveMutation.mutate()}
+            variant="outline"
+            disabled={clearMutation.isPending}
+            onClick={() => clearMutation.mutate()}
           >
-            {saveMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
-            Salvar dados
+            Remover
           </Button>
-          {status.data?.configured && (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={clearMutation.isPending}
-              onClick={() => clearMutation.mutate()}
-            >
-              Remover
-            </Button>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+        )}
+      </div>
+    </ConfigSectionCard>
   );
 }
 
