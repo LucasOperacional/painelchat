@@ -475,7 +475,7 @@ export async function evolutionCreateInstance(
   const id = res?.data?.id ?? "";
   if (!id)
     throw new Error(
-      `O servidor ${target.provider === "wuzapi" ? "WuzAPI" : "Evolution Go"} não retornou o identificador da conexão criada.`,
+      `O servidor ${target.provider === "wuzapi" ? "WuzAPI" : target.provider === "waha" ? "WAHA" : "Evolution Go"} não retornou o identificador da conexão criada.`,
     );
   return {
     id,

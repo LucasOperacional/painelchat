@@ -299,7 +299,7 @@ function MonitoramentoPage() {
               <div>
                 <p className="font-medium text-foreground">{d.label}</p>
                 <p className="text-xs text-muted-foreground">
-                  {d.provider === "wuzapi" ? "WuzAPI" : "Evolution Go"} · {d.phone || "sem número"} ·
+                  {d.provider === "wuzapi" ? "WuzAPI" : d.provider === "waha" ? "WAHA" : "Evolution Go"} · {d.phone || "sem número"} ·
                   última checagem {quando(d.ultimoCheck)}
                 </p>
                 {d.ultimoErro && (

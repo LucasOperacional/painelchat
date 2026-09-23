@@ -345,7 +345,7 @@ export async function reiniciarConexoes(requestUrl?: string | null) {
 }
 
 function nomeProvedor(provider: string | null | undefined) {
-  return provider === "wuzapi" ? "WuzAPI" : "Evolution Go";
+  return provider === "wuzapi" ? "WuzAPI" : provider === "waha" ? "WAHA" : "Evolution Go";
 }
 
 /** Início do dia no horário de Brasília, em ISO. */
