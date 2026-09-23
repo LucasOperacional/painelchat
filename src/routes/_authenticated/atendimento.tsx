@@ -1009,7 +1009,7 @@ function AtendimentoPage() {
     (profiles.data ?? []).find((p) => p.id === id)?.full_name ?? "—";
 
   return (
-    <div className="flex h-[calc(100svh-3rem)] flex-col overflow-hidden bg-background md:h-screen md:flex-row">
+    <div className="flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden bg-background md:h-screen md:flex-row">
       {/* Lista */}
       <section
         className={cn(
