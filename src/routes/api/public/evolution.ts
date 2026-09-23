@@ -592,8 +592,8 @@ function pareceWaha(raw: Record<string, any> | null | undefined): boolean {
 /**
  * A WAHA (https://waha.devlike.pro) envia { event, session, payload }. Aqui o
  * evento vira o mesmo formato Info/Message da Evolution Go, sem tocar no
- * restante do fluxo. A mídia já vem descriptografada em /api/files/…, então só
- * acrescentamos a chave da API para permitir o download.
+ * restante do fluxo. A mídia já vem descriptografada em /api/files/… e é
+ * baixada no servidor com a chave da conexão antes de ser salva no chat.
  */
 async function fromWaha(raw: Record<string, any>): Promise<EvolutionWebhook> {
   const evento = String(raw["event"] ?? "");
@@ -663,6 +663,8 @@ async function fromWaha(raw: Record<string, any>): Promise<EvolutionWebhook> {
     IsFromMe: fromMe,
     IsGroup: isGroup,
     ID: String(payload["id"] ?? infoBruto["ID"] ?? ""),
+    Timestamp:
+      payload["timestamp"] ?? interno["timestamp"] ?? infoBruto["Timestamp"] ?? null,
     PushName:
       payload["notifyName"] ?? interno["notifyName"] ?? interno["pushName"] ?? infoBruto["PushName"] ?? null,
     ...(isGroup && participante ? { Participant: participante } : {}),
@@ -689,17 +691,7 @@ async function fromWaha(raw: Record<string, any>): Promise<EvolutionWebhook> {
       },
     };
   } else if (midia && typeof midia === "object") {
-    let url = String(midia["url"] ?? "");
-    if (url) {
-      try {
-        const { loadProviderSharedKey } = await import("@/lib/evolution.server");
-        const { wahaSignedMediaUrl } = await import("@/lib/waha.server");
-        const apiKey = await loadProviderSharedKey("waha");
-        url = wahaSignedMediaUrl(url, apiKey);
-      } catch {
-        /* sem chave salva: segue com a URL original */
-      }
-    }
+    const url = String(midia["url"] ?? "");
     const mimetype = String(midia["mimetype"] ?? interno["mimetype"] ?? "");
     const fileName = String(midia["filename"] ?? interno["filename"] ?? "");
     const comum = { url, mediaUrl: url, mimetype, ...(texto ? { caption: texto } : {}) };
@@ -1482,7 +1474,8 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
           const urlDaMidia = media ? textField(media, "url", "URL", "mediaUrl", "mediaURL") : "";
           const temChave = !!media && !!textField(media, "mediaKey", "media_key");
           const precisaConector =
-            temChave && (isEncryptedMediaUrl(urlDaMidia || null) || isInternalMediaUrl(mediaUrl));
+            String((config as { provider?: string }).provider ?? "").toLowerCase() === "waha" ||
+            (temChave && (isEncryptedMediaUrl(urlDaMidia || null) || isInternalMediaUrl(mediaUrl)));
           if (
             !precisaConector &&
             mediaUrl &&
@@ -1677,6 +1670,11 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
         // Fluxo único de entrada: contato, conversa, saudação, chatbot e IA.
         const { recordInboundMessage } = await import("@/lib/inbound.server");
         const { withRetry } = await import("@/lib/retry.server");
+        const timestampRaw = (info as Record<string, unknown>)["Timestamp"];
+        const timestampNumber = Number(timestampRaw);
+        const occurredAt = Number.isFinite(timestampNumber) && timestampNumber > 0
+          ? new Date(timestampNumber < 10_000_000_000 ? timestampNumber * 1000 : timestampNumber).toISOString()
+          : null;
         try {
           // Regra: nenhuma mensagem recebida se perde por falha passageira —
           // tenta novamente e, se ainda falhar, devolve erro para o provedor
@@ -1694,6 +1692,7 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
               participantPhone: isGroup && !fromMe ? participantPhone : null,
               fromMe,
               skipAutomations: semAutomacoes,
+              occurredAt,
               mentionsMe:
                 isGroup && !fromMe
                   ? mentionsOwnNumber(message, body, (config as { phone?: string }).phone ?? "")

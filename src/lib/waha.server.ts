@@ -430,22 +430,18 @@ export async function wahaDispatch(options: WahaCall): Promise<unknown> {
     case "/send/sticker": {
       const chatId = toChatId(body["number"]);
       const url = String(body["sticker"] ?? "");
+      const file = { mimetype: "image/webp", filename: "figurinha.webp", url };
       try {
         return sentEnvelope(
-          await run("/api/sendImage", "POST", {
-            session,
-            chatId,
-            file: { mimetype: "image/webp", filename: "figurinha.webp", url },
-            asSticker: true,
-          }),
+          await run("/api/sendSticker", "POST", { session, chatId, file }),
         );
-      } catch {
+      } catch (error) {
+        // Versões antigas da WAHA ainda não possuem /api/sendSticker.
+        // Nelas, preservamos a entrega como imagem em vez de perder o envio.
+        const message = error instanceof Error ? error.message : String(error ?? "");
+        if (!/não encontrou essa sessão|not found|cannot post|404/i.test(message)) throw error;
         return sentEnvelope(
-          await run("/api/sendImage", "POST", {
-            session,
-            chatId,
-            file: { mimetype: "image/webp", filename: "figurinha.webp", url },
-          }),
+          await run("/api/sendImage", "POST", { session, chatId, file }),
         );
       }
     }
