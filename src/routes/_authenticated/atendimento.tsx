@@ -495,6 +495,13 @@ function AtendimentoPage() {
     }
   }, [listCollapsed]);
 
+  // No celular só cabe uma tela por vez: sem conversa escolhida, a lista volta a aparecer.
+  useEffect(() => {
+    if (isMobile && listCollapsed && !selectedId) setListCollapsed(false);
+  }, [isMobile, listCollapsed, selectedId]);
+
+  const mostrarConversaNoCelular = listCollapsed && !!selectedId;
+
   // Usado pelo aviso de menção: descobre o nome do grupo sem refazer o canal.
   const conversationsRef = useRef<typeof conversations.data>(undefined);
   conversationsRef.current = conversations.data;
