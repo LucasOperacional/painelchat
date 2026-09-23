@@ -1274,14 +1274,19 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
           : (directCandidates.find(isBrPhone) ?? directCandidates.find(Boolean) ?? "");
 
         // Sem telefone no evento: procura o contato já conhecido por esse @lid.
+        // O mesmo id interno pode ter sido gravado por engano em mais de um
+        // contato, então usa o mais recente em vez de falhar a busca.
         if (!phoneDigits && !isGroup && lidJid) {
           const { data: byLid } = await supabaseAdmin
             .from("contacts")
-            .select("phone")
+            .select("phone, updated_at")
             .eq("lid", lidJid)
-            .maybeSingle();
-          phoneDigits = ((byLid as { phone?: string } | null)?.phone ?? "").trim();
+            .order("updated_at", { ascending: false })
+            .limit(1);
+          const achado = (byLid as Array<{ phone?: string }> | null)?.[0];
+          phoneDigits = (achado?.phone ?? "").trim();
         }
+
 
         // Alguns eventos novos chegam apenas com @lid, sem SenderAlt. O LID é
         // estável e permite preservar a conversa até o número real aparecer.
