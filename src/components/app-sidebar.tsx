@@ -19,7 +19,6 @@ import {
   Receipt,
   PlugZap,
   LayoutGrid,
-  Megaphone,
   Bot,
   PhoneCall,
    ChevronDown,
