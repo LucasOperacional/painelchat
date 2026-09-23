@@ -144,16 +144,39 @@ export async function resolveConversationConfigId(
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: conversa } = await supabaseAdmin
     .from("conversations")
-    .select("contact_id")
+    .select("contact_id, contact:contacts(phone, wa_jid, project_id)")
     .eq("id", conversationId)
     .maybeSingle();
-  const contactId = (conversa as { contact_id?: string } | null)?.contact_id;
+  const row = conversa as {
+    contact_id?: string;
+    contact?: { phone?: string | null; wa_jid?: string | null; project_id?: string | null } | null;
+  } | null;
+  const contactId = row?.contact_id;
   if (!contactId) return null;
+
+  // Primeiro procura outra conversa do mesmo cadastro. Se o contato tiver sido
+  // duplicado, inclui todos os cadastros do mesmo telefone/JID no mesmo projeto.
+  // Isso evita que uma conversa antiga, ainda visível no chat, perca o aparelho
+  // que acabou de receber uma mensagem desse mesmo número.
+  const contactIds = new Set<string>([contactId]);
+  const phone = (row?.contact?.phone ?? "").trim();
+  const waJid = (row?.contact?.wa_jid ?? "").trim();
+  if (phone || waJid) {
+    let matchingContacts = supabaseAdmin.from("contacts").select("id");
+    if (row?.contact?.project_id) matchingContacts = matchingContacts.eq("project_id", row.contact.project_id);
+    const alternatives = [phone ? `phone.eq.${phone}` : "", waJid ? `wa_jid.eq.${waJid}` : ""]
+      .filter(Boolean)
+      .join(",");
+    if (alternatives) {
+      const { data: matches } = await matchingContacts.or(alternatives);
+      for (const match of (matches ?? []) as { id: string }[]) contactIds.add(match.id);
+    }
+  }
 
   const { data: anterior } = await supabaseAdmin
     .from("conversations")
     .select("whatsapp_config_id")
-    .eq("contact_id", contactId)
+    .in("contact_id", [...contactIds])
     .not("whatsapp_config_id", "is", null)
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .limit(1)
