@@ -93,8 +93,23 @@ export function DeviceCard({
       )}
     >
       {clickable && (
-        <div className="absolute right-3 top-3 text-muted-foreground/60">
-          <ChevronsUpDown className="size-4" aria-hidden="true" />
+        <div className="absolute right-3 top-3 flex items-center gap-1">
+          {onMakeDefault && !isDefault && (
+            <button
+              type="button"
+              aria-label={`Tornar ${label} o dispositivo padrão`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onMakeDefault();
+              }}
+              className="rounded p-1 text-amber-500 hover:bg-amber-500/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <Star className="size-4" />
+            </button>
+          )}
+          <span className="text-muted-foreground/60">
+            <ChevronsUpDown className="size-4" aria-hidden="true" />
+          </span>
         </div>
       )}
 
