@@ -477,6 +477,9 @@ async function wahaDispatchOnce(options: WahaCall): Promise<unknown> {
 
   // Texto não precisa de espera longa: se passar disso a sessão está travada e
   // o envio é retomado depois de reiniciá-la.
+  const destino = path.startsWith("/send/")
+    ? await resolveChatId(options, session, body["number"])
+    : "";
   const TEXT_TIMEOUT = 25_000;
   const sendText = async (chatId: string, text: string) =>
     sentEnvelope(await run("/api/sendText", "POST", { session, chatId, text }, TEXT_TIMEOUT));
@@ -594,7 +597,7 @@ async function wahaDispatchOnce(options: WahaCall): Promise<unknown> {
         "POST",
         {
           session,
-          chatId: toChatId(body["number"]),
+          chatId: destino,
           text: String(body["text"] ?? ""),
           ...(quoted?.messageId ? { reply_to: quoted.messageId } : {}),
         },
@@ -604,12 +607,12 @@ async function wahaDispatchOnce(options: WahaCall): Promise<unknown> {
     }
     case "/send/link": {
       const text = [String(body["text"] ?? ""), String(body["url"] ?? "")].filter(Boolean).join("\n");
-      return sendText(toChatId(body["number"]), text);
+      return sendText(destino, text);
     }
     case "/send/media": {
       const type = String(body["type"] ?? "document");
       const url = String(body["url"] ?? "");
-      const chatId = toChatId(body["number"]);
+      const chatId = destino;
       const caption = String(body["caption"] ?? "");
       const filename = String(body["filename"] ?? "arquivo");
       if (type === "image") {
@@ -668,7 +671,7 @@ async function wahaDispatchOnce(options: WahaCall): Promise<unknown> {
       );
     }
     case "/send/sticker": {
-      const chatId = toChatId(body["number"]);
+      const chatId = destino;
       const url = String(body["sticker"] ?? "");
       const file = { mimetype: "image/webp", filename: "figurinha.webp", url };
       try {
@@ -690,13 +693,13 @@ async function wahaDispatchOnce(options: WahaCall): Promise<unknown> {
       const name = String(card?.fullName ?? "Contato");
       const data = await run("/api/sendContactVcard", "POST", {
         session,
-        chatId: toChatId(body["number"]),
+        chatId: destino,
         contacts: [{ vcard: vcard(name, String(card?.phone ?? "")) }],
       });
       return sentEnvelope(data);
     }
     case "/send/button": {
-      const chatId = toChatId(body["number"]);
+      const chatId = destino;
       const buttons = (body["buttons"] ?? []) as Array<Record<string, any>>;
       try {
         return sentEnvelope(
@@ -725,7 +728,7 @@ async function wahaDispatchOnce(options: WahaCall): Promise<unknown> {
       }
     }
     case "/send/list": {
-      const chatId = toChatId(body["number"]);
+      const chatId = destino;
       const sections = (body["sections"] ?? []) as Array<Record<string, any>>;
       const rows = sections.flatMap((section) =>
         ((section["rows"] ?? []) as Array<Record<string, any>>).map((row) => String(row["title"] ?? "")),
@@ -738,7 +741,7 @@ async function wahaDispatchOnce(options: WahaCall): Promise<unknown> {
     case "/send/poll": {
       const data = await run("/api/sendPoll", "POST", {
         session,
-        chatId: toChatId(body["number"]),
+        chatId: destino,
         poll: {
           name: String(body["question"] ?? ""),
           options: (body["options"] ?? []) as string[],
