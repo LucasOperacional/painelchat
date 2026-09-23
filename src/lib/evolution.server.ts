@@ -330,6 +330,26 @@ export async function evolutionRequest<T = unknown>(options: {
       adminToken: await loadWuzapiAdminToken(options.configId ?? null),
     })) as T;
   }
+  // Conexões da WAHA: cada dispositivo é uma "session" no servidor WAHA.
+  if (resolvedProvider === "waha") {
+    const { wahaDispatch } = await import("@/lib/waha.server");
+    let session = (options.instanceId ?? "").trim();
+    if (!session) {
+      const config = await loadEvolutionConfig(options.configId ?? null);
+      session = (config?.instance_id || config?.instance_name || "").trim();
+    }
+    return (await wahaDispatch({
+      baseUrl: options.baseUrl,
+      path: options.path,
+      ...(options.method ? { method: options.method } : {}),
+      body: options.body,
+      ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
+      ...(session ? { session } : {}),
+      apiKey: await loadWahaApiKey(options.configId ?? null),
+    })) as T;
+  }
+
+
 
   const apiKey = instanceToken || (await loadEvolutionApiKey(options.configId ?? null));
   if (!apiKey)
