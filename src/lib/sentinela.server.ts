@@ -674,7 +674,12 @@ export async function executarCicloSentinela(
     const { data: pendentes } = await db
       .from("webhook_eventos")
       .select("id, url, token, evento, external_id, tentativas, erro, created_at")
-      .in("status", ["erro", "processando", "pendente"])
+      // `aparelho-desconhecido` era devolvido com HTTP 200 e acabava marcado
+      // como ignorado. Ele não é um descarte legítimo: a mensagem chegou, mas
+      // precisa voltar à fila depois que o aparelho for identificado.
+      .or(
+        "status.in.(erro,processando,pendente),and(status.eq.ignorado,erro.eq.aparelho-desconhecido)",
+      )
       .lt("tentativas", MAX_TENTATIVAS_EVENTO)
       .lt("created_at", new Date(Date.now() - 60_000).toISOString())
       .order("created_at")
