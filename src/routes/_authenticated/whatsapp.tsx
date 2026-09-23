@@ -820,35 +820,99 @@ function WhatsappPage() {
                         <div className="space-y-4 border-t border-border pt-4">
                           <div className="flex flex-wrap items-center justify-between gap-3">
                             <h3 className="text-sm font-semibold text-foreground">
-                              Leitura do QR Code
+                              Conexão do dispositivo
                             </h3>
+                            <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
+                              <Button
+                                size="sm"
+                                variant={connectMode === "qr" ? "default" : "ghost"}
+                                onClick={() => setConnectMode("qr")}
+                              >
+                                <QrCode className="mr-1 size-4" /> QR Code
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={connectMode === "code" ? "default" : "ghost"}
+                                onClick={() => setConnectMode("code")}
+                              >
+                                <Phone className="mr-1 size-4" /> Código
+                              </Button>
+                            </div>
                             <div className="flex items-center gap-2">
                               <Button
                                 size="sm"
                                 variant={autoQr ? "secondary" : "default"}
                                 onClick={startQrConnection}
-                                disabled={connect.isPending || isConnected || !status.data?.hasApiKey}
+                                disabled={
+                                  connect.isPending ||
+                                  isConnected ||
+                                  !status.data?.hasApiKey ||
+                                  (connectMode === "code" &&
+                                    pairPhone.replace(/\D/g, "").length < 10)
+                                }
                               >
-                                <QrCode className="mr-1.5 size-4" />
+                                {connectMode === "code" ? (
+                                  <Phone className="mr-1.5 size-4" />
+                                ) : (
+                                  <QrCode className="mr-1.5 size-4" />
+                                )}
                                 {connect.isPending
-                                  ? "Gerando QR Code..."
+                                  ? connectMode === "code"
+                                    ? "Gerando código..."
+                                    : "Gerando QR Code..."
                                   : autoQr
                                     ? "Parar leitura"
-                                    : "Conectar via QR Code"}
+                                    : connectMode === "code"
+                                      ? "Gerar código de pareamento"
+                                      : "Conectar via QR Code"}
                               </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => loadQr.mutate()}
-                                disabled={loadQr.isPending || !status.data?.hasApiKey}
-                              >
-                                <RefreshCw className="mr-1.5 size-4" /> Atualizar QR Code
-                              </Button>
+                              {connectMode === "qr" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => loadQr.mutate()}
+                                  disabled={loadQr.isPending || !status.data?.hasApiKey}
+                                >
+                                  <RefreshCw className="mr-1.5 size-4" /> Atualizar QR Code
+                                </Button>
+                              )}
                             </div>
 
                           </div>
 
-                          {qr ? (
+                          {connectMode === "code" && (
+                            <div className="space-y-3">
+                              <div className="space-y-2 md:max-w-md">
+                                <Label htmlFor="pairPhone">Número do WhatsApp (com DDD)</Label>
+                                <Input
+                                  id="pairPhone"
+                                  inputMode="numeric"
+                                  placeholder="5562999999999"
+                                  value={pairPhone}
+                                  onChange={(e) => setPairPhone(e.target.value)}
+                                />
+                              </div>
+                              {pairingCode ? (
+                                <div className="flex flex-col items-center gap-2 rounded-md border border-border bg-muted p-4">
+                                  <span className="font-mono text-3xl font-bold tracking-[0.3em] text-foreground">
+                                    {pairingCode}
+                                  </span>
+                                  <p className="text-center text-sm text-muted-foreground">
+                                    No celular, abra o WhatsApp e vá em Configurações → Dispositivos
+                                    conectados → Conectar dispositivo → Conectar com número de
+                                    telefone, e digite este código.
+                                  </p>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-muted-foreground">
+                                  Informe o número e clique em “Gerar código de pareamento”. O
+                                  código aparece aqui na tela, sem precisar de câmera.
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          {connectMode === "qr" && (qr ? (
                             <div className="flex flex-col items-center gap-3">
                               <img
                                 src={qr.startsWith("data:") ? qr : `data:image/png;base64,${qr}`}
