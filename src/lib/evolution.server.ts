@@ -955,16 +955,18 @@ export async function reiniciarSessaoMuda(
   } catch {
     conectado = false;
   }
+  if (conectado) {
+    // Silêncio não prova defeito. Chamar connect/start numa sessão saudável
+    // interrompe o recebimento por alguns segundos e pode fazê-la não voltar.
+    console.log(`[webhook] silêncio com sessão conectada: nenhuma ação device=${config.id}`);
+    return { reiniciado: false, detalhe: "Sessão conectada; nenhuma reinicialização necessária." };
+  }
   try {
     await evolutionConnectInstance(alvo, { webhookUrl: inboundUrl, immediate: true });
   } catch (error) {
-    console.error(`[webhook] falha ao reassinar device=${config.id}`, (error as Error)?.message);
+    console.error(`[webhook] falha ao religar device=${config.id}`, (error as Error)?.message);
   }
   invalidateEvolutionSessionCache(config.instance_id);
-  if (conectado) {
-    console.log(`[webhook] silêncio com sessão conectada: webhook reassinado device=${config.id}`);
-    return { reiniciado: false, detalhe: "Sessão conectada; endereço de recebimento reassinado." };
-  }
   console.log(`[webhook] sessão religada por silêncio device=${config.id}`);
   const minutos = Number.isFinite(silencioMs) ? Math.round(silencioMs / 60000) : null;
   return {

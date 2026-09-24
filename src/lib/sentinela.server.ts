@@ -225,7 +225,11 @@ function externalIdDoPayload(payload: unknown): string | null {
 
 function eventoDoPayload(payload: unknown): string {
   const raw = payload as Record<string, any> | null;
-  return String(raw?.["event"] ?? raw?.["type"] ?? "");
+  // Na WuzAPI `event` é o envelope da mensagem e `type` contém o nome real.
+  // Converter o objeto para texto gerava "[object Object]", fazia HistorySync
+  // gigante entrar na fila e bloquear a recuperação das mensagens novas.
+  const event = raw?.["event"];
+  return String(typeof event === "string" ? event : (raw?.["type"] ?? ""));
 }
 
 /** Eventos sem conteúdo para recuperar: guardá-los só enche o banco. */
@@ -438,6 +442,23 @@ async function reprocessarEvento(linha: Record<string, unknown>): Promise<boolea
       .eq("id", String(linha["id"]))
       .maybeSingle();
     payload = (data as { payload?: unknown } | null)?.payload ?? {};
+  }
+
+  // Sincronização de histórico não é uma mensagem nova e pode ter milhares de
+  // itens. Eventos antigos desse tipo, antes salvos como "[object Object]",
+  // ocupavam todos os ciclos da fila e deixavam mensagens reais esperando.
+  const payloadRecord = payload as Record<string, unknown> | null;
+  const payloadType = String(payloadRecord?.["type"] ?? "").toLowerCase();
+  if (payloadType === "historysync") {
+    await db
+      .from("webhook_eventos")
+      .update({
+        status: "ignorado",
+        erro: "historysync",
+        processado_em: new Date().toISOString(),
+      } as never)
+      .eq("id", String(linha["id"]));
+    return true;
   }
 
   const request = new Request(url, {
