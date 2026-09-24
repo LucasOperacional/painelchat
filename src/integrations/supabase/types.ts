@@ -1018,6 +1018,7 @@ export type Database = {
           first_response_at: string | null
           id: string
           last_message_at: string
+          pinned_at: string | null
           project_id: string | null
           queue_id: string | null
           sem_conexao: boolean
@@ -1034,6 +1035,7 @@ export type Database = {
           first_response_at?: string | null
           id?: string
           last_message_at?: string
+          pinned_at?: string | null
           project_id?: string | null
           queue_id?: string | null
           sem_conexao?: boolean
@@ -1050,6 +1052,7 @@ export type Database = {
           first_response_at?: string | null
           id?: string
           last_message_at?: string
+          pinned_at?: string | null
           project_id?: string | null
           queue_id?: string | null
           sem_conexao?: boolean

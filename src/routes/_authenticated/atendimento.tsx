@@ -41,6 +41,7 @@ import {
   CheckCheck,
   Landmark,
   KeyRound,
+  Pin,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -578,8 +579,27 @@ function AtendimentoPage() {
         if (!hit) return false;
       }
       return true;
+    }).sort((a, b) => {
+      const pa = a.pinned_at ? 1 : 0;
+      const pb = b.pinned_at ? 1 : 0;
+      if (pa !== pb) return pb - pa;
+      return new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime();
     });
   }, [conversations.data, tab, user?.id, queueFilter, search, isAdmin, agentFilter]);
+
+  async function togglePin(c: { id: string; pinned_at?: string | null }) {
+    const pinned_at = c.pinned_at ? null : new Date().toISOString();
+    queryClient.setQueryData<typeof conversations.data>(["conversations"], (old) =>
+      old?.map((x) => (x.id === c.id ? { ...x, pinned_at } : x)),
+    );
+    const { error } = await supabase.from("conversations").update({ pinned_at }).eq("id", c.id);
+    if (error) {
+      toast.error("Não foi possível fixar a conversa", { description: error.message });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    } else {
+      toast.success(pinned_at ? "Conversa fixada no topo" : "Conversa desafixada");
+    }
+  }
 
   const groupCount = useMemo(
     () => (conversations.data ?? []).filter((c) => c.contact?.wa_jid?.includes("@g.us")).length,
@@ -1212,6 +1232,21 @@ function AtendimentoPage() {
                       {c.contact?.name}
                     </span>
                     <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                      <span
+                        role="button"
+                        aria-label={c.pinned_at ? "Desafixar conversa" : "Fixar conversa no topo"}
+                        title={c.pinned_at ? "Desafixar conversa" : "Fixar no topo"}
+                        className={cn(
+                          "rounded-md p-1 transition-colors hover:bg-accent",
+                          c.pinned_at ? "text-primary" : "text-muted-foreground/60",
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void togglePin(c);
+                        }}
+                      >
+                        {c.pinned_at ? <Pin className="size-3.5 fill-current" /> : <Pin className="size-3.5" />}
+                      </span>
                       {timeAgo(c.last_message_at)}
                       {(unreadMap[c.id] ?? 0) > 0 && (
                         <span className="flex min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-4 text-destructive-foreground">

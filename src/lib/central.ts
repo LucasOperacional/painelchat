@@ -65,6 +65,7 @@ export type Conversation = {
   last_message_at: string;
   first_response_at: string | null;
   closed_at: string | null;
+  pinned_at?: string | null;
   created_at: string;
   contact: Contact | null;
   queue: { id: string; name: string; department_id: string | null; color: string } | null;
@@ -153,13 +154,19 @@ const CONVERSATION_SELECT =
   "*, contact:contacts(id, name, phone, notes, avatar_url, wa_jid), queue:queues(id, name, department_id, color), department:departments(id, name, color), connection:whatsapp_config(id, label, instance_name, color)";
 
 export async function fetchConversations() {
-  const conversations = unwrap<Conversation[]>(
-    await supabase
+  const [recentRes, pinnedRes] = await Promise.all([
+    supabase
       .from("conversations")
       .select(CONVERSATION_SELECT)
       .order("last_message_at", { ascending: false })
       .limit(300),
-  ) as Conversation[];
+    supabase.from("conversations").select(CONVERSATION_SELECT).not("pinned_at", "is", null),
+  ]);
+  const conversations = unwrap<Conversation[]>(recentRes) as Conversation[];
+  const seen = new Set(conversations.map((c) => c.id));
+  for (const c of (pinnedRes.data ?? []) as unknown as Conversation[]) {
+    if (!seen.has(c.id)) conversations.push(c);
+  }
 
   if (conversations.length === 0) return conversations;
 
