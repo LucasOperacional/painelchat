@@ -641,6 +641,22 @@ function AtendimentoPage() {
     placeholderData: (prev: any) => prev,
   });
 
+  // Rolagem do chat: ao abrir a conversa ou ao enviar uma mensagem, a tela
+  // desce sozinha até a última mensagem. Mensagens recebidas também descem a
+  // tela quando você já está perto do fim; se estiver lendo mensagens antigas,
+  // a posição é mantida.
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = chatScrollRef.current;
+    if (!el) return;
+    const lista = messages.data ?? [];
+    const ultima = lista[lista.length - 1];
+    const pertoDoFim = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
+    if (ultima?.direction === "outbound" || pertoDoFim) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [messages.data, selectedId]);
+
   const transfers = useQuery({
     queryKey: ["transfers", selectedId],
     enabled: !!selectedId,
@@ -1503,6 +1519,7 @@ function AtendimentoPage() {
             </header>
 
             <div
+              ref={chatScrollRef}
               className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-muted/40 bg-repeat bg-center p-3 sm:space-y-4 sm:p-5"
               style={{
                 backgroundColor: chatBackground,
