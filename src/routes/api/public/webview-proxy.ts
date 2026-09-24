@@ -17,6 +17,15 @@ import { createFileRoute } from "@tanstack/react-router";
 
 const PROXY_PATH = "/api/public/webview-proxy";
 
+function mesmoPortal(hostname: string, allowedHostname: string) {
+  const host = hostname.toLowerCase();
+  const allowed = allowedHostname.toLowerCase();
+  if (host === allowed) return true;
+  const nfse = "nfse.gov.br";
+  return (host === nfse || host.endsWith(`.${nfse}`)) &&
+    (allowed === nfse || allowed.endsWith(`.${nfse}`));
+}
+
 /** Bloqueia endereços internos (rede local, loopback, metadados de nuvem). */
 function enderecoInterno(hostname: string) {
   const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
@@ -65,7 +74,7 @@ function unwrapProxyValue(value: string, id: string, allowedHost: string): strin
     const original = wrapped.searchParams.get("u");
     if (!original) return value;
     const target = new URL(original);
-    if (target.hostname !== allowedHost || !/^https?:$/.test(target.protocol)) return value;
+    if (!mesmoPortal(target.hostname, allowedHost) || !/^https?:$/.test(target.protocol)) return value;
     return `${target.pathname}${target.search}${target.hash}`;
   } catch {
     return value;
@@ -102,7 +111,7 @@ function rewriteHtml(html: string, id: string, target: URL) {
       if (abs.protocol !== "http:" && abs.protocol !== "https:") return match;
       // Links de outros domínios (ex.: gov.br, certificado digital) não abrem
       // embutidos — marcamos para abrir em nova aba.
-      if (abs.hostname !== target.hostname) return `${match} data-wv-externo="1"`;
+      if (!mesmoPortal(abs.hostname, target.hostname)) return `${match} data-wv-externo="1"`;
       return `${prefix}${quote}${proxyUrl(id, abs.toString())}${quote}`;
     },
   );
@@ -110,8 +119,9 @@ function rewriteHtml(html: string, id: string, target: URL) {
   // Faz chamadas feitas por JavaScript (fetch/XHR) e links externos
   // funcionarem dentro do proxy.
   const shim = `<script>(function(){var P=${JSON.stringify(PROXY_PATH)},I=${JSON.stringify(id)},B=${JSON.stringify(target.toString())},H=${JSON.stringify(target.hostname)},seen=new WeakSet();
- function w(u){try{if(typeof u==="string"&&(u===P||u.indexOf(P+"?")===0))return u;var a=new URL(u,B);if(a.origin===location.origin&&a.pathname===P)return a.pathname+a.search+a.hash;if(a.hostname!==H)return u;return P+"?id="+encodeURIComponent(I)+"&u="+encodeURIComponent(a.toString());}catch(e){return u;}}
- function interno(u){try{var a=new URL(u,B);return a.hostname===H||(a.origin===location.origin&&a.pathname===P&&a.searchParams.get("id")===I);}catch(e){return false;}}
+ function portal(h){h=String(h||"").toLowerCase();var a=String(H).toLowerCase(),n="nfse.gov.br";return h===a||((h===n||h.slice(-(n.length+1))==="."+n)&&(a===n||a.slice(-(n.length+1))==="."+n));}
+ function w(u){try{if(typeof u==="string"&&(u===P||u.indexOf(P+"?")===0))return u;var a=new URL(u,B);if(a.origin===location.origin&&a.pathname===P)return a.pathname+a.search+a.hash;if(!portal(a.hostname))return u;return P+"?id="+encodeURIComponent(I)+"&u="+encodeURIComponent(a.toString());}catch(e){return u;}}
+ function interno(u){try{var a=new URL(u,B);return portal(a.hostname)||(a.origin===location.origin&&a.pathname===P&&a.searchParams.get("id")===I);}catch(e){return false;}}
  function nome(h,fallback){try{var p=new URL(h,B).pathname.split("/").pop();return decodeURIComponent(p||fallback||"nota-fiscal.pdf");}catch(e){return fallback||"nota-fiscal.pdf";}}
  function envia(b,n){if(!b||!b.size||seen.has(b))return Promise.resolve();seen.add(b);var fd=new FormData();fd.append("arquivo",b,n||"nota-fiscal.pdf");fd.append("nome",n||"nota-fiscal.pdf");return f.call(window,P+"?id="+encodeURIComponent(I)+"&recebe-arquivo=1&formato=json",{method:"POST",body:fd}).then(function(r){if(!r.ok)throw new Error("falha");return r.json();}).then(function(d){if(d&&d.type==="webview-download")parent.postMessage(d,location.origin);});}
  function arquivo(r){var t=(r.headers.get("content-type")||"").toLowerCase(),d=(r.headers.get("content-disposition")||"").toLowerCase();return /pdf|xml|zip|octet-stream/.test(t)||/attachment/.test(d);}
@@ -240,7 +250,7 @@ async function handle(request: Request) {
   if (requested) {
     try {
       const candidate = new URL(requested, target);
-      if (candidate.hostname !== target.hostname) {
+      if (!mesmoPortal(candidate.hostname, target.hostname)) {
         return new Response("Endereço fora do site cadastrado.", { status: 403 });
       }
       target = candidate;
@@ -343,7 +353,7 @@ async function handle(request: Request) {
     let destino = location;
     try {
       const abs = new URL(location, target);
-      destino = abs.hostname === target.hostname ? proxyUrl(id, abs.toString()) : abs.toString();
+       destino = mesmoPortal(abs.hostname, target.hostname) ? proxyUrl(id, abs.toString()) : abs.toString();
     } catch {
       /* mantém */
     }
@@ -373,7 +383,7 @@ async function handle(request: Request) {
       if (/^(data:|#)/i.test(value.trim())) return match;
       try {
         const abs = new URL(value.trim(), finalTarget);
-        if (abs.hostname !== finalTarget.hostname) return match;
+        if (!mesmoPortal(abs.hostname, finalTarget.hostname)) return match;
         return `url(${quote}${proxyUrl(id, abs.toString())}${quote})`;
       } catch {
         return match;
