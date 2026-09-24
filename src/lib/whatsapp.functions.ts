@@ -342,7 +342,11 @@ export const getWhatsappStatus = createServerFn({ method: "GET" })
       evolutionConnectInstance,
       ensureEvolutionInstance,
     } = await import("@/lib/evolution.server");
-    const config = await loadEvolutionConfig(data.deviceId);
+    // Aparelho removido (ex.: página aberta com um id antigo): consulta o
+    // aparelho padrão em vez de derrubar a tela.
+    const config = await loadEvolutionConfig(data.deviceId).catch(() =>
+      loadEvolutionConfig(undefined),
+    );
     const provider = normalizeProvider(config?.provider);
     const hasApiKey = !!(await loadEvolutionApiKey(config?.id ?? null));
 
