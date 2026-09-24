@@ -333,31 +333,8 @@ async function handle(request: Request) {
       const ext = /pdf/i.test(contentType) ? "pdf" : /xml/i.test(contentType) ? "xml" : "bin";
       name = `nota-fiscal.${ext}`;
     }
-    const safe = name.replace(/[^\w.\-]+/g, "_").slice(0, 120);
-    const path = `webview/${id}/${crypto.randomUUID()}-${safe}`;
     const mime = (contentType.split(";")[0] ?? contentType).trim();
-    let signedUrl: string | null = null;
-    if (bytes.byteLength <= 20 * 1024 * 1024) {
-      const up = await supabaseAdmin.storage.from("anexos").upload(path, bytes, { contentType: mime });
-      if (!up.error) {
-        const s = await supabaseAdmin.storage.from("anexos").createSignedUrl(path, 60 * 60 * 24 * 7);
-        signedUrl = s.data?.signedUrl ?? null;
-      }
-    }
-    if (signedUrl) {
-      const payload = JSON.stringify({ type: "webview-download", url: signedUrl, name, mimeType: mime });
-      const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
-      const page = `<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;padding:24px">
-<h3>Arquivo baixado: ${esc(name)}</h3>
-<p>Escolha o contato na janela que abriu para enviar pelo WhatsApp.</p>
-<p><a href="${esc(signedUrl)}" download="${esc(name)}" target="_blank">Baixar no computador</a> · <a href="#" onclick="history.back();return false">Voltar ao site</a></p>
-<script>try{parent.postMessage(${payload.replace(/</g, "\\u003c")},"*")}catch(e){}</script></body>`;
-      return new Response(page, {
-        status: 200,
-        headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
-      });
-    }
-    return new Response(bytes, { status: upstream.status, headers });
+    return await paginaArquivoBaixado(id, name, mime, bytes);
   }
 
   return new Response(upstream.body, { status: upstream.status, headers });
