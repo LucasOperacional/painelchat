@@ -820,9 +820,20 @@ function AtendimentoPage() {
       attachments: { url: string; name: string; mimeType: string }[];
       sticker?: { path: string; name: string } | null;
       reply?: { externalId: string; mine: boolean; body: string } | null;
-    }) =>
-      sendFn({ data: payload }),
+    }) => {
+      const conv = (conversations.data ?? []).find((c) => c.id === payload.conversationId);
+      if (conv && !conv.whatsapp_config_id) {
+        throw new Error(
+          "Este contato está sem conexão. Transfira a conversa para uma conexão para poder mandar mensagens.",
+        );
+      }
+      return sendFn({ data: payload });
+    },
     onMutate: (payload) => {
+      const conv = (conversations.data ?? []).find((c) => c.id === payload.conversationId);
+      if (conv && !conv.whatsapp_config_id) {
+        return { previous: undefined, conversationId: payload.conversationId };
+      }
       setDraft("");
       setPending([]);
       setReplyTo(null);
