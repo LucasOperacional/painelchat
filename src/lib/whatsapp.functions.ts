@@ -1214,10 +1214,15 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
     await Promise.all([
       withRetry("gravar mensagem enviada", async () => {
         const insert = await supabase.from("messages").insert(row);
+        // Na WAHA o webhook de eco pode chegar antes desta gravação. Nesse
+        // caso a mensagem já existe com o mesmo identificador normalizado e a
+        // restrição única confirma o sucesso, em vez de mostrar erro no painel.
+        if (insert.error?.code === "23505" && externalId) return;
         if (insert.error) throw new Error(insert.error.message);
       }).catch(async (error: Error) => {
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const fallback = await supabaseAdmin.from("messages").insert(row);
+        if (fallback.error?.code === "23505" && externalId) return;
         if (fallback.error) throw new Error(error.message);
       }),
       supabase.from("conversations").update(patch).eq("id", data.conversationId),
