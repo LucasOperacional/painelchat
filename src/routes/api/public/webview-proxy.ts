@@ -70,12 +70,23 @@ function rewriteHtml(html: string, id: string, target: URL) {
       } catch {
         return match;
       }
-      if (abs.hostname !== target.hostname) return match;
       if (abs.protocol !== "http:" && abs.protocol !== "https:") return match;
+      // Links de outros domínios (ex.: gov.br, certificado digital) não abrem
+      // embutidos — marcamos para abrir em nova aba.
+      if (abs.hostname !== target.hostname) return `${match} data-wv-externo="1"`;
       return `${prefix}${quote}${proxyUrl(id, abs.toString())}${quote}`;
     },
   );
 
+  // Faz chamadas feitas por JavaScript (fetch/XHR) e links externos
+  // funcionarem dentro do proxy.
+  const shim = `<script>(function(){var P=${JSON.stringify(PROXY_PATH)},I=${JSON.stringify(id)},B=${JSON.stringify(target.toString())},H=${JSON.stringify(target.hostname)};
+function w(u){try{var a=new URL(u,B);if(a.hostname!==H||u.indexOf(P)===0)return u;return P+"?id="+encodeURIComponent(I)+"&u="+encodeURIComponent(a.toString());}catch(e){return u;}}
+var f=window.fetch;if(f)window.fetch=function(i,o){if(typeof i==="string")i=w(i);return f.call(this,i,o);};
+var x=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){arguments[1]=w(String(u));return x.apply(this,arguments);};
+document.addEventListener("click",function(e){var el=e.target&&e.target.closest&&e.target.closest("a[data-wv-externo]");if(el){e.preventDefault();window.open(el.getAttribute("href"),"_blank","noopener");}},true);
+})();</script>`;
+  out = /<head[^>]*>/i.test(out) ? out.replace(/<head[^>]*>/i, (m) => m + shim) : shim + out;
   return out;
 }
 
