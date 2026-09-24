@@ -15,3 +15,4 @@
 - [x] Melhorar o Pix manual com nome, banco, tipo, chave e botão de cópia direta
 - [x] Manter cada conversa fixa na conexão confirmada até transferência manual
 - [x] Corrigir o download de notas no Webview removendo a URL interna antes de enviar ao portal
+- [x] Evitar bloqueio no download e abrir o PDF no leitor sem substituir a página do emissor
