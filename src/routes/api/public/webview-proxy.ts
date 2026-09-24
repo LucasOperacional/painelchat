@@ -17,6 +17,15 @@ import { createFileRoute } from "@tanstack/react-router";
 
 const PROXY_PATH = "/api/public/webview-proxy";
 
+function mesmoPortal(hostname: string, allowedHostname: string) {
+  const host = hostname.toLowerCase();
+  const allowed = allowedHostname.toLowerCase();
+  if (host === allowed) return true;
+  const nfse = "nfse.gov.br";
+  return (host === nfse || host.endsWith(`.${nfse}`)) &&
+    (allowed === nfse || allowed.endsWith(`.${nfse}`));
+}
+
 /** Bloqueia endereços internos (rede local, loopback, metadados de nuvem). */
 function enderecoInterno(hostname: string) {
   const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
@@ -65,7 +74,7 @@ function unwrapProxyValue(value: string, id: string, allowedHost: string): strin
     const original = wrapped.searchParams.get("u");
     if (!original) return value;
     const target = new URL(original);
-    if (target.hostname !== allowedHost || !/^https?:$/.test(target.protocol)) return value;
+    if (!mesmoPortal(target.hostname, allowedHost) || !/^https?:$/.test(target.protocol)) return value;
     return `${target.pathname}${target.search}${target.hash}`;
   } catch {
     return value;
@@ -102,7 +111,7 @@ function rewriteHtml(html: string, id: string, target: URL) {
       if (abs.protocol !== "http:" && abs.protocol !== "https:") return match;
       // Links de outros domínios (ex.: gov.br, certificado digital) não abrem
       // embutidos — marcamos para abrir em nova aba.
-      if (abs.hostname !== target.hostname) return `${match} data-wv-externo="1"`;
+      if (!mesmoPortal(abs.hostname, target.hostname)) return `${match} data-wv-externo="1"`;
       return `${prefix}${quote}${proxyUrl(id, abs.toString())}${quote}`;
     },
   );
@@ -110,7 +119,9 @@ function rewriteHtml(html: string, id: string, target: URL) {
   // Faz chamadas feitas por JavaScript (fetch/XHR) e links externos
   // funcionarem dentro do proxy.
   const shim = `<script>(function(){var P=${JSON.stringify(PROXY_PATH)},I=${JSON.stringify(id)},B=${JSON.stringify(target.toString())},H=${JSON.stringify(target.hostname)},seen=new WeakSet();
- function w(u){try{if(typeof u==="string"&&(u===P||u.indexOf(P+"?")===0))return u;var a=new URL(u,B);if(a.origin===location.origin&&a.pathname===P)return a.pathname+a.search+a.hash;if(a.hostname!==H)return u;return P+"?id="+encodeURIComponent(I)+"&u="+encodeURIComponent(a.toString());}catch(e){return u;}}
+ function portal(h){h=String(h||"").toLowerCase();var a=String(H).toLowerCase(),n="nfse.gov.br";return h===a||((h===n||h.slice(-(n.length+1))==="."+n)&&(a===n||a.slice(-(n.length+1))==="."+n));}
+ function w(u){try{if(typeof u==="string"&&(u===P||u.indexOf(P+"?")===0))return u;var a=new URL(u,B);if(a.origin===location.origin&&a.pathname===P)return a.pathname+a.search+a.hash;if(!portal(a.hostname))return u;return P+"?id="+encodeURIComponent(I)+"&u="+encodeURIComponent(a.toString());}catch(e){return u;}}
+ function interno(u){try{var a=new URL(u,B);return portal(a.hostname)||(a.origin===location.origin&&a.pathname===P&&a.searchParams.get("id")===I);}catch(e){return false;}}
  function nome(h,fallback){try{var p=new URL(h,B).pathname.split("/").pop();return decodeURIComponent(p||fallback||"nota-fiscal.pdf");}catch(e){return fallback||"nota-fiscal.pdf";}}
  function envia(b,n){if(!b||!b.size||seen.has(b))return Promise.resolve();seen.add(b);var fd=new FormData();fd.append("arquivo",b,n||"nota-fiscal.pdf");fd.append("nome",n||"nota-fiscal.pdf");return f.call(window,P+"?id="+encodeURIComponent(I)+"&recebe-arquivo=1&formato=json",{method:"POST",body:fd}).then(function(r){if(!r.ok)throw new Error("falha");return r.json();}).then(function(d){if(d&&d.type==="webview-download")parent.postMessage(d,location.origin);});}
  function arquivo(r){var t=(r.headers.get("content-type")||"").toLowerCase(),d=(r.headers.get("content-disposition")||"").toLowerCase();return /pdf|xml|zip|octet-stream/.test(t)||/attachment/.test(d);}
@@ -119,11 +130,13 @@ function rewriteHtml(html: string, id: string, target: URL) {
  var wo=window.open;window.open=function(u,n,o){if(typeof u!=="string"||!u)return wo.call(window,u,n,o);if(u.indexOf("blob:")===0||u.indexOf("data:")===0)return wo.call(window,u,n,o);try{var a=new URL(u,B);if(a.hostname===H||(a.origin===location.origin&&a.pathname===P)){location.href=w(u);return window;}}catch(e){}return wo.call(window,u,n,o);};
  function protege(proto,prop){try{var d=Object.getOwnPropertyDescriptor(proto,prop);if(!d||!d.set||!d.get)return;Object.defineProperty(proto,prop,{configurable:d.configurable,enumerable:d.enumerable,get:d.get,set:function(v){return d.set.call(this,typeof v==="string"?w(v):v);}});}catch(e){}}
  protege(HTMLAnchorElement.prototype,"href");protege(HTMLFormElement.prototype,"action");protege(HTMLIFrameElement.prototype,"src");if(window.HTMLFrameElement)protege(HTMLFrameElement.prototype,"src");protege(HTMLObjectElement.prototype,"data");protege(HTMLEmbedElement.prototype,"src");
- var sa=Element.prototype.setAttribute;Element.prototype.setAttribute=function(n,v){var tag=this.tagName||"",url=(n==="href"&&tag==="A")||(n==="action"&&tag==="FORM")||(n==="src"&&(tag==="IFRAME"||tag==="FRAME"||tag==="EMBED"))||(n==="data"&&tag==="OBJECT");return sa.call(this,n,url&&typeof v==="string"?w(v):v);};
- function ajusta(root){var sel="a[href],form[action],iframe[src],frame[src],object[data],embed[src]",els=[];if(root&&root.matches&&root.matches(sel))els.push(root);if(root&&root.querySelectorAll)els=els.concat(Array.prototype.slice.call(root.querySelectorAll(sel)));els.forEach(function(el){var at=el.tagName==="FORM"?"action":el.tagName==="OBJECT"?"data":el.tagName==="A"?"href":"src",v=el.getAttribute(at);if(v&&!/^(blob:|data:|javascript:|mailto:|tel:|#)/i.test(v)){try{var a=new URL(v,B);if((el.tagName==="A"||el.tagName==="FORM")&&a.hostname===H)el.setAttribute("target","_self");}catch(e){}var nv=w(v);if(nv!==v)el.setAttribute(at,nv);}});}
+ function protegeAlvo(proto,fonte){try{var d=Object.getOwnPropertyDescriptor(proto,"target");if(!d||!d.set||!d.get)return;Object.defineProperty(proto,"target",{configurable:d.configurable,enumerable:d.enumerable,get:d.get,set:function(v){var u=this.getAttribute(fonte)||"";return d.set.call(this,interno(u)?"_self":v);}});}catch(e){}}
+ protegeAlvo(HTMLAnchorElement.prototype,"href");protegeAlvo(HTMLFormElement.prototype,"action");
+ var sa=Element.prototype.setAttribute;Element.prototype.setAttribute=function(n,v){var tag=this.tagName||"",url=(n==="href"&&tag==="A")||(n==="action"&&tag==="FORM")||(n==="src"&&(tag==="IFRAME"||tag==="FRAME"||tag==="EMBED"))||(n==="data"&&tag==="OBJECT");if(n==="target"&&(tag==="A"||tag==="FORM")&&interno(tag==="A"?this.getAttribute("href")||"":this.getAttribute("action")||""))v="_self";return sa.call(this,n,url&&typeof v==="string"?w(v):v);};
+ function ajusta(root){var sel="a[href],form[action],iframe[src],frame[src],object[data],embed[src]",els=[];if(root&&root.matches&&root.matches(sel))els.push(root);if(root&&root.querySelectorAll)els=els.concat(Array.prototype.slice.call(root.querySelectorAll(sel)));els.forEach(function(el){var at=el.tagName==="FORM"?"action":el.tagName==="OBJECT"?"data":el.tagName==="A"?"href":"src",v=el.getAttribute(at);if(v&&!/^(blob:|data:|javascript:|mailto:|tel:|#)/i.test(v)){if((el.tagName==="A"||el.tagName==="FORM")&&interno(v))sa.call(el,"target","_self");var nv=w(v);if(nv!==v)sa.call(el,at,nv);}});}
  ajusta(document);new MutationObserver(function(ms){ms.forEach(function(m){if(m.type==="attributes")ajusta(m.target);else Array.prototype.forEach.call(m.addedNodes,ajusta);});}).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:["href","action","src","data"]});
- document.addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[href]");if(!a)return;var h=a.getAttribute("href")||"";if(!/^(blob:|data:|javascript:|mailto:|tel:|#)/i.test(h)){try{var u=new URL(h,B);if(u.hostname===H)a.setAttribute("target","_self");}catch(_){}a.setAttribute("href",w(h));}},true);
- document.addEventListener("submit",function(e){var form=e.target;if(form&&form.tagName==="FORM"){var a=form.getAttribute("action");if(a){try{var u=new URL(a,B);if(u.hostname===H)form.setAttribute("target","_self");}catch(_){}form.setAttribute("action",w(a));}}},true);
+ document.addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[href]");if(!a)return;var h=a.getAttribute("href")||"";if(!/^(blob:|data:|javascript:|mailto:|tel:|#)/i.test(h)){if(interno(h))sa.call(a,"target","_self");sa.call(a,"href",w(h));}},true);
+ document.addEventListener("submit",function(e){var form=e.target;if(form&&form.tagName==="FORM"){var a=form.getAttribute("action");if(a){if(interno(a))sa.call(form,"target","_self");sa.call(form,"action",w(a));}}},true);
  var fs=HTMLFormElement.prototype.submit,fr=HTMLFormElement.prototype.requestSubmit;HTMLFormElement.prototype.submit=function(){var a=this.getAttribute("action");if(a){try{var u=new URL(a,B);if(u.hostname===H)this.setAttribute("target","_self");}catch(_){}this.setAttribute("action",w(a));}return fs.call(this);};if(fr)HTMLFormElement.prototype.requestSubmit=function(b){var a=this.getAttribute("action");if(a){try{var u=new URL(a,B);if(u.hostname===H)this.setAttribute("target","_self");}catch(_){}this.setAttribute("action",w(a));}return fr.call(this,b);};
  var hp=history.pushState,hr=history.replaceState;history.pushState=function(s,t,u){return hp.call(this,s,t,typeof u==="string"?w(u):u);};history.replaceState=function(s,t,u){return hr.call(this,s,t,typeof u==="string"?w(u):u);};
  document.addEventListener("click",function(e){var el=e.target&&e.target.closest&&e.target.closest("a[data-wv-externo]");if(el){e.preventDefault();window.open(el.getAttribute("href"),"_blank","noopener");}},true);
@@ -239,7 +252,7 @@ async function handle(request: Request) {
   if (requested) {
     try {
       const candidate = new URL(requested, target);
-      if (candidate.hostname !== target.hostname) {
+      if (!mesmoPortal(candidate.hostname, target.hostname)) {
         return new Response("Endereço fora do site cadastrado.", { status: 403 });
       }
       target = candidate;
@@ -342,7 +355,7 @@ async function handle(request: Request) {
     let destino = location;
     try {
       const abs = new URL(location, target);
-      destino = abs.hostname === target.hostname ? proxyUrl(id, abs.toString()) : abs.toString();
+       destino = mesmoPortal(abs.hostname, target.hostname) ? proxyUrl(id, abs.toString()) : abs.toString();
     } catch {
       /* mantém */
     }
@@ -372,7 +385,7 @@ async function handle(request: Request) {
       if (/^(data:|#)/i.test(value.trim())) return match;
       try {
         const abs = new URL(value.trim(), finalTarget);
-        if (abs.hostname !== finalTarget.hostname) return match;
+        if (!mesmoPortal(abs.hostname, finalTarget.hostname)) return match;
         return `url(${quote}${proxyUrl(id, abs.toString())}${quote})`;
       } catch {
         return match;
