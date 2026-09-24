@@ -945,15 +945,27 @@ export async function reiniciarSessaoMuda(
   };
   const inboundUrl = `${evolutionPublicOrigin(options?.requestUrl ?? null)}/api/public/evolution?token=${config.webhook_token ?? ""}`;
 
+  // Silêncio sozinho não prova defeito (pode só não ter chegado mensagem).
+  // Nunca derrubamos uma sessão que a API informa como conectada: apenas
+  // reassinamos o webhook, o que é seguro e não interrompe o recebimento.
+  let conectado = false;
   try {
-    await evolutionDisconnect(alvo);
+    const st = await evolutionGetStatus({ ...alvo, timeoutMs: 15_000 } as InstanceTarget);
+    conectado = st.connected && st.loggedIn;
   } catch {
-    /* se a API já considerava desconectado, seguimos para reconectar */
+    conectado = false;
   }
-  await new Promise((r) => setTimeout(r, 3000));
-  await evolutionConnectInstance(alvo, { webhookUrl: inboundUrl, immediate: true });
+  try {
+    await evolutionConnectInstance(alvo, { webhookUrl: inboundUrl, immediate: true });
+  } catch (error) {
+    console.error(`[webhook] falha ao reassinar device=${config.id}`, (error as Error)?.message);
+  }
   invalidateEvolutionSessionCache(config.instance_id);
-  console.log(`[webhook] sessão reiniciada por silêncio device=${config.id}`);
+  if (conectado) {
+    console.log(`[webhook] silêncio com sessão conectada: webhook reassinado device=${config.id}`);
+    return { reiniciado: false, detalhe: "Sessão conectada; endereço de recebimento reassinado." };
+  }
+  console.log(`[webhook] sessão religada por silêncio device=${config.id}`);
   const minutos = Number.isFinite(silencioMs) ? Math.round(silencioMs / 60000) : null;
   return {
     reiniciado: true,
@@ -1041,6 +1053,7 @@ export async function evolutionDisconnect(target: InstanceTarget) {
     baseUrl: target.baseUrl,
     instanceId: target.instanceId,
     configId: target.configId ?? null,
+    provider: target.provider,
     path: "/instance/disconnect",
     method: "POST",
   });
