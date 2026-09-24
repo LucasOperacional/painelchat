@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, Send } from "lucide-react";
+import { Download, FileText, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 
 import { fetchConversations } from "@/lib/central";
@@ -69,8 +69,21 @@ export function SendFileDialog({
     <Dialog open={!!file} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Enviar "{file?.name}" para um contato</DialogTitle>
+          <DialogTitle>Arquivo baixado</DialogTitle>
         </DialogHeader>
+        <div className="flex items-center gap-3 rounded-md border bg-muted/40 p-3">
+          <FileText className="size-8 shrink-0 text-primary" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{file?.name}</p>
+            <p className="text-xs text-muted-foreground">{file?.mimeType}</p>
+          </div>
+          <Button asChild size="sm" variant="outline">
+            <a href={file?.url} download={file?.name} target="_blank" rel="noreferrer">
+              <Download className="size-4" /> Baixar
+            </a>
+          </Button>
+        </div>
+        <p className="text-sm font-medium">Ou envie direto para um contato:</p>
         <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Mensagem (opcional)" />
         <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar contato por nome ou número" />
         <div className="max-h-80 overflow-y-auto rounded-md border">
