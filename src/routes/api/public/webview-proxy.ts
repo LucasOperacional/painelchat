@@ -152,7 +152,7 @@ async function handle(request: Request) {
     // nem alcançar endereços internos.
     let atual = target;
     let resposta: Response | null = null;
-    for (let salto = 0; salto < 4; salto += 1) {
+    for (let salto = 0; salto < 1; salto += 1) {
       resposta = await fetch(atual.toString(), {
         method: request.method,
         redirect: "manual",
@@ -160,17 +160,6 @@ async function handle(request: Request) {
         body: corpo,
         signal: AbortSignal.timeout(20_000),
       });
-      const location = resposta.headers.get("location");
-      if (resposta.status < 300 || resposta.status >= 400 || !location) break;
-      const proximo = new URL(location, atual);
-      if (
-        proximo.hostname !== target.hostname ||
-        enderecoInterno(proximo.hostname) ||
-        (proximo.protocol !== "http:" && proximo.protocol !== "https:")
-      ) {
-        return new Response("Endereço fora do site cadastrado.", { status: 403 });
-      }
-      atual = proximo;
     }
     if (!resposta) throw new Error("sem resposta");
     upstream = resposta;
@@ -206,6 +195,21 @@ async function handle(request: Request) {
       .filter((part) => !/^\s*(domain|path|secure|samesite)\s*=?/i.test(part))
       .join(";");
     headers.append("set-cookie", `${cleaned}; Path=${PROXY_PATH}; SameSite=None; Secure`);
+  }
+
+  // Redirecionamentos voltam para o navegador (passando pelo proxy), assim os
+  // cookies de sessão definidos na resposta são gravados antes do próximo passo.
+  const location = upstream.headers.get("location");
+  if (upstream.status >= 300 && upstream.status < 400 && location) {
+    let destino = location;
+    try {
+      const abs = new URL(location, target);
+      destino = abs.hostname === target.hostname ? proxyUrl(id, abs.toString()) : abs.toString();
+    } catch {
+      /* mantém */
+    }
+    headers.set("location", destino);
+    return new Response(null, { status: upstream.status === 307 || upstream.status === 308 ? upstream.status : 303, headers });
   }
 
   // A URL final pode ter mudado por redirecionamento.
