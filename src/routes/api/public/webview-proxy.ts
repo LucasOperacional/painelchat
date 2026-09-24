@@ -171,7 +171,7 @@ async function handle(request: Request) {
         `<body style="font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;padding:24px">` +
         `<div><h2 style="margin:0 0 8px">Não foi possível abrir o site</h2>` +
         `<p style="margin:0;opacity:.75">O endereço <b>${host}</b> não respondeu. Ele pode estar fora do ar ou bloqueando o acesso.<br>Tente novamente em alguns minutos ou confira o endereço cadastrado.</p></div></body></html>`,
-      { status: 502, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } },
+      { status: 200, headers: { "x-webview-error": "unreachable", "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } },
     );
   }
 
