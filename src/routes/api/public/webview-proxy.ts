@@ -50,6 +50,35 @@ function proxyUrl(id: string, absolute: string) {
   return `${PROXY_PATH}?id=${encodeURIComponent(id)}&u=${encodeURIComponent(absolute)}`;
 }
 
+/**
+ * Alguns portais copiam o href já reescrito pelo proxy para parâmetros como
+ * `redirectUrl`. Antes de enviar a requisição ao site original, desfazemos
+ * somente esses endereços internos. Sem isso, o Emissor Nacional recebe
+ * `/api/public/webview-proxy?...` como destino e responde "URL de download
+ * inválida" ao tentar gerar o DANFSe/XML.
+ */
+function unwrapProxyValue(value: string, id: string, allowedHost: string): string {
+  if (!value.includes(PROXY_PATH)) return value;
+  try {
+    const wrapped = new URL(value, "https://proxy.local");
+    if (wrapped.pathname !== PROXY_PATH || wrapped.searchParams.get("id") !== id) return value;
+    const original = wrapped.searchParams.get("u");
+    if (!original) return value;
+    const target = new URL(original);
+    if (target.hostname !== allowedHost || !/^https?:$/.test(target.protocol)) return value;
+    return `${target.pathname}${target.search}${target.hash}`;
+  } catch {
+    return value;
+  }
+}
+
+function unwrapNestedProxyParams(target: URL, id: string) {
+  for (const [key, value] of target.searchParams.entries()) {
+    const clean = unwrapProxyValue(value, id, target.hostname);
+    if (clean !== value) target.searchParams.set(key, clean);
+  }
+}
+
 function rewriteHtml(html: string, id: string, target: URL) {
   // Remove meta-tags de CSP que bloqueiam a exibição embutida.
   let out = html.replace(
@@ -192,6 +221,7 @@ async function handle(request: Request) {
       /* mantém a URL cadastrada */
     }
   }
+  unwrapNestedProxyParams(target, id);
   if (target.protocol !== "http:" && target.protocol !== "https:") {
     return new Response("Protocolo não suportado.", { status: 400 });
   }
@@ -213,8 +243,22 @@ async function handle(request: Request) {
   if (request.method !== "GET") forwardHeaders.set("referer", target.origin + "/");
 
   let upstream: Response;
-  const corpo =
+  let corpo: BodyInit | null =
     request.method === "GET" || request.method === "HEAD" ? null : await request.arrayBuffer();
+  // O modal de captcha da NFS-e também repete o destino do download no corpo
+  // do POST. Desfazemos o proxy ali para a validação do portal aceitar a URL.
+  if (corpo && reqContentType?.toLowerCase().includes("application/x-www-form-urlencoded")) {
+    try {
+      const form = new URLSearchParams(new TextDecoder().decode(corpo as ArrayBuffer));
+      for (const [key, value] of form.entries()) {
+        const clean = unwrapProxyValue(value, id, target.hostname);
+        if (clean !== value) form.set(key, clean);
+      }
+      corpo = form.toString();
+    } catch {
+      /* mantém o corpo original */
+    }
+  }
   try {
     // Redirecionamentos são seguidos manualmente para não sair do site cadastrado
     // nem alcançar endereços internos.
