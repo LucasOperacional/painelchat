@@ -178,12 +178,16 @@ async function call<T = unknown>(options: WahaCall & { raw?: boolean }): Promise
 function sentEnvelope(data: unknown) {
   const bag = (data ?? {}) as Record<string, unknown>;
   const id = bag["id"] ?? (bag["_data"] as Record<string, unknown> | undefined)?.["id"] ?? null;
-  const flat =
+  const raw =
     typeof id === "string"
       ? id
       : typeof id === "object" && id
         ? String((id as Record<string, unknown>)["_serialized"] ?? "")
         : "";
+  // A resposta de envio da WAHA costuma trazer `true_<jid>_<id>`, mas o
+  // webhook devolve somente `<id>`. Guardar os dois formatos fazia o eco da
+  // mesma mensagem passar pela chave única e aparecer duas vezes no chat.
+  const flat = raw.replace(/^(?:true|false)_[^_]+_/, "");
   return { data: { ...bag, Info: { ID: flat } } };
 }
 
