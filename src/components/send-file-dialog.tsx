@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Download, FileText, Loader2, Send } from "lucide-react";
@@ -23,8 +23,28 @@ export function SendFileDialog({
   const [text, setText] = useState("Segue a nota fiscal.");
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [onlyActive, setOnlyActive] = useState(true);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const isPdf = !!file && (file.mimeType.includes("pdf") || /\.pdf$/i.test(file.name));
   const send = useServerFn(sendWhatsappMessage);
+
+  useEffect(() => {
+    if (!isPdf || !file) return;
+    let url: string | null = null;
+    let cancel = false;
+    fetch(file.url)
+      .then((r) => r.blob())
+      .then((b) => {
+        if (cancel) return;
+        url = URL.createObjectURL(new Blob([b], { type: "application/pdf" }));
+        setPdfUrl(url);
+      })
+      .catch(() => setPdfUrl(null));
+    return () => {
+      cancel = true;
+      if (url) URL.revokeObjectURL(url);
+      setPdfUrl(null);
+    };
+  }, [isPdf, file]);
 
   const convs = useQuery({
     queryKey: ["send-file-conversations"],
@@ -75,13 +95,15 @@ export function SendFileDialog({
           <DialogTitle>Arquivo baixado</DialogTitle>
         </DialogHeader>
         <div className={isPdf ? "grid gap-4 md:grid-cols-[1fr_360px]" : ""}>
-        {isPdf && (
-          <iframe
-            title="Leitor de PDF"
-            src={`${file!.url}#toolbar=1&view=FitH`}
-            className="h-[70vh] w-full rounded-md border bg-muted"
-          />
-        )}
+        {isPdf && (pdfUrl ? (
+          <object data={`${pdfUrl}#toolbar=1&view=FitH`} type="application/pdf" className="h-[70vh] w-full rounded-md border bg-muted">
+            <a href={file!.url} target="_blank" rel="noreferrer" className="p-4 text-sm underline">Abrir PDF em nova aba</a>
+          </object>
+        ) : (
+          <div className="flex h-[70vh] items-center justify-center rounded-md border bg-muted text-sm text-muted-foreground">
+            <Loader2 className="mr-2 size-4 animate-spin" /> Abrindo PDF…
+          </div>
+        ))}
         <div className="flex min-w-0 flex-col gap-3">
         <div className="flex items-center gap-3 rounded-md border bg-muted/40 p-3">
           <FileText className="size-8 shrink-0 text-primary" />
