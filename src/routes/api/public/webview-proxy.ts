@@ -160,17 +160,6 @@ async function handle(request: Request) {
         body: corpo,
         signal: AbortSignal.timeout(20_000),
       });
-      const location = resposta.headers.get("location");
-      if (resposta.status < 300 || resposta.status >= 400 || !location) break;
-      const proximo = new URL(location, atual);
-      if (
-        proximo.hostname !== target.hostname ||
-        enderecoInterno(proximo.hostname) ||
-        (proximo.protocol !== "http:" && proximo.protocol !== "https:")
-      ) {
-        return new Response("Endereço fora do site cadastrado.", { status: 403 });
-      }
-      atual = proximo;
     }
     if (!resposta) throw new Error("sem resposta");
     upstream = resposta;
