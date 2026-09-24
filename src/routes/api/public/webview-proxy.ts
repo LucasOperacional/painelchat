@@ -147,6 +147,7 @@ async function handle(request: Request) {
         redirect: "manual",
         headers: forwardHeaders,
         body: corpo,
+        signal: AbortSignal.timeout(20_000),
       });
       const location = resposta.headers.get("location");
       if (resposta.status < 300 || resposta.status >= 400 || !location) break;
@@ -164,9 +165,13 @@ async function handle(request: Request) {
     upstream = resposta;
     target = atual;
   } catch {
+    const host = target.hostname.replace(/[<>&"']/g, "");
     return new Response(
-      "Não foi possível acessar o site. Confira o endereço e tente novamente.",
-      { status: 502 },
+      `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Site indisponível</title></head>` +
+        `<body style="font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;padding:24px">` +
+        `<div><h2 style="margin:0 0 8px">Não foi possível abrir o site</h2>` +
+        `<p style="margin:0;opacity:.75">O endereço <b>${host}</b> não respondeu. Ele pode estar fora do ar ou bloqueando o acesso.<br>Tente novamente em alguns minutos ou confira o endereço cadastrado.</p></div></body></html>`,
+      { status: 200, headers: { "x-webview-error": "unreachable", "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } },
     );
   }
 
