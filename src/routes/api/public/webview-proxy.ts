@@ -159,6 +159,7 @@ function rewriteHtml(html: string, id: string, target: URL) {
 /** Guarda o arquivo na central e devolve a página que abre a janela de envio. */
 async function paginaArquivoBaixado(
   id: string,
+  projectId: string | null,
   name: string,
   mime: string,
   bytes: Uint8Array,
@@ -167,12 +168,30 @@ async function paginaArquivoBaixado(
   const safe = name.replace(/[^\w.\-]+/g, "_").slice(0, 120);
   const path = `webview/${id}/${crypto.randomUUID()}-${safe}`;
   let signedUrl: string | null = null;
+  let documentId: string | null = null;
   if (bytes.byteLength > 0 && bytes.byteLength <= 20 * 1024 * 1024) {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const up = await supabaseAdmin.storage.from("anexos").upload(path, bytes, { contentType: mime });
     if (!up.error) {
       const s = await supabaseAdmin.storage.from("anexos").createSignedUrl(path, 60 * 60 * 24 * 7);
       signedUrl = s.data?.signedUrl ?? null;
+      const saved = await supabaseAdmin
+        .from("webview_documents")
+        .insert({
+          webview_id: id,
+          project_id: projectId,
+          storage_path: path,
+          file_name: name,
+          mime_type: mime,
+          size_bytes: bytes.byteLength,
+        })
+        .select("id")
+        .single();
+      documentId = saved.data?.id ?? null;
+      if (saved.error) {
+        await supabaseAdmin.storage.from("anexos").remove([path]);
+        signedUrl = null;
+      }
     }
   }
   if (!signedUrl) {
@@ -184,7 +203,7 @@ async function paginaArquivoBaixado(
       { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } },
     );
   }
-  const download = { type: "webview-download", url: signedUrl, name, mimeType: mime };
+  const download = { type: "webview-download", documentId, url: signedUrl, name, mimeType: mime };
   if (formato === "json") {
     return Response.json(download, { headers: { "cache-control": "no-store" } });
   }
@@ -211,7 +230,7 @@ async function handle(request: Request) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("webviews")
-    .select("url")
+    .select("url, project_id")
     .eq("id", id)
     .maybeSingle();
   if (error || !data) return new Response("Site não encontrado.", { status: 404 });
@@ -231,6 +250,7 @@ async function handle(request: Request) {
       const bytes = new Uint8Array(await arquivo.arrayBuffer());
       return await paginaArquivoBaixado(
         id,
+        data.project_id,
         nome,
         mime,
         bytes,
@@ -417,7 +437,7 @@ async function handle(request: Request) {
       name = `nota-fiscal.${ext}`;
     }
     const mime = (contentType.split(";")[0] ?? contentType).trim();
-    return await paginaArquivoBaixado(id, name, mime, bytes);
+    return await paginaArquivoBaixado(id, data.project_id, name, mime, bytes);
   }
 
   return new Response(upstream.body, { status: upstream.status, headers });

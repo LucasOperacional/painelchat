@@ -4,7 +4,17 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 type Ctx = {
-  supabase: { from: (t: string) => any };
+  supabase: {
+    from: (t: string) => any;
+    storage: {
+      from: (bucket: string) => {
+        createSignedUrl: (path: string, expiresIn: number) => Promise<{
+          data: { signedUrl?: string } | null;
+          error: unknown;
+        }>;
+      };
+    };
+  };
   userId: string;
 };
 
@@ -16,6 +26,16 @@ export type WebviewSite = {
   open_external: boolean;
   use_proxy: boolean;
   sort_order: number;
+};
+
+export type WebviewDocument = {
+  id: string;
+  webview_id: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+  created_at: string;
+  url: string;
 };
 
 const SELECT = "id, title, url, description, open_external, use_proxy, sort_order";
@@ -43,6 +63,37 @@ export const listWebviews = createServerFn({ method: "GET" })
       .order("created_at", { ascending: true });
     if (error) throw new Error(error.message);
     return (data ?? []) as WebviewSite[];
+  });
+
+/** Lista os documentos capturados e gera links privados temporários. */
+export const listWebviewDocuments = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: unknown) => z.object({ webviewId: z.string().uuid() }).parse(data))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context as never as Ctx;
+    const { data: rows, error } = await supabase
+      .from("webview_documents")
+      .select("id, webview_id, storage_path, file_name, mime_type, size_bytes, created_at")
+      .eq("webview_id", data.webviewId)
+      .order("created_at", { ascending: false })
+      .limit(30);
+    if (error) throw new Error(error.message);
+
+    const documents = await Promise.all(
+      ((rows ?? []) as Array<{
+        id: string;
+        webview_id: string;
+        storage_path: string;
+        file_name: string;
+        mime_type: string;
+        size_bytes: number;
+        created_at: string;
+      }>).map(async (row) => {
+        const signed = await supabase.storage.from("anexos").createSignedUrl(row.storage_path, 60 * 60);
+        return signed.data?.signedUrl ? { ...row, url: signed.data.signedUrl } : null;
+      }),
+    );
+    return documents.filter((row): row is NonNullable<typeof row> => row !== null) as WebviewDocument[];
   });
 
 const siteSchema = z.object({
