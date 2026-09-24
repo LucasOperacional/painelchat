@@ -267,7 +267,7 @@ async function handle(request: Request) {
     }
     const safe = name.replace(/[^\w.\-]+/g, "_").slice(0, 120);
     const path = `webview/${id}/${crypto.randomUUID()}-${safe}`;
-    const mime = contentType.split(";")[0].trim();
+    const mime = (contentType.split(";")[0] ?? contentType).trim();
     let signedUrl: string | null = null;
     if (bytes.byteLength <= 20 * 1024 * 1024) {
       const up = await supabaseAdmin.storage.from("anexos").upload(path, bytes, { contentType: mime });
