@@ -128,16 +128,18 @@ function WebviewFramePage() {
               <ul className="divide-y">
                 {(documents.data ?? []).map((doc: WebviewDocument) => (
                   <li key={doc.id} className="space-y-2 p-3">
-                    <button
-                      type="button"
-                      className="block w-full text-left"
+                    <Button
+                      variant="ghost"
+                      className="h-auto w-full justify-start p-0 text-left"
                       onClick={() => setDownloaded({ url: doc.url, name: doc.file_name, mimeType: doc.mime_type })}
                     >
-                      <p className="truncate text-sm font-medium">{doc.file_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(doc.created_at).toLocaleString("pt-BR")} · {formatBytes(doc.size_bytes)}
-                      </p>
-                    </button>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium">{doc.file_name}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {new Date(doc.created_at).toLocaleString("pt-BR")} · {formatBytes(doc.size_bytes)}
+                        </span>
+                      </span>
+                    </Button>
                     <div className="flex gap-2">
                       <Button asChild size="sm" variant="outline" title="Baixar documento">
                         <a href={doc.url} download={doc.file_name} target="_blank" rel="noreferrer">
