@@ -116,18 +116,18 @@ function rewriteHtml(html: string, id: string, target: URL) {
  document.addEventListener("click",function(e){var el=e.target&&e.target.closest&&e.target.closest("a[data-wv-externo]");if(el){e.preventDefault();window.open(el.getAttribute("href"),"_blank","noopener");}},true);
  // Downloads gerados por JavaScript (blob/data) não passam pelo proxy: aqui o
  // arquivo é enviado para a central, que guarda e abre a janela de envio.
- document.addEventListener("click",function(e){
+  document.addEventListener("click",function(e){
   var a=e.target&&e.target.closest&&e.target.closest("a[download]");
   if(!a)return;
   var h=a.getAttribute("href")||"";
   if(h.indexOf("blob:")!==0&&h.indexOf("data:")!==0)return;
   e.preventDefault();e.stopPropagation();
   var n=a.getAttribute("download")||"arquivo";
-  fetch(h).then(function(r){return r.blob();}).then(function(b){
+   fetch(h).then(function(r){return r.blob();}).then(function(b){
    var fd=new FormData();fd.append("arquivo",b,n);fd.append("nome",n);
-   return fetch(P+"?id="+encodeURIComponent(I)+"&recebe-arquivo=1",{method:"POST",body:fd});
+    return fetch(P+"?id="+encodeURIComponent(I)+"&recebe-arquivo=1&formato=json",{method:"POST",body:fd});
   }).then(function(r){
-   if(r&&r.ok)return r.text().then(function(t){document.open();document.write(t);document.close();});
+    if(r&&r.ok)return r.json().then(function(d){if(d&&d.type==="webview-download")parent.postMessage(d,location.origin);});
    throw new Error("falha");
   }).catch(function(){try{window.open(h,"_blank");}catch(_){}});
  },true);
@@ -137,7 +137,13 @@ function rewriteHtml(html: string, id: string, target: URL) {
 }
 
 /** Guarda o arquivo na central e devolve a página que abre a janela de envio. */
-async function paginaArquivoBaixado(id: string, name: string, mime: string, bytes: Uint8Array) {
+async function paginaArquivoBaixado(
+  id: string,
+  name: string,
+  mime: string,
+  bytes: Uint8Array,
+  formato: "html" | "json" = "html",
+) {
   const safe = name.replace(/[^\w.\-]+/g, "_").slice(0, 120);
   const path = `webview/${id}/${crypto.randomUUID()}-${safe}`;
   let signedUrl: string | null = null;
@@ -150,18 +156,25 @@ async function paginaArquivoBaixado(id: string, name: string, mime: string, byte
     }
   }
   if (!signedUrl) {
+    if (formato === "json") {
+      return Response.json({ error: "Não foi possível guardar o arquivo." }, { status: 502 });
+    }
     return new Response(
       `<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;padding:24px"><h3>Não foi possível guardar o arquivo</h3><p>Tente baixar novamente. Se continuar, use a opção de baixar no computador e anexe manualmente na conversa.</p><p><a href="#" onclick="history.back();return false">Voltar ao site</a></p></body>`,
       { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } },
     );
   }
-  const payload = JSON.stringify({ type: "webview-download", url: signedUrl, name, mimeType: mime });
+  const download = { type: "webview-download", url: signedUrl, name, mimeType: mime };
+  if (formato === "json") {
+    return Response.json(download, { headers: { "cache-control": "no-store" } });
+  }
+  const payload = JSON.stringify(download);
   const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
   const page = `<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;padding:24px">
 <h3>Arquivo baixado: ${esc(name)}</h3>
 <p>Escolha o contato na janela que abriu para enviar pelo WhatsApp.</p>
 <p><a href="${esc(signedUrl)}" download="${esc(name)}" target="_blank">Baixar no computador</a> · <a href="#" onclick="history.back();return false">Voltar ao site</a></p>
-<script>try{parent.postMessage(${payload.replace(/</g, "\\u003c")},"*")}catch(e){}</script></body>`;
+<script>try{parent.postMessage(${payload.replace(/</g, "\\u003c")},location.origin);if(history.length>1)setTimeout(function(){history.back()},150)}catch(e){}</script></body>`;
   return new Response(page, {
     status: 200,
     headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
@@ -196,7 +209,13 @@ async function handle(request: Request) {
         "arquivo";
       const mime = arquivo.type || "application/octet-stream";
       const bytes = new Uint8Array(await arquivo.arrayBuffer());
-      return await paginaArquivoBaixado(id, nome, mime, bytes);
+      return await paginaArquivoBaixado(
+        id,
+        nome,
+        mime,
+        bytes,
+        params.get("formato") === "json" ? "json" : "html",
+      );
     } catch {
       return new Response("Não foi possível receber o arquivo.", { status: 400 });
     }
