@@ -116,6 +116,25 @@ function rewriteHtml(html: string, id: string, target: URL) {
     },
   );
 
+  // Alguns passos do emissor usam meta refresh em vez de um redirecionamento
+  // HTTP. Sem reescrever esse destino, o iframe escapa do proxy e o navegador
+  // mostra "conexão recusada".
+  out = out.replace(
+    /(<meta[^>]+http-equiv=["']?refresh["']?[^>]+content=["'])([^"']+)(["'][^>]*>)/gi,
+    (match, prefix: string, content: string, suffix: string) => {
+      const found = /^(\s*\d+\s*;\s*url\s*=\s*)(.+)$/i.exec(content);
+      if (!found) return match;
+      const raw = found[2].trim().replace(/^['"]|['"]$/g, "");
+      try {
+        const abs = new URL(raw, target);
+        if (!mesmoPortal(abs.hostname, target.hostname)) return match;
+        return `${prefix}${found[1]}${proxyUrl(id, abs.toString())}${suffix}`;
+      } catch {
+        return match;
+      }
+    },
+  );
+
   // Faz chamadas feitas por JavaScript (fetch/XHR) e links externos
   // funcionarem dentro do proxy.
   const shim = `<script>(function(){var P=${JSON.stringify(PROXY_PATH)},I=${JSON.stringify(id)},B=${JSON.stringify(target.toString())},H=${JSON.stringify(target.hostname)},seen=new WeakSet();
@@ -123,11 +142,11 @@ function rewriteHtml(html: string, id: string, target: URL) {
  function w(u){try{if(typeof u==="string"&&(u===P||u.indexOf(P+"?")===0))return u;var a=new URL(u,B);if(a.origin===location.origin&&a.pathname===P)return a.pathname+a.search+a.hash;if(!portal(a.hostname))return u;return P+"?id="+encodeURIComponent(I)+"&u="+encodeURIComponent(a.toString());}catch(e){return u;}}
  function interno(u){try{var a=new URL(u,B);return portal(a.hostname)||(a.origin===location.origin&&a.pathname===P&&a.searchParams.get("id")===I);}catch(e){return false;}}
  function nome(h,fallback){try{var p=new URL(h,B).pathname.split("/").pop();return decodeURIComponent(p||fallback||"nota-fiscal.pdf");}catch(e){return fallback||"nota-fiscal.pdf";}}
- function envia(b,n){if(!b||!b.size||seen.has(b))return Promise.resolve();seen.add(b);var fd=new FormData();fd.append("arquivo",b,n||"nota-fiscal.pdf");fd.append("nome",n||"nota-fiscal.pdf");return f.call(window,P+"?id="+encodeURIComponent(I)+"&recebe-arquivo=1&formato=json",{method:"POST",body:fd}).then(function(r){if(!r.ok)throw new Error("falha");return r.json();}).then(function(d){if(d&&d.type==="webview-download")parent.postMessage(d,location.origin);});}
+ function envia(b,n){if(!b||!b.size||seen.has(b))return Promise.resolve();seen.add(b);var fd=new FormData();fd.append("arquivo",b,n||"nota-fiscal.pdf");fd.append("nome",n||"nota-fiscal.pdf");return f.call(window,P+"?id="+encodeURIComponent(I)+"&recebe-arquivo=1&formato=json",{method:"POST",body:fd,credentials:"same-origin"}).then(function(r){if(!r.ok)throw new Error("falha");return r.json();}).then(function(d){if(d&&d.type==="webview-download")parent.postMessage(d,location.origin);});}
  function arquivo(r){var t=(r.headers.get("content-type")||"").toLowerCase(),d=(r.headers.get("content-disposition")||"").toLowerCase();return /pdf|xml|zip|octet-stream/.test(t)||/attachment/.test(d);}
  var f=window.fetch;if(f)window.fetch=function(i,o){var raw=typeof i==="string"?i:(i&&i.url)||"",req=typeof i==="string"?w(i):i;return f.call(this,req,o).then(function(r){if(arquivo(r)){var c=r.clone();c.blob().then(function(b){return envia(b,nome(raw,"nota-fiscal.pdf"));}).catch(function(){});}return r;});};
  var x=XMLHttpRequest.prototype.open,s=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.open=function(m,u){this.__wvNome=nome(String(u),"nota-fiscal.pdf");arguments[1]=w(String(u));return x.apply(this,arguments);};XMLHttpRequest.prototype.send=function(){this.addEventListener("load",function(){try{var t=(this.getResponseHeader("content-type")||"").toLowerCase(),d=(this.getResponseHeader("content-disposition")||"").toLowerCase();if(!/pdf|xml|zip|octet-stream/.test(t)&&!/attachment/.test(d))return;var b=this.response instanceof Blob?this.response:new Blob([this.response],{type:t||"application/pdf"});envia(b,this.__wvNome);}catch(e){}});return s.apply(this,arguments);};
- var wo=window.open;window.open=function(u,n,o){if(typeof u!=="string"||!u)return wo.call(window,u,n,o);if(u.indexOf("blob:")===0||u.indexOf("data:")===0)return wo.call(window,u,n,o);try{var a=new URL(u,B);if(a.hostname===H||(a.origin===location.origin&&a.pathname===P)){location.href=w(u);return window;}}catch(e){}return wo.call(window,u,n,o);};
+ var wo=window.open;window.open=function(u,n,o){if(typeof u!=="string"||!u)return wo.call(window,u,n,o);if(u.indexOf("blob:")===0||u.indexOf("data:")===0){f.call(window,u).then(function(r){return r.blob();}).then(function(b){return envia(b,nome(u,"nota-fiscal.pdf"));}).catch(function(){});return window;}try{var a=new URL(u,B);if(portal(a.hostname)||(a.origin===location.origin&&a.pathname===P)){location.href=w(u);return window;}}catch(e){}return wo.call(window,u,n,o);};
  function protege(proto,prop){try{var d=Object.getOwnPropertyDescriptor(proto,prop);if(!d||!d.set||!d.get)return;Object.defineProperty(proto,prop,{configurable:d.configurable,enumerable:d.enumerable,get:d.get,set:function(v){return d.set.call(this,typeof v==="string"?w(v):v);}});}catch(e){}}
  protege(HTMLAnchorElement.prototype,"href");protege(HTMLFormElement.prototype,"action");protege(HTMLIFrameElement.prototype,"src");if(window.HTMLFrameElement)protege(HTMLFrameElement.prototype,"src");protege(HTMLObjectElement.prototype,"data");protege(HTMLEmbedElement.prototype,"src");
  function protegeAlvo(proto,fonte){try{var d=Object.getOwnPropertyDescriptor(proto,"target");if(!d||!d.set||!d.get)return;Object.defineProperty(proto,"target",{configurable:d.configurable,enumerable:d.enumerable,get:d.get,set:function(v){var u=this.getAttribute(fonte)||"";return d.set.call(this,interno(u)?"_self":v);}});}catch(e){}}
@@ -137,7 +156,7 @@ function rewriteHtml(html: string, id: string, target: URL) {
  ajusta(document);new MutationObserver(function(ms){ms.forEach(function(m){if(m.type==="attributes")ajusta(m.target);else Array.prototype.forEach.call(m.addedNodes,ajusta);});}).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:["href","action","src","data"]});
  document.addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[href]");if(!a)return;var h=a.getAttribute("href")||"";if(!/^(blob:|data:|javascript:|mailto:|tel:|#)/i.test(h)){if(interno(h))sa.call(a,"target","_self");sa.call(a,"href",w(h));}},true);
  document.addEventListener("submit",function(e){var form=e.target;if(form&&form.tagName==="FORM"){var a=form.getAttribute("action");if(a){if(interno(a))sa.call(form,"target","_self");sa.call(form,"action",w(a));}}},true);
- var fs=HTMLFormElement.prototype.submit,fr=HTMLFormElement.prototype.requestSubmit;HTMLFormElement.prototype.submit=function(){var a=this.getAttribute("action");if(a){try{var u=new URL(a,B);if(u.hostname===H)this.setAttribute("target","_self");}catch(_){}this.setAttribute("action",w(a));}return fs.call(this);};if(fr)HTMLFormElement.prototype.requestSubmit=function(b){var a=this.getAttribute("action");if(a){try{var u=new URL(a,B);if(u.hostname===H)this.setAttribute("target","_self");}catch(_){}this.setAttribute("action",w(a));}return fr.call(this,b);};
+  var fs=HTMLFormElement.prototype.submit,fr=HTMLFormElement.prototype.requestSubmit;HTMLFormElement.prototype.submit=function(){var a=this.getAttribute("action");if(a){try{var u=new URL(a,B);if(portal(u.hostname))this.setAttribute("target","_self");}catch(_){}this.setAttribute("action",w(a));}return fs.call(this);};if(fr)HTMLFormElement.prototype.requestSubmit=function(b){var a=this.getAttribute("action");if(a){try{var u=new URL(a,B);if(portal(u.hostname))this.setAttribute("target","_self");}catch(_){}this.setAttribute("action",w(a));}return fr.call(this,b);};
  var hp=history.pushState,hr=history.replaceState;history.pushState=function(s,t,u){return hp.call(this,s,t,typeof u==="string"?w(u):u);};history.replaceState=function(s,t,u){return hr.call(this,s,t,typeof u==="string"?w(u):u);};
  document.addEventListener("click",function(e){var el=e.target&&e.target.closest&&e.target.closest("a[data-wv-externo]");if(el){e.preventDefault();window.open(el.getAttribute("href"),"_blank","noopener");}},true);
  // Downloads gerados por JavaScript (blob/data) não passam pelo proxy: aqui o
@@ -391,29 +410,6 @@ async function handle(request: Request) {
     /* mantém */
   }
 
-  if (contentType.includes("text/html")) {
-    const html = await upstream.text();
-    return new Response(rewriteHtml(html, id, finalTarget), {
-      status: upstream.status,
-      headers,
-    });
-  }
-
-  if (contentType.includes("text/css")) {
-    const css = await upstream.text();
-    const rewritten = css.replace(/url\((["']?)([^"')]+)\1\)/gi, (match, quote: string, value: string) => {
-      if (/^(data:|#)/i.test(value.trim())) return match;
-      try {
-        const abs = new URL(value.trim(), finalTarget);
-        if (!mesmoPortal(abs.hostname, finalTarget.hostname)) return match;
-        return `url(${quote}${proxyUrl(id, abs.toString())}${quote})`;
-      } catch {
-        return match;
-      }
-    });
-    return new Response(rewritten, { status: upstream.status, headers });
-  }
-
   // Arquivos baixados (nota em PDF/XML): guarda na central e avisa o painel,
   // que abre a opção de enviar para um contato.
   const disposition = upstream.headers.get("content-disposition") ?? "";
@@ -438,6 +434,29 @@ async function handle(request: Request) {
     }
     const mime = (contentType.split(";")[0] ?? contentType).trim();
     return await paginaArquivoBaixado(id, data.project_id, name, mime, bytes);
+  }
+
+  if (contentType.includes("text/html")) {
+    const html = await upstream.text();
+    return new Response(rewriteHtml(html, id, finalTarget), {
+      status: upstream.status,
+      headers,
+    });
+  }
+
+  if (contentType.includes("text/css")) {
+    const css = await upstream.text();
+    const rewritten = css.replace(/url\((["']?)([^"')]+)\1\)/gi, (match, quote: string, value: string) => {
+      if (/^(data:|#)/i.test(value.trim())) return match;
+      try {
+        const abs = new URL(value.trim(), finalTarget);
+        if (!mesmoPortal(abs.hostname, finalTarget.hostname)) return match;
+        return `url(${quote}${proxyUrl(id, abs.toString())}${quote})`;
+      } catch {
+        return match;
+      }
+    });
+    return new Response(rewritten, { status: upstream.status, headers });
   }
 
   return new Response(upstream.body, { status: upstream.status, headers });
