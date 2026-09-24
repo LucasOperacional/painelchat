@@ -868,6 +868,10 @@ function AtendimentoPage() {
       if (context?.previous) {
         queryClient.setQueryData(["messages", context.conversationId], context.previous);
       }
+      if (e.message.startsWith("Este contato está sem conexão")) {
+        toast.error("Contato sem conexão", { description: e.message, duration: 8000 });
+        return;
+      }
       toast.error("Erro ao enviar", { description: e.message });
     },
   });
