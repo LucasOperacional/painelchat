@@ -461,12 +461,21 @@ function AtendimentoPage() {
     enabled: hasSession,
     retry: false,
     queryFn: async () => {
-      const res = await checkPixFn({ data: undefined });
-      if (res.confirmed > 0) {
-        await queryClient.invalidateQueries({ queryKey: ["messages"] });
-        await queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      // Verificação em segundo plano: sem sessão válida (expirada/renovando),
+      // apenas pula esta rodada em vez de derrubar a tela.
+      const { data: s } = await supabase.auth.getSession();
+      if (!s.session) return { confirmed: 0 };
+      try {
+        const res = await checkPixFn({ data: undefined });
+        if (res.confirmed > 0) {
+          await queryClient.invalidateQueries({ queryKey: ["messages"] });
+          await queryClient.invalidateQueries({ queryKey: ["conversations"] });
+        }
+        return res;
+      } catch (err) {
+        console.warn("[pix-check] ignorado:", err);
+        return { confirmed: 0 };
       }
-      return res;
     },
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
