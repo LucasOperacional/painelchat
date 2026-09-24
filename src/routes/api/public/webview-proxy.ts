@@ -124,7 +124,9 @@ function rewriteHtml(html: string, id: string, target: URL) {
     (match, prefix: string, content: string, suffix: string) => {
       const found = /^(\s*\d+\s*;\s*url\s*=\s*)(.+)$/i.exec(content);
       if (!found) return match;
-      const raw = found[2].trim().replace(/^['"]|['"]$/g, "");
+      const destination = found[2];
+      if (!destination) return match;
+      const raw = destination.trim().replace(/^['"]|['"]$/g, "");
       try {
         const abs = new URL(raw, target);
         if (!mesmoPortal(abs.hostname, target.hostname)) return match;
