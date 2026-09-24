@@ -81,13 +81,62 @@ function rewriteHtml(html: string, id: string, target: URL) {
   // Faz chamadas feitas por JavaScript (fetch/XHR) e links externos
   // funcionarem dentro do proxy.
   const shim = `<script>(function(){var P=${JSON.stringify(PROXY_PATH)},I=${JSON.stringify(id)},B=${JSON.stringify(target.toString())},H=${JSON.stringify(target.hostname)};
-function w(u){try{var a=new URL(u,B);if(a.hostname!==H||u.indexOf(P)===0)return u;return P+"?id="+encodeURIComponent(I)+"&u="+encodeURIComponent(a.toString());}catch(e){return u;}}
-var f=window.fetch;if(f)window.fetch=function(i,o){if(typeof i==="string")i=w(i);return f.call(this,i,o);};
-var x=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){arguments[1]=w(String(u));return x.apply(this,arguments);};
-document.addEventListener("click",function(e){var el=e.target&&e.target.closest&&e.target.closest("a[data-wv-externo]");if(el){e.preventDefault();window.open(el.getAttribute("href"),"_blank","noopener");}},true);
-})();</script>`;
+ function w(u){try{var a=new URL(u,B);if(a.hostname!==H||u.indexOf(P)===0)return u;return P+"?id="+encodeURIComponent(I)+"&u="+encodeURIComponent(a.toString());}catch(e){return u;}}
+ var f=window.fetch;if(f)window.fetch=function(i,o){if(typeof i==="string")i=w(i);return f.call(this,i,o);};
+ var x=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){arguments[1]=w(String(u));return x.apply(this,arguments);};
+ document.addEventListener("click",function(e){var el=e.target&&e.target.closest&&e.target.closest("a[data-wv-externo]");if(el){e.preventDefault();window.open(el.getAttribute("href"),"_blank","noopener");}},true);
+ // Downloads gerados por JavaScript (blob/data) não passam pelo proxy: aqui o
+ // arquivo é enviado para a central, que guarda e abre a janela de envio.
+ document.addEventListener("click",function(e){
+  var a=e.target&&e.target.closest&&e.target.closest("a[download]");
+  if(!a)return;
+  var h=a.getAttribute("href")||"";
+  if(h.indexOf("blob:")!==0&&h.indexOf("data:")!==0)return;
+  e.preventDefault();e.stopPropagation();
+  var n=a.getAttribute("download")||"arquivo";
+  fetch(h).then(function(r){return r.blob();}).then(function(b){
+   var fd=new FormData();fd.append("arquivo",b,n);fd.append("nome",n);
+   return fetch(P+"?id="+encodeURIComponent(I)+"&recebe-arquivo=1",{method:"POST",body:fd});
+  }).then(function(r){
+   if(r&&r.ok)return r.text().then(function(t){document.open();document.write(t);document.close();});
+   throw new Error("falha");
+  }).catch(function(){try{window.open(h,"_blank");}catch(_){}});
+ },true);
+ })();</script>`;
   out = /<head[^>]*>/i.test(out) ? out.replace(/<head[^>]*>/i, (m) => m + shim) : shim + out;
   return out;
+}
+
+/** Guarda o arquivo na central e devolve a página que abre a janela de envio. */
+async function paginaArquivoBaixado(id: string, name: string, mime: string, bytes: Uint8Array) {
+  const safe = name.replace(/[^\w.\-]+/g, "_").slice(0, 120);
+  const path = `webview/${id}/${crypto.randomUUID()}-${safe}`;
+  let signedUrl: string | null = null;
+  if (bytes.byteLength > 0 && bytes.byteLength <= 20 * 1024 * 1024) {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const up = await supabaseAdmin.storage.from("anexos").upload(path, bytes, { contentType: mime });
+    if (!up.error) {
+      const s = await supabaseAdmin.storage.from("anexos").createSignedUrl(path, 60 * 60 * 24 * 7);
+      signedUrl = s.data?.signedUrl ?? null;
+    }
+  }
+  if (!signedUrl) {
+    return new Response(
+      `<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;padding:24px"><h3>Não foi possível guardar o arquivo</h3><p>Tente baixar novamente. Se continuar, use a opção de baixar no computador e anexe manualmente na conversa.</p><p><a href="#" onclick="history.back();return false">Voltar ao site</a></p></body>`,
+      { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } },
+    );
+  }
+  const payload = JSON.stringify({ type: "webview-download", url: signedUrl, name, mimeType: mime });
+  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+  const page = `<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;padding:24px">
+<h3>Arquivo baixado: ${esc(name)}</h3>
+<p>Escolha o contato na janela que abriu para enviar pelo WhatsApp.</p>
+<p><a href="${esc(signedUrl)}" download="${esc(name)}" target="_blank">Baixar no computador</a> · <a href="#" onclick="history.back();return false">Voltar ao site</a></p>
+<script>try{parent.postMessage(${payload.replace(/</g, "\\u003c")},"*")}catch(e){}</script></body>`;
+  return new Response(page, {
+    status: 200,
+    headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
+  });
 }
 
 async function handle(request: Request) {
@@ -104,6 +153,25 @@ async function handle(request: Request) {
     .eq("id", id)
     .maybeSingle();
   if (error || !data) return new Response("Site não encontrado.", { status: 404 });
+
+  // Arquivo enviado pela página (download gerado por JavaScript): grava e
+  // devolve a página que abre a janela de envio no painel.
+  if (params.get("recebe-arquivo") === "1" && request.method === "POST") {
+    try {
+      const form = await request.formData();
+      const arquivo = form.get("arquivo");
+      if (!(arquivo instanceof File)) return new Response("Arquivo ausente.", { status: 400 });
+      const nome =
+        (typeof form.get("nome") === "string" && (form.get("nome") as string).trim()) ||
+        arquivo.name ||
+        "arquivo";
+      const mime = arquivo.type || "application/octet-stream";
+      const bytes = new Uint8Array(await arquivo.arrayBuffer());
+      return await paginaArquivoBaixado(id, nome, mime, bytes);
+    } catch {
+      return new Response("Não foi possível receber o arquivo.", { status: 400 });
+    }
+  }
 
   let target: URL;
   try {
@@ -265,31 +333,8 @@ async function handle(request: Request) {
       const ext = /pdf/i.test(contentType) ? "pdf" : /xml/i.test(contentType) ? "xml" : "bin";
       name = `nota-fiscal.${ext}`;
     }
-    const safe = name.replace(/[^\w.\-]+/g, "_").slice(0, 120);
-    const path = `webview/${id}/${crypto.randomUUID()}-${safe}`;
     const mime = (contentType.split(";")[0] ?? contentType).trim();
-    let signedUrl: string | null = null;
-    if (bytes.byteLength <= 20 * 1024 * 1024) {
-      const up = await supabaseAdmin.storage.from("anexos").upload(path, bytes, { contentType: mime });
-      if (!up.error) {
-        const s = await supabaseAdmin.storage.from("anexos").createSignedUrl(path, 60 * 60 * 24 * 7);
-        signedUrl = s.data?.signedUrl ?? null;
-      }
-    }
-    if (signedUrl) {
-      const payload = JSON.stringify({ type: "webview-download", url: signedUrl, name, mimeType: mime });
-      const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
-      const page = `<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;padding:24px">
-<h3>Arquivo baixado: ${esc(name)}</h3>
-<p>Escolha o contato na janela que abriu para enviar pelo WhatsApp.</p>
-<p><a href="${esc(signedUrl)}" download="${esc(name)}" target="_blank">Baixar no computador</a> · <a href="#" onclick="history.back();return false">Voltar ao site</a></p>
-<script>try{parent.postMessage(${payload.replace(/</g, "\\u003c")},"*")}catch(e){}</script></body>`;
-      return new Response(page, {
-        status: 200,
-        headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
-      });
-    }
-    return new Response(bytes, { status: upstream.status, headers });
+    return await paginaArquivoBaixado(id, name, mime, bytes);
   }
 
   return new Response(upstream.body, { status: upstream.status, headers });
