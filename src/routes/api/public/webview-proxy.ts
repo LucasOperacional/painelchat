@@ -81,11 +81,28 @@ function rewriteHtml(html: string, id: string, target: URL) {
   // Faz chamadas feitas por JavaScript (fetch/XHR) e links externos
   // funcionarem dentro do proxy.
   const shim = `<script>(function(){var P=${JSON.stringify(PROXY_PATH)},I=${JSON.stringify(id)},B=${JSON.stringify(target.toString())},H=${JSON.stringify(target.hostname)};
-function w(u){try{var a=new URL(u,B);if(a.hostname!==H||u.indexOf(P)===0)return u;return P+"?id="+encodeURIComponent(I)+"&u="+encodeURIComponent(a.toString());}catch(e){return u;}}
-var f=window.fetch;if(f)window.fetch=function(i,o){if(typeof i==="string")i=w(i);return f.call(this,i,o);};
-var x=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){arguments[1]=w(String(u));return x.apply(this,arguments);};
-document.addEventListener("click",function(e){var el=e.target&&e.target.closest&&e.target.closest("a[data-wv-externo]");if(el){e.preventDefault();window.open(el.getAttribute("href"),"_blank","noopener");}},true);
-})();</script>`;
+ function w(u){try{var a=new URL(u,B);if(a.hostname!==H||u.indexOf(P)===0)return u;return P+"?id="+encodeURIComponent(I)+"&u="+encodeURIComponent(a.toString());}catch(e){return u;}}
+ var f=window.fetch;if(f)window.fetch=function(i,o){if(typeof i==="string")i=w(i);return f.call(this,i,o);};
+ var x=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){arguments[1]=w(String(u));return x.apply(this,arguments);};
+ document.addEventListener("click",function(e){var el=e.target&&e.target.closest&&e.target.closest("a[data-wv-externo]");if(el){e.preventDefault();window.open(el.getAttribute("href"),"_blank","noopener");}},true);
+ // Downloads gerados por JavaScript (blob/data) não passam pelo proxy: aqui o
+ // arquivo é enviado para a central, que guarda e abre a janela de envio.
+ document.addEventListener("click",function(e){
+  var a=e.target&&e.target.closest&&e.target.closest("a[download]");
+  if(!a)return;
+  var h=a.getAttribute("href")||"";
+  if(h.indexOf("blob:")!==0&&h.indexOf("data:")!==0)return;
+  e.preventDefault();e.stopPropagation();
+  var n=a.getAttribute("download")||"arquivo";
+  fetch(h).then(function(r){return r.blob();}).then(function(b){
+   var fd=new FormData();fd.append("arquivo",b,n);fd.append("nome",n);
+   return fetch(P+"?id="+encodeURIComponent(I)+"&recebe-arquivo=1",{method:"POST",body:fd});
+  }).then(function(r){
+   if(r&&r.ok)return r.text().then(function(t){document.open();document.write(t);document.close();});
+   throw new Error("falha");
+  }).catch(function(){try{window.open(h,"_blank");}catch(_){}});
+ },true);
+ })();</script>`;
   out = /<head[^>]*>/i.test(out) ? out.replace(/<head[^>]*>/i, (m) => m + shim) : shim + out;
   return out;
 }
