@@ -275,7 +275,11 @@ export async function guardarWebhook(
   if (cfg) {
     const trafego = await registrarTrafego(request, "webhook", cfg);
     if (trafego.bloqueado) {
-      return new Response("Too Many Requests", { status: 429 });
+      // Webhooks válidos de todos os aparelhos de um provedor costumam sair do
+      // mesmo IP. Bloquear esse IP antes de salvar o corpo causava perda
+      // definitiva durante rajadas. O token da conexão continua sendo validado
+      // pelo processador; aqui só registramos o excesso sem barrar mensagens.
+      console.warn(`[sentinela] rajada de webhook permitida para preservar mensagens: ${trafego.motivo}`);
     }
   }
 
