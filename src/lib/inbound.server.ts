@@ -348,9 +348,10 @@ export async function recordInboundMessage(input: {
     }
   }
 
-  // A WuzAPI às vezes entrega a mesma mensagem com IDs diferentes em sequência:
-  // mesmo texto, mesma direção e mesma conversa em poucos segundos é duplicata.
-  {
+  // Quando o provedor não envia ID, usamos texto e horário como último recurso.
+  // Com ID presente, duas mensagens iguais continuam sendo mensagens distintas:
+  // respostas curtas, fotos, áudios e figurinhas podem se repetir legitimamente.
+  if (!input.externalId) {
     const base = new Date(eventAt).getTime();
     const { data: gemea } = await supabaseAdmin
       .from("messages")
