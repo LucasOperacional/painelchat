@@ -22,6 +22,8 @@ export function SendFileDialog({
   const [search, setSearch] = useState("");
   const [text, setText] = useState("Segue a nota fiscal.");
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [onlyActive, setOnlyActive] = useState(true);
+  const isPdf = !!file && (file.mimeType.includes("pdf") || /\.pdf$/i.test(file.name));
   const send = useServerFn(sendWhatsappMessage);
 
   const convs = useQuery({
@@ -38,12 +40,13 @@ export function SendFileDialog({
         const key = c.contact_id;
         if (seen.has(key)) return false;
         seen.add(key);
+        if (onlyActive && (c as { status?: string }).status === "closed") return false;
         const name = (c.contact?.name ?? "").toLowerCase();
         const phone = c.contact?.phone ?? "";
         return !q || name.includes(q) || phone.includes(q.replace(/\D/g, "") || "§");
       })
       .slice(0, 60);
-  }, [convs.data, search]);
+  }, [convs.data, search, onlyActive]);
 
   const doSend = async (conversationId: string, name: string) => {
     if (!file) return;
@@ -67,10 +70,19 @@ export function SendFileDialog({
 
   return (
     <Dialog open={!!file} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className={isPdf ? "max-w-6xl w-[95vw]" : "max-w-lg"}>
         <DialogHeader>
           <DialogTitle>Arquivo baixado</DialogTitle>
         </DialogHeader>
+        <div className={isPdf ? "grid gap-4 md:grid-cols-[1fr_360px]" : ""}>
+        {isPdf && (
+          <iframe
+            title="Leitor de PDF"
+            src={`${file!.url}#toolbar=1&view=FitH`}
+            className="h-[70vh] w-full rounded-md border bg-muted"
+          />
+        )}
+        <div className="flex min-w-0 flex-col gap-3">
         <div className="flex items-center gap-3 rounded-md border bg-muted/40 p-3">
           <FileText className="size-8 shrink-0 text-primary" />
           <div className="min-w-0 flex-1">
@@ -83,10 +95,16 @@ export function SendFileDialog({
             </a>
           </Button>
         </div>
-        <p className="text-sm font-medium">Ou envie direto para um contato:</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-medium">Enviar para um contato:</p>
+          <div className="flex gap-1">
+            <Button size="sm" variant={onlyActive ? "default" : "outline"} onClick={() => setOnlyActive(true)}>Em atendimento</Button>
+            <Button size="sm" variant={!onlyActive ? "default" : "outline"} onClick={() => setOnlyActive(false)}>Todos</Button>
+          </div>
+        </div>
         <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Mensagem (opcional)" />
         <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar contato por nome ou número" />
-        <div className="max-h-80 overflow-y-auto rounded-md border">
+        <div className={(isPdf ? "max-h-[45vh]" : "max-h-80") + " overflow-y-auto rounded-md border"}>
           {convs.isLoading ? (
             <p className="flex items-center gap-2 p-3 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" /> Carregando contatos…
@@ -112,6 +130,8 @@ export function SendFileDialog({
               })}
             </ul>
           )}
+        </div>
+        </div>
         </div>
       </DialogContent>
     </Dialog>
