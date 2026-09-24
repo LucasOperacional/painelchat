@@ -154,6 +154,25 @@ async function handle(request: Request) {
     .maybeSingle();
   if (error || !data) return new Response("Site não encontrado.", { status: 404 });
 
+  // Arquivo enviado pela página (download gerado por JavaScript): grava e
+  // devolve a página que abre a janela de envio no painel.
+  if (params.get("recebe-arquivo") === "1" && request.method === "POST") {
+    try {
+      const form = await request.formData();
+      const arquivo = form.get("arquivo");
+      if (!(arquivo instanceof File)) return new Response("Arquivo ausente.", { status: 400 });
+      const nome =
+        (typeof form.get("nome") === "string" && (form.get("nome") as string).trim()) ||
+        arquivo.name ||
+        "arquivo";
+      const mime = arquivo.type || "application/octet-stream";
+      const bytes = new Uint8Array(await arquivo.arrayBuffer());
+      return await paginaArquivoBaixado(id, nome, mime, bytes);
+    } catch {
+      return new Response("Não foi possível receber o arquivo.", { status: 400 });
+    }
+  }
+
   let target: URL;
   try {
     target = new URL(data.url);
