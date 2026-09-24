@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 
 import { listWebviews, type WebviewSite } from "@/lib/webviews.functions";
 import { Button } from "@/components/ui/button";
+import { SendFileDialog, type DownloadedFile } from "@/components/send-file-dialog";
 
 export const Route = createFileRoute("/_authenticated/webview/$id")({
   head: () => ({
@@ -31,6 +32,19 @@ function WebviewFramePage() {
   const { id } = Route.useParams();
   const fetchSites = useServerFn(listWebviews);
   const [reloadKey, setReloadKey] = useState(0);
+  const [downloaded, setDownloaded] = useState<DownloadedFile | null>(null);
+
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      const d = e.data as { type?: string; url?: string; name?: string; mimeType?: string };
+      if (d?.type === "webview-download" && d.url && d.name) {
+        setDownloaded({ url: d.url, name: d.name, mimeType: d.mimeType ?? "application/pdf" });
+      }
+    };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, []);
 
   const sites = useQuery({ queryKey: ["webviews"], queryFn: () => fetchSites() });
   const site = (sites.data ?? []).find((s: WebviewSite) => s.id === id);
@@ -89,6 +103,7 @@ function WebviewFramePage() {
           ? "Este site abre pelo proxy da central, que remove o bloqueio de exibição. Se ainda assim falhar, use \"Nova aba\"."
           : "Se a página ficar em branco, ative o proxy na edição do site ou use \"Nova aba\"."}
       </p>
+      <SendFileDialog file={downloaded} onClose={() => setDownloaded(null)} />
     </div>
   );
 }
