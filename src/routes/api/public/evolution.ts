@@ -869,6 +869,15 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
           );
         }
 
+        // Sessões antigas de outro provedor (ex.: WuzAPI) apontando para o
+        // endereço de um aparelho WAHA não podem gravar mensagens nele.
+        if (
+          payload.sourceProvider &&
+          (config.provider ?? "evolution") !== payload.sourceProvider
+        ) {
+          return Response.json({ received: true, ignored: "provedor-diferente-do-aparelho" });
+        }
+
 
         const now = new Date().toISOString();
         const wasConnected = config.status === "connected";
