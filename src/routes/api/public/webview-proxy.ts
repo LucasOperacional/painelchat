@@ -107,6 +107,38 @@ function rewriteHtml(html: string, id: string, target: URL) {
   return out;
 }
 
+/** Guarda o arquivo na central e devolve a página que abre a janela de envio. */
+async function paginaArquivoBaixado(id: string, name: string, mime: string, bytes: Uint8Array) {
+  const safe = name.replace(/[^\w.\-]+/g, "_").slice(0, 120);
+  const path = `webview/${id}/${crypto.randomUUID()}-${safe}`;
+  let signedUrl: string | null = null;
+  if (bytes.byteLength > 0 && bytes.byteLength <= 20 * 1024 * 1024) {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const up = await supabaseAdmin.storage.from("anexos").upload(path, bytes, { contentType: mime });
+    if (!up.error) {
+      const s = await supabaseAdmin.storage.from("anexos").createSignedUrl(path, 60 * 60 * 24 * 7);
+      signedUrl = s.data?.signedUrl ?? null;
+    }
+  }
+  if (!signedUrl) {
+    return new Response(
+      `<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;padding:24px"><h3>Não foi possível guardar o arquivo</h3><p>Tente baixar novamente. Se continuar, use a opção de baixar no computador e anexe manualmente na conversa.</p><p><a href="#" onclick="history.back();return false">Voltar ao site</a></p></body>`,
+      { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } },
+    );
+  }
+  const payload = JSON.stringify({ type: "webview-download", url: signedUrl, name, mimeType: mime });
+  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+  const page = `<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;padding:24px">
+<h3>Arquivo baixado: ${esc(name)}</h3>
+<p>Escolha o contato na janela que abriu para enviar pelo WhatsApp.</p>
+<p><a href="${esc(signedUrl)}" download="${esc(name)}" target="_blank">Baixar no computador</a> · <a href="#" onclick="history.back();return false">Voltar ao site</a></p>
+<script>try{parent.postMessage(${payload.replace(/</g, "\\u003c")},"*")}catch(e){}</script></body>`;
+  return new Response(page, {
+    status: 200,
+    headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
+  });
+}
+
 async function handle(request: Request) {
   const params = new URL(request.url).searchParams;
   const id = params.get("id") ?? "";
