@@ -4,7 +4,17 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 type Ctx = {
-  supabase: { from: (t: string) => any };
+  supabase: {
+    from: (t: string) => any;
+    storage: {
+      from: (bucket: string) => {
+        createSignedUrl: (path: string, expiresIn: number) => Promise<{
+          data: { signedUrl?: string } | null;
+          error: unknown;
+        }>;
+      };
+    };
+  };
   userId: string;
 };
 
