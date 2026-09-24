@@ -2954,6 +2954,54 @@ export type Database = {
         }
         Relationships: []
       }
+      webview_documents: {
+        Row: {
+          created_at: string
+          file_name: string
+          id: string
+          mime_type: string
+          project_id: string | null
+          size_bytes: number
+          storage_path: string
+          webview_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          id?: string
+          mime_type?: string
+          project_id?: string | null
+          size_bytes?: number
+          storage_path: string
+          webview_id: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          id?: string
+          mime_type?: string
+          project_id?: string | null
+          size_bytes?: number
+          storage_path?: string
+          webview_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webview_documents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "webview_documents_webview_id_fkey"
+            columns: ["webview_id"]
+            isOneToOne: false
+            referencedRelation: "webviews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webviews: {
         Row: {
           created_at: string
