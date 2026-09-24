@@ -230,7 +230,7 @@ export async function recordInboundMessage(input: {
 
   const { data: openConversation } = await supabaseAdmin
     .from("conversations")
-    .select("id, whatsapp_config_id, last_message_at")
+    .select("id, whatsapp_config_id, sem_conexao, last_message_at")
     .eq("project_id", projectId)
     .eq("contact_id", contactId)
     .in("status", ["open", "waiting"])
@@ -238,20 +238,14 @@ export async function recordInboundMessage(input: {
     .limit(1)
     .maybeSingle();
 
-  // Regra: a conversa acompanha sozinha a conexão em que a mensagem chegou.
-  // Se o evento não disser o aparelho, mantém a conexão que já estava.
-  let stickyDeviceId = deviceId ?? openConversation?.whatsapp_config_id ?? null;
-  if (!stickyDeviceId) {
-    const { data: lastConversation } = await supabaseAdmin
-      .from("conversations")
-      .select("whatsapp_config_id")
-      .eq("contact_id", contactId)
-      .not("whatsapp_config_id", "is", null)
-      .order("last_message_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    stickyDeviceId = lastConversation?.whatsapp_config_id ?? null;
-  }
+  // A conexão de uma conversa aberta é fixa. Eventos duplicados recebidos por
+  // outro aparelho não podem transferi-la silenciosamente para outro número.
+  // Só uma conversa nova nasce vinculada ao aparelho que recebeu a mensagem.
+  const stickyDeviceId = openConversation
+    ? openConversation.sem_conexao
+      ? null
+      : openConversation.whatsapp_config_id ?? null
+    : deviceId;
 
 
   let conversationId = openConversation?.id ?? null;
@@ -381,8 +375,8 @@ export async function recordInboundMessage(input: {
     if (inserted.error) throw new Error(inserted.error.message);
   });
 
-  // A conversa segue sozinha a conexão em que a mensagem chegou.
-  const activeDeviceId = stickyDeviceId ?? deviceId;
+  // Uma conversa existente só muda de conexão pela transferência manual.
+  const activeDeviceId = openConversation ? stickyDeviceId : (stickyDeviceId ?? deviceId);
   const conexaoAnterior = openConversation?.whatsapp_config_id ?? null;
   const trocouConexao = !!activeDeviceId && activeDeviceId !== conexaoAnterior;
 
@@ -393,7 +387,9 @@ export async function recordInboundMessage(input: {
     assigned_to?: string | null;
     status?: "open" | "waiting" | "closed";
   } = {};
-  if (activeDeviceId) patchConversa.whatsapp_config_id = activeDeviceId;
+  if (activeDeviceId && activeDeviceId !== conexaoAnterior) {
+    patchConversa.whatsapp_config_id = activeDeviceId;
+  }
 
   // Mudou de conexão: fila e responsável acompanham, como numa transferência.
   if (trocouConexao && conexaoAnterior && !input.skipAutomations) {
