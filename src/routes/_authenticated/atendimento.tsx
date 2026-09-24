@@ -820,9 +820,20 @@ function AtendimentoPage() {
       attachments: { url: string; name: string; mimeType: string }[];
       sticker?: { path: string; name: string } | null;
       reply?: { externalId: string; mine: boolean; body: string } | null;
-    }) =>
-      sendFn({ data: payload }),
+    }) => {
+      const conv = (conversations.data ?? []).find((c) => c.id === payload.conversationId);
+      if (conv && !conv.whatsapp_config_id) {
+        throw new Error(
+          "Este contato está sem conexão. Transfira a conversa para uma conexão para poder mandar mensagens.",
+        );
+      }
+      return sendFn({ data: payload });
+    },
     onMutate: (payload) => {
+      const conv = (conversations.data ?? []).find((c) => c.id === payload.conversationId);
+      if (conv && !conv.whatsapp_config_id) {
+        return { previous: undefined, conversationId: payload.conversationId };
+      }
       setDraft("");
       setPending([]);
       setReplyTo(null);
@@ -856,6 +867,10 @@ function AtendimentoPage() {
     onError: (e: Error, _payload, context) => {
       if (context?.previous) {
         queryClient.setQueryData(["messages", context.conversationId], context.previous);
+      }
+      if (e.message.startsWith("Este contato está sem conexão")) {
+        toast.error("Contato sem conexão", { description: e.message, duration: 8000 });
+        return;
       }
       toast.error("Erro ao enviar", { description: e.message });
     },
