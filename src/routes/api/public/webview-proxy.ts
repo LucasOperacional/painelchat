@@ -197,6 +197,17 @@ function rewriteHtml(html: string, id: string, target: URL) {
  },true);
  })();</script>`;
   out = /<head[^>]*>/i.test(out) ? out.replace(/<head[^>]*>/i, (m) => m + shim) : shim + out;
+  // O hCaptcha da NFS-e só aceita ser resolvido no domínio oficial
+  // (nfse.gov.br). Dentro do painel ele sempre falha, então mostramos um
+  // aviso claro com o atalho para validar e baixar no site oficial.
+  if (/h-captcha|hcaptcha|ModalCaptcha/i.test(html)) {
+    const oficial = target.toString().replace(/"/g, "&quot;");
+    const aviso =
+      `<div style="position:sticky;top:0;z-index:2147483647;background:#fff7e6;border:1px solid #f0b429;color:#5c3c00;font:14px system-ui,sans-serif;padding:10px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">` +
+      `<span><b>Captcha do governo:</b> o portal só aceita o "Não sou um robô" no site oficial. Valide e baixe a nota por lá; depois anexe o PDF na conversa ou em Documentos salvos.</span>` +
+      `<a href="${oficial}" data-wv-externo="1" target="_blank" rel="noopener" style="background:#1351b4;color:#fff;padding:6px 12px;border-radius:6px;text-decoration:none;font-weight:600">Abrir no site oficial</a></div>`;
+    out = /<body[^>]*>/i.test(out) ? out.replace(/<body[^>]*>/i, (m) => m + aviso) : aviso + out;
+  }
   return out;
 }
 
