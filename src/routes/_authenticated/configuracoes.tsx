@@ -1681,6 +1681,8 @@ function GithubCard() {
       title="GitHub"
       description="Sincronize e veja as informações completas do repositório do projeto."
       status={repoSelecionado ? `Repositório: ${repoSelecionado}` : "Toque para escolher o repositório"}
+      open={open}
+      onOpenChange={setOpen}
     >
       <div className="space-y-4">
         {pronto && !repoSelecionado ? (
