@@ -64,16 +64,26 @@ export async function confirmPixCharge(charge: PixChargeRow) {
   const { entregarEstoqueDaCobranca } = await import("@/lib/estoque.server");
   const entrega = await entregarEstoqueDaCobranca(charge);
 
-  const text = [
-    "✅ *Pagamento confirmado!*",
-    "",
-    `Recebemos o seu Pix de R$ ${formatBRL(amount)}${
-      charge.description ? ` referente a ${charge.description}` : ""
-    }.`,
-    ...(entrega ? ["", entrega.texto] : []),
-    "",
-    "Obrigado! Qualquer dúvida é só chamar por aqui.",
-  ].join("\n");
+  const { loadPaymentText, aplicarVariaveis } = await import("@/lib/payment-texts.server");
+  const modeloConfirmacao = (await loadPaymentText("pix_confirmacao")).trim();
+  const text = modeloConfirmacao
+    ? [
+        aplicarVariaveis(modeloConfirmacao, {
+          valor: `R$ ${formatBRL(amount)}`,
+          descricao: charge.description ?? "",
+        }),
+        ...(entrega ? ["", entrega.texto] : []),
+      ].join("\n")
+    : [
+        "✅ *Pagamento confirmado!*",
+        "",
+        `Recebemos o seu Pix de R$ ${formatBRL(amount)}${
+          charge.description ? ` referente a ${charge.description}` : ""
+        }.`,
+        ...(entrega ? ["", entrega.texto] : []),
+        "",
+        "Obrigado! Qualquer dúvida é só chamar por aqui.",
+      ].join("\n");
 
 
   const { data: conversation } = await supabaseAdmin
