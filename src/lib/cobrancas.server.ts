@@ -54,7 +54,7 @@ function dataBr(iso: string): string {
 }
 
 /** Monta o texto do aviso, usando a mensagem personalizada quando existir. */
-export function montarTexto(cobranca: Cobranca): string {
+export function montarTexto(cobranca: Cobranca, padrao?: string): string {
   const variaveis: Record<string, string> = {
     "{cliente}": cobranca.cliente_nome,
     "{valor}": moeda(Number(cobranca.valor ?? 0)),
@@ -98,7 +98,8 @@ async function enviar(cobranca: Cobranca): Promise<{ ok: boolean; detalhe: strin
       provider: device.provider,
     };
     const destino = `${numero}@s.whatsapp.net`;
-    const texto = montarTexto(cobranca);
+    const { loadPaymentText } = await import("@/lib/payment-texts.server");
+    const texto = montarTexto(cobranca, await loadPaymentText("cobranca_padrao"));
     const boleto = cobranca.boleto_url.trim();
 
     if (boleto) {
