@@ -294,8 +294,17 @@ function AtendimentoPage() {
   const listarCategoriasFn = useServerFn(listarCategoriasAtivas);
   const categoriasEstoque = useQuery({
     queryKey: ["estoque-categorias-ativas"],
-    queryFn: () => listarCategoriasFn({}),
+    queryFn: async () => {
+      try {
+        return await listarCategoriasFn({});
+      } catch (e) {
+        if (/unauthorized|authorization/i.test((e as Error)?.message ?? "")) return null as never;
+        throw e;
+      }
+    },
     staleTime: 60_000,
+    retry: 2,
+    throwOnError: false,
   });
   const estoqueCategoriaId = estoqueCategoria === "nenhum" ? null : estoqueCategoria;
 
