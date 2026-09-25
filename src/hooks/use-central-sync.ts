@@ -238,6 +238,36 @@ export function useCentralSync() {
       if (Date.now() - ultimoSinal > CANAL_MUDO_MS) reconectar();
     }, FULL_SYNC_INTERVAL_MS);
 
+    // Vigia: se a lista de conversas parar de atualizar (pedido travado ou
+    // sessão presa), força nova busca; se continuar travada, recarrega a página
+    // sozinho — o mesmo que apertar F5, sem o atendente precisar fazer.
+    let tentativasTravado = 0;
+    const vigia = window.setInterval(() => {
+      if (document.visibilityState !== "visible" || !navigator.onLine) return;
+      const estado = queryClient.getQueryState(["conversations"]);
+      if (!estado || estado.dataUpdatedAt === 0) return;
+      const parado = Date.now() - estado.dataUpdatedAt;
+      if (parado < 45_000) {
+        tentativasTravado = 0;
+        return;
+      }
+      tentativasTravado += 1;
+      console.warn("[sync] lista parada há", Math.round(parado / 1000), "s — tentativa", tentativasTravado);
+      if (tentativasTravado >= 3) {
+        const ultimo = Number(sessionStorage.getItem("sync-reload-at") ?? 0);
+        if (Date.now() - ultimo > 120_000) {
+          sessionStorage.setItem("sync-reload-at", String(Date.now()));
+          window.location.reload();
+          return;
+        }
+      }
+      void queryClient.cancelQueries({ queryKey: ["conversations"] });
+      void queryClient.cancelQueries({ queryKey: ["messages"] });
+      void queryClient.refetchQueries({ queryKey: ["conversations"], type: "active" });
+      void queryClient.refetchQueries({ queryKey: ["messages"], type: "active" });
+      reconectar();
+    }, 20_000);
+
     const acordar = () => {
       fullSync();
       if (Date.now() - ultimoSinal > CANAL_MUDO_MS) reconectar();
@@ -258,6 +288,7 @@ export function useCentralSync() {
       if (reconectando !== null) window.clearTimeout(reconectando);
       if (agrupando !== null) window.clearTimeout(agrupando);
       window.clearInterval(timer);
+      window.clearInterval(vigia);
       window.removeEventListener("online", acordar);
       window.removeEventListener("focus", acordar);
       document.removeEventListener("visibilitychange", onVisible);
