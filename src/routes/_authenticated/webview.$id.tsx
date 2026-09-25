@@ -96,6 +96,15 @@ function WebviewFramePage() {
     return () => window.removeEventListener("message", onMsg);
   }, [documents.refetch]);
 
+  useEffect(() => {
+    if (!processingDownload) return;
+    const timer = window.setTimeout(() => {
+      setProcessingDownload(false);
+      toast.warning("Ainda não recebemos o PDF. Se o captcha apareceu, conclua a validação e tente baixar novamente.");
+    }, 35_000);
+    return () => window.clearTimeout(timer);
+  }, [processingDownload]);
+
   const sites = useQuery({ queryKey: ["webviews"], queryFn: () => fetchSites() });
   const site = (sites.data ?? []).find((s: WebviewSite) => s.id === id);
 
