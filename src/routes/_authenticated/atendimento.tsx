@@ -306,8 +306,18 @@ function AtendimentoPage() {
   const produtosLojaFn = useServerFn(produtosDaLoja);
   const lojaProdutos = useQuery({
     queryKey: ["loja-produtos"],
-    queryFn: () => produtosLojaFn({}),
+    queryFn: async () => {
+      try {
+        return await produtosLojaFn({});
+      } catch (e) {
+        // Sessão ainda carregando/renovando: não derruba a tela, tenta de novo depois.
+        if (/unauthorized|authorization/i.test((e as Error)?.message ?? "")) return null as never;
+        throw e;
+      }
+    },
     staleTime: 60_000,
+    retry: 2,
+    throwOnError: false,
   });
   const enviarLojaFn = useServerFn(enviarLoja);
   const enviarLojaMutation = useMutation({
