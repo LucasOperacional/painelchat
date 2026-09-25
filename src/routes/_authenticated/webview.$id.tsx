@@ -41,6 +41,7 @@ function WebviewFramePage() {
   const fetchDocuments = useServerFn(listWebviewDocuments);
   const [reloadKey, setReloadKey] = useState(0);
   const [downloaded, setDownloaded] = useState<DownloadedFile | null>(null);
+  const [processingDownload, setProcessingDownload] = useState(false);
   const quadro = useRef<HTMLIFrameElement>(null);
   const saidas = useRef(0);
 
@@ -75,8 +76,18 @@ function WebviewFramePage() {
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
       if (e.origin !== window.location.origin) return;
-      const d = e.data as { type?: string; url?: string; name?: string; mimeType?: string };
+      const d = e.data as { type?: string; url?: string; name?: string; mimeType?: string; message?: string };
+      if (d?.type === "webview-download-start") {
+        setProcessingDownload(true);
+        return;
+      }
+      if (d?.type === "webview-download-error") {
+        setProcessingDownload(false);
+        toast.error(d.message ?? "Não foi possível capturar o PDF automaticamente.");
+        return;
+      }
       if (d?.type === "webview-download" && d.url && d.name) {
+        setProcessingDownload(false);
         setDownloaded({ url: d.url, name: d.name, mimeType: d.mimeType ?? "application/pdf" });
         void documents.refetch();
       }
@@ -84,6 +95,15 @@ function WebviewFramePage() {
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
   }, [documents.refetch]);
+
+  useEffect(() => {
+    if (!processingDownload) return;
+    const timer = window.setTimeout(() => {
+      setProcessingDownload(false);
+      toast.warning("Ainda não recebemos o PDF. Se o captcha apareceu, conclua a validação e tente baixar novamente.");
+    }, 35_000);
+    return () => window.clearTimeout(timer);
+  }, [processingDownload]);
 
   const sites = useQuery({ queryKey: ["webviews"], queryFn: () => fetchSites() });
   const site = (sites.data ?? []).find((s: WebviewSite) => s.id === id);
@@ -142,8 +162,13 @@ function WebviewFramePage() {
         />
         <Card className="m-3 min-h-0 overflow-hidden lg:ml-0">
           <CardHeader className="border-b py-3">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <FileText className="size-4" /> Documentos salvos
+            <CardTitle className="flex items-center justify-between gap-2 text-sm">
+              <span className="flex items-center gap-2"><FileText className="size-4" /> Documentos salvos</span>
+              {processingDownload ? (
+                <span className="flex items-center gap-1 text-xs font-normal text-muted-foreground">
+                  <Loader2 className="size-3 animate-spin" /> Processando PDF
+                </span>
+              ) : null}
             </CardTitle>
           </CardHeader>
           <CardContent className="max-h-64 overflow-y-auto p-0 lg:max-h-none lg:h-[calc(100%-49px)]">
