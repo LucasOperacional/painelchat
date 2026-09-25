@@ -80,6 +80,7 @@ import {
   salvarOtimizacao,
   otimizarAgora,
 } from "@/lib/otimizacao.functions";
+import { listGithubRepos, getGithubRepoInfo } from "@/lib/github.functions";
 
 type ConfigSectionProps = {
   icon: LucideIcon;
