@@ -328,7 +328,24 @@ async function handle(request: Request) {
   if (cookie) forwardHeaders.set("cookie", cookie);
   const reqContentType = request.headers.get("content-type");
   if (reqContentType) forwardHeaders.set("content-type", reqContentType);
-  if (request.method !== "GET") forwardHeaders.set("referer", target.origin + "/");
+  // Validação do captcha (chamada AJAX do portal) depende destes cabeçalhos.
+  for (const h of ["x-requested-with", "__requestverificationtoken", "requestverificationtoken"]) {
+    const v = request.headers.get(h);
+    if (v) forwardHeaders.set(h, v);
+  }
+  let referer = target.origin + "/";
+  const refIn = request.headers.get("referer");
+  if (refIn) {
+    try {
+      const r = new URL(refIn);
+      const inner = r.searchParams.get("u");
+      if (inner && mesmoPortal(new URL(inner).hostname, target.hostname)) referer = inner;
+    } catch {
+      /* mantém */
+    }
+  }
+  forwardHeaders.set("referer", referer);
+  if (request.method !== "GET" && request.method !== "HEAD") forwardHeaders.set("origin", target.origin);
 
   let upstream: Response;
   let corpo: BodyInit | null =
