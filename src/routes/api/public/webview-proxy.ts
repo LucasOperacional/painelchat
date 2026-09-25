@@ -485,7 +485,8 @@ async function handle(request: Request) {
     return new Response(rewritten, { status: upstream.status, headers });
   }
 
-  return new Response(inspectedBytes ?? upstream.body, { status: upstream.status, headers });
+  const passthroughBody = inspectedBytes ? new Uint8Array(inspectedBytes).buffer : upstream.body;
+  return new Response(passthroughBody, { status: upstream.status, headers });
 }
 
 export const Route = createFileRoute("/api/public/webview-proxy")({
