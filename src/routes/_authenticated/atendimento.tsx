@@ -1871,9 +1871,28 @@ function AtendimentoPage() {
                       </>
                     )}
                   </div>
-                );
-              })}
+              );
+            })}
             </div>
+
+            {longeDoFim && (
+              <button
+                type="button"
+                aria-label="Ir para a última mensagem"
+                title="Ir para a última mensagem"
+                className="absolute bottom-4 right-4 z-10 flex size-10 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-lg transition hover:bg-muted"
+                onClick={() => {
+                  const el = chatScrollRef.current;
+                  if (!el) return;
+                  el.scrollTop = el.scrollHeight;
+                  setLongeDoFim(false);
+                }}
+              >
+                <ArrowDown className="size-5" />
+              </button>
+            )}
+            </div>
+
 
             {pending.length > 0 && (
               <div className="flex flex-wrap gap-2 border-t border-border px-3 pt-3">
