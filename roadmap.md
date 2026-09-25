@@ -23,3 +23,4 @@
 - [x] Colocar "Documentos salvos" no menu lateral (visível mesmo recolhido) com página própria
 - [x] Download de nota no Webview: não baixa, não captura e a página dá "conexão recusada"
 - [x] Fazer o botão PDF/DANFSe processar sem travar nem sair do painel
+- [x] Corrigir aviso de PDF não recebido após clicar no download da DANFSe
