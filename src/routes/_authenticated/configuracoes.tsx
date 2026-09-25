@@ -20,6 +20,13 @@ import {
   Sparkles,
   ChevronRight,
   MessageSquareText,
+  Github,
+  RefreshCw,
+  ExternalLink,
+  Star,
+  GitBranch,
+  GitCommitHorizontal,
+  CircleDot,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -2044,6 +2051,7 @@ function SettingsPage() {
             <AltispayCard />
             <WavoipCard />
             <OtimizacaoCard />
+            <GithubCard />
           </div>
 
           <div className="mt-6 flex justify-end">
