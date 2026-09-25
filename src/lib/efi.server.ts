@@ -82,7 +82,9 @@ export async function loadEfiCredentials(): Promise<EfiCredentials | null> {
   };
 }
 
-const OWN_HOSTS = /(^|\.)(painelchat\.lovable\.app|lovable\.app|nxsplus\.xyz)$/i;
+// O painel é servido em *.lovable.app — um intermediário nunca pode ser lá.
+// Qualquer outro domínio (inclusive os do cliente) é um intermediário válido.
+const OWN_HOSTS = /(^|\.)lovable\.app$/i;
 
 export async function saveEfiCredentials(input: {
   clientId: string;
@@ -153,6 +155,8 @@ function relayHeaders(creds: EfiCredentials): Record<string, string> {
   if (!creds.relayUrl) return {};
   const headers: Record<string, string> = {};
   if (creds.relayToken) headers["x-relay-token"] = creds.relayToken;
+  // Diz ao intermediário em qual ambiente da Efí ele deve entregar o pedido.
+  headers["x-efi-environment"] = creds.environment;
   // O intermediário usa o certificado enviado aqui para a conexão mTLS com a Efí.
   if (creds.certificateP12) {
     headers["x-efi-certificate"] = creds.certificateP12;
