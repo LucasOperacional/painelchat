@@ -33,7 +33,8 @@ import {
     Boxes,
     Activity,
     Images,
- } from "lucide-react";
+    FolderDown,
+  } from "lucide-react";
 
 
 import { supabase } from "@/integrations/supabase/client";
