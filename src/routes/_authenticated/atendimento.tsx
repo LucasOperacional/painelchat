@@ -920,7 +920,14 @@ function AtendimentoPage() {
           "Este contato está sem conexão. Transfira a conversa para uma conexão para poder mandar mensagens.",
         );
       }
-      return sendFn({ data: payload });
+      const result: any = await sendFn({ data: payload });
+      if (result?.blocked) {
+        throw new Error(
+          result.deliveryError ??
+            "Este contato está sem conexão. Transfira a conversa para uma conexão para poder mandar mensagens.",
+        );
+      }
+      return result;
     },
     onMutate: (payload) => {
       const conv = (conversations.data ?? []).find((c) => c.id === payload.conversationId);
@@ -957,11 +964,12 @@ function AtendimentoPage() {
         });
       }
     },
-    onError: (e: Error, _payload, context) => {
+    onError: (e: Error, payload, context) => {
       if (context?.previous) {
         queryClient.setQueryData(["messages", context.conversationId], context.previous);
       }
-      if (e.message.startsWith("Este contato está sem conexão")) {
+      if (e.message.startsWith("Este contato está sem conexão") || e.message.startsWith("O aparelho desta conversa")) {
+        if (payload?.body) setDraft(payload.body);
         toast.error("Contato sem conexão", { description: e.message, duration: 8000 });
         return;
       }
