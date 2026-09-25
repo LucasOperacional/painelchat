@@ -88,21 +88,6 @@ function unwrapNestedProxyParams(target: URL, id: string) {
   }
 }
 
-function originalProxyUrl(value: string | null, id: string, allowedHost: string) {
-  if (!value) return null;
-  try {
-    const ref = new URL(value);
-    if (ref.pathname !== PROXY_PATH || ref.searchParams.get("id") !== id) return null;
-    const inner = ref.searchParams.get("u");
-    if (!inner) return null;
-    const original = new URL(inner);
-    if (!mesmoPortal(original.hostname, allowedHost) || !/^https?:$/.test(original.protocol)) return null;
-    return original.toString();
-  } catch {
-    return null;
-  }
-}
-
 function rewriteHtml(html: string, id: string, target: URL) {
   // Remove meta-tags de CSP que bloqueiam a exibição embutida.
   let out = html.replace(
@@ -113,7 +98,7 @@ function rewriteHtml(html: string, id: string, target: URL) {
   out = out.replace(/<base[^>]*>/gi, "");
 
   out = out.replace(
-    /(\s(?:src|href|action|formaction|poster|data-src)\s*=\s*)(["'])([^"']*)\2/gi,
+    /(\s(?:src|href|action|poster|data-src)\s*=\s*)(["'])([^"']*)\2/gi,
     (match, prefix: string, quote: string, value: string) => {
       const raw = value.trim();
       if (!raw || /^(data:|javascript:|mailto:|tel:|blob:|#)/i.test(raw)) return match;
@@ -157,24 +142,20 @@ function rewriteHtml(html: string, id: string, target: URL) {
   const shim = `<script>(function(){var P=${JSON.stringify(PROXY_PATH)},I=${JSON.stringify(id)},B=${JSON.stringify(target.toString())},H=${JSON.stringify(target.hostname)},seen=new WeakSet();
  function portal(h){h=String(h||"").toLowerCase();var a=String(H).toLowerCase(),n="nfse.gov.br";return h===a||((h===n||h.slice(-(n.length+1))==="."+n)&&(a===n||a.slice(-(n.length+1))==="."+n));}
  function w(u){try{if(typeof u==="string"&&(u===P||u.indexOf(P+"?")===0))return u;var a=new URL(u,B);if(a.origin===location.origin&&a.pathname===P)return a.pathname+a.search+a.hash;if(!portal(a.hostname))return u;return P+"?id="+encodeURIComponent(I)+"&u="+encodeURIComponent(a.toString());}catch(e){return u;}}
- function raw(u){var v=w(u);try{var a=new URL(v,location.origin);if(a.origin===location.origin&&a.pathname===P){a.searchParams.set("raw","1");return a.pathname+a.search+a.hash;}}catch(e){}return v;}
  function interno(u){try{var a=new URL(u,B);return portal(a.hostname)||(a.origin===location.origin&&a.pathname===P&&a.searchParams.get("id")===I);}catch(e){return false;}}
  function nome(h,fallback){try{var p=new URL(h,B).pathname.split("/").pop();return decodeURIComponent(p||fallback||"nota-fiscal.pdf");}catch(e){return fallback||"nota-fiscal.pdf";}}
  function envia(b,n){if(!b||!b.size||seen.has(b))return Promise.resolve();seen.add(b);var fd=new FormData();fd.append("arquivo",b,n||"nota-fiscal.pdf");fd.append("nome",n||"nota-fiscal.pdf");return f.call(window,P+"?id="+encodeURIComponent(I)+"&recebe-arquivo=1&formato=json",{method:"POST",body:fd,credentials:"same-origin"}).then(function(r){if(!r.ok)throw new Error("falha");return r.json();}).then(function(d){if(d&&d.type==="webview-download")parent.postMessage(d,location.origin);});}
  function arquivo(r){var t=(r.headers.get("content-type")||"").toLowerCase(),d=(r.headers.get("content-disposition")||"").toLowerCase();return /pdf|xml|zip|octet-stream/.test(t)||/attachment/.test(d);}
- function jsonPdf(v){if(!v||typeof v!=="object")return null;var ks=Object.keys(v);for(var i=0;i<ks.length;i++){var x=v[ks[i]];if(typeof x==="string"&&x.length>40&&x.replace(/^data:application\/pdf;base64,/i,"").indexOf("JVBERi0")===0)return x;var nested=jsonPdf(x);if(nested)return nested;}return null;}
- function enviaBase64(v){var s=jsonPdf(v);if(!s)return;try{var bin=atob(s.replace(/^data:[^,]+,/i,"")),a=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i);envia(new Blob([a],{type:"application/pdf"}),"nota-fiscal.pdf");}catch(e){}}
- var co=URL.createObjectURL;if(co)URL.createObjectURL=function(b){var u=co.call(URL,b);try{var n=b instanceof File&&b.name?b.name:"nota-fiscal.pdf";if(b instanceof Blob&&(/pdf|xml|zip|octet-stream/i.test(b.type||"")||/\.(pdf|xml|zip)$/i.test(n)))setTimeout(function(){envia(b,n);},0);}catch(e){}return u;};
+ var co=URL.createObjectURL;if(co)URL.createObjectURL=function(b){var u=co.call(URL,b);try{if(b instanceof Blob&&(/pdf|xml|zip|octet-stream/i.test(b.type||"")||b.size>0))setTimeout(function(){envia(b,b instanceof File&&b.name?b.name:"nota-fiscal.pdf");},0);}catch(e){}return u;};
  if(navigator.msSaveBlob)navigator.msSaveBlob=function(b,n){envia(b,n||"nota-fiscal.pdf");return true;};if(navigator.msSaveOrOpenBlob)navigator.msSaveOrOpenBlob=function(b,n){envia(b,n||"nota-fiscal.pdf");return true;};
- var f=window.fetch;if(f)window.fetch=function(i,o){var original=typeof i==="string"?i:(i&&i.url)||"",req=typeof i==="string"?raw(i):i;return f.call(this,req,o).then(function(r){var c=r.clone();if(arquivo(r))c.blob().then(function(b){return envia(b,nome(original,"nota-fiscal.pdf"));}).catch(function(){});else if((r.headers.get("content-type")||"").toLowerCase().indexOf("json")>=0)c.json().then(enviaBase64).catch(function(){});return r;});};
- var x=XMLHttpRequest.prototype.open,s=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.open=function(m,u){this.__wvNome=nome(String(u),"nota-fiscal.pdf");arguments[1]=raw(String(u));return x.apply(this,arguments);};XMLHttpRequest.prototype.send=function(){this.addEventListener("load",function(){try{var t=(this.getResponseHeader("content-type")||"").toLowerCase(),d=(this.getResponseHeader("content-disposition")||"").toLowerCase();if(/json/.test(t)){enviaBase64(typeof this.response==="object"?this.response:JSON.parse(this.responseText));return;}if(!/pdf|xml|zip|octet-stream/.test(t)&&!/attachment/.test(d))return;var b=this.response instanceof Blob?this.response:new Blob([this.response],{type:t||"application/pdf"});envia(b,this.__wvNome);}catch(e){}});return s.apply(this,arguments);};
+ var f=window.fetch;if(f)window.fetch=function(i,o){var raw=typeof i==="string"?i:(i&&i.url)||"",req=typeof i==="string"?w(i):i;return f.call(this,req,o).then(function(r){if(arquivo(r)){var c=r.clone();c.blob().then(function(b){return envia(b,nome(raw,"nota-fiscal.pdf"));}).catch(function(){});}return r;});};
+ var x=XMLHttpRequest.prototype.open,s=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.open=function(m,u){this.__wvNome=nome(String(u),"nota-fiscal.pdf");arguments[1]=w(String(u));return x.apply(this,arguments);};XMLHttpRequest.prototype.send=function(){this.addEventListener("load",function(){try{var t=(this.getResponseHeader("content-type")||"").toLowerCase(),d=(this.getResponseHeader("content-disposition")||"").toLowerCase();if(!/pdf|xml|zip|octet-stream/.test(t)&&!/attachment/.test(d))return;var b=this.response instanceof Blob?this.response:new Blob([this.response],{type:t||"application/pdf"});envia(b,this.__wvNome);}catch(e){}});return s.apply(this,arguments);};
   var wo=window.open;window.open=function(u,n,o){if(u==null||u==="")return window;if(typeof u!=="string")return wo.call(window,u,n,o);if(u.indexOf("blob:")===0||u.indexOf("data:")===0){f.call(window,u).then(function(r){return r.blob();}).then(function(b){return envia(b,nome(u,"nota-fiscal.pdf"));}).catch(function(){});return window;}try{var a=new URL(u,B);if(portal(a.hostname)||(a.origin===location.origin&&a.pathname===P)){location.href=w(u);return window;}}catch(e){}return wo.call(window,u,n,o);};
  function protege(proto,prop){try{var d=Object.getOwnPropertyDescriptor(proto,prop);if(!d||!d.set||!d.get)return;Object.defineProperty(proto,prop,{configurable:d.configurable,enumerable:d.enumerable,get:d.get,set:function(v){return d.set.call(this,typeof v==="string"?w(v):v);}});}catch(e){}}
   protege(HTMLAnchorElement.prototype,"href");protege(HTMLFormElement.prototype,"action");if(window.HTMLButtonElement)protege(HTMLButtonElement.prototype,"formAction");if(window.HTMLInputElement)protege(HTMLInputElement.prototype,"formAction");protege(HTMLIFrameElement.prototype,"src");if(window.HTMLFrameElement)protege(HTMLFrameElement.prototype,"src");protege(HTMLObjectElement.prototype,"data");protege(HTMLEmbedElement.prototype,"src");
  try{var la=Location.prototype.assign,lr=Location.prototype.replace;Location.prototype.assign=function(u){return la.call(this,typeof u==="string"?w(u):u);};Location.prototype.replace=function(u){return lr.call(this,typeof u==="string"?w(u):u);};var ld=Object.getOwnPropertyDescriptor(Location.prototype,"href");if(ld&&ld.get&&ld.set&&ld.configurable)Object.defineProperty(Location.prototype,"href",{configurable:true,enumerable:ld.enumerable,get:ld.get,set:function(v){return ld.set.call(this,typeof v==="string"?w(v):v);}});}catch(e){}
  function protegeAlvo(proto,fonte){try{var d=Object.getOwnPropertyDescriptor(proto,"target");if(!d||!d.set||!d.get)return;Object.defineProperty(proto,"target",{configurable:d.configurable,enumerable:d.enumerable,get:d.get,set:function(v){var u=this.getAttribute(fonte)||"";return d.set.call(this,interno(u)?"_self":v);}});}catch(e){}}
  protegeAlvo(HTMLAnchorElement.prototype,"href");protegeAlvo(HTMLFormElement.prototype,"action");
-  var ac=HTMLAnchorElement.prototype.click;HTMLAnchorElement.prototype.click=function(){var h=this.getAttribute("href")||"",n=this.getAttribute("download")||nome(h,"nota-fiscal.pdf");if(h.indexOf("blob:")===0||h.indexOf("data:")===0){f.call(window,h).then(function(r){return r.blob();}).then(function(b){return envia(b,n);}).catch(function(){});return;}if(interno(h)){sa.call(this,"target","_self");sa.call(this,"href",w(h));}return ac.call(this);};
   var sa=Element.prototype.setAttribute;Element.prototype.setAttribute=function(n,v){var tag=this.tagName||"",url=(n==="href"&&tag==="A")||(n==="action"&&tag==="FORM")||(n==="formaction"&&(tag==="BUTTON"||tag==="INPUT"))||(n==="src"&&(tag==="IFRAME"||tag==="FRAME"||tag==="EMBED"))||(n==="data"&&tag==="OBJECT");if((n==="target"&&(tag==="A"||tag==="FORM"))||(n==="formtarget"&&(tag==="BUTTON"||tag==="INPUT")))v="_self";return sa.call(this,n,url&&typeof v==="string"?w(v):v);};
   function ajusta(root){var sel="a[href],form[action],button[formaction],input[formaction],iframe[src],frame[src],object[data],embed[src]",els=[];if(root&&root.matches&&root.matches(sel))els.push(root);if(root&&root.querySelectorAll)els=els.concat(Array.prototype.slice.call(root.querySelectorAll(sel)));els.forEach(function(el){var tag=el.tagName,at=tag==="FORM"?"action":tag==="BUTTON"||tag==="INPUT"?"formaction":tag==="OBJECT"?"data":tag==="A"?"href":"src",v=el.getAttribute(at);if(v&&!/^(blob:|data:|javascript:|mailto:|tel:|#)/i.test(v)){if(tag==="A"||tag==="FORM")sa.call(el,"target","_self");if(tag==="BUTTON"||tag==="INPUT")sa.call(el,"formtarget","_self");var nv=w(v);if(nv!==v)sa.call(el,at,nv);}});}
   ajusta(document);new MutationObserver(function(ms){ms.forEach(function(m){if(m.type==="attributes")ajusta(m.target);else Array.prototype.forEach.call(m.addedNodes,ajusta);});}).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:["href","action","formaction","src","data","target","formtarget"]});
@@ -183,7 +164,6 @@ function rewriteHtml(html: string, id: string, target: URL) {
   var fs=HTMLFormElement.prototype.submit,fr=HTMLFormElement.prototype.requestSubmit;HTMLFormElement.prototype.submit=function(){var a=this.getAttribute("action");if(a){try{var u=new URL(a,B);if(portal(u.hostname))this.setAttribute("target","_self");}catch(_){}this.setAttribute("action",w(a));}return fs.call(this);};if(fr)HTMLFormElement.prototype.requestSubmit=function(b){var a=this.getAttribute("action");if(a){try{var u=new URL(a,B);if(portal(u.hostname))this.setAttribute("target","_self");}catch(_){}this.setAttribute("action",w(a));}return fr.call(this,b);};
  var hp=history.pushState,hr=history.replaceState;history.pushState=function(s,t,u){return hp.call(this,s,t,typeof u==="string"?w(u):u);};history.replaceState=function(s,t,u){return hr.call(this,s,t,typeof u==="string"?w(u):u);};
  document.addEventListener("click",function(e){var el=e.target&&e.target.closest&&e.target.closest("a[data-wv-externo]");if(el){e.preventDefault();window.open(el.getAttribute("href"),"_blank","noopener");}},true);
-  try{if(navigator.serviceWorker&&navigator.serviceWorker.register)Object.defineProperty(navigator.serviceWorker,"register",{configurable:true,value:function(){return Promise.resolve({scope:location.origin+P,active:null,installing:null,waiting:null,unregister:function(){return Promise.resolve(true);},update:function(){return Promise.resolve();}});}});}catch(e){}
  // Downloads gerados por JavaScript (blob/data) não passam pelo proxy: aqui o
  // arquivo é enviado para a central, que guarda e abre a janela de envio.
   document.addEventListener("click",function(e){
@@ -197,17 +177,6 @@ function rewriteHtml(html: string, id: string, target: URL) {
  },true);
  })();</script>`;
   out = /<head[^>]*>/i.test(out) ? out.replace(/<head[^>]*>/i, (m) => m + shim) : shim + out;
-  // O hCaptcha da NFS-e só aceita ser resolvido no domínio oficial
-  // (nfse.gov.br). Dentro do painel ele sempre falha, então mostramos um
-  // aviso claro com o atalho para validar e baixar no site oficial.
-  if (/h-captcha|hcaptcha|ModalCaptcha/i.test(html)) {
-    const oficial = target.toString().replace(/"/g, "&quot;");
-    const aviso =
-      `<div style="position:sticky;top:0;z-index:2147483647;background:#fff7e6;border:1px solid #f0b429;color:#5c3c00;font:14px system-ui,sans-serif;padding:10px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">` +
-      `<span><b>Captcha do governo:</b> o portal só aceita o "Não sou um robô" no site oficial. Valide e baixe a nota por lá; depois anexe o PDF na conversa ou em Documentos salvos.</span>` +
-      `<a href="${oficial}" data-wv-externo="1" target="_blank" rel="noopener" style="background:#1351b4;color:#fff;padding:6px 12px;border-radius:6px;text-decoration:none;font-weight:600">Abrir no site oficial</a></div>`;
-    out = /<body[^>]*>/i.test(out) ? out.replace(/<body[^>]*>/i, (m) => m + aviso) : aviso + out;
-  }
   return out;
 }
 
@@ -354,23 +323,7 @@ async function handle(request: Request) {
   if (cookie) forwardHeaders.set("cookie", cookie);
   const reqContentType = request.headers.get("content-type");
   if (reqContentType) forwardHeaders.set("content-type", reqContentType);
-  // Validação do captcha (chamada AJAX do portal) depende destes cabeçalhos.
-  for (const h of [
-    "x-requested-with",
-    "__requestverificationtoken",
-    "requestverificationtoken",
-    "x-csrf-token",
-    "x-xsrf-token",
-  ]) {
-    const v = request.headers.get(h);
-    if (v) forwardHeaders.set(h, v);
-  }
-  // Preserve a página exata que originou a ação. O antiforgery/captcha do
-  // Emissor rejeita o POST quando recebe apenas a raiz como Referer.
-  const referer =
-    originalProxyUrl(request.headers.get("referer"), id, target.hostname) ?? target.toString();
-  forwardHeaders.set("referer", referer);
-  if (request.method !== "GET" && request.method !== "HEAD") forwardHeaders.set("origin", target.origin);
+  if (request.method !== "GET") forwardHeaders.set("referer", target.origin + "/");
 
   let upstream: Response;
   let corpo: BodyInit | null =
@@ -387,47 +340,6 @@ async function handle(request: Request) {
       corpo = form.toString();
     } catch {
       /* mantém o corpo original */
-    }
-  }
-  // Algumas telas enviam o retorno do captcha em JSON. Limpa somente strings
-  // que contêm uma URL deste proxy, preservando tokens e demais campos.
-  if (corpo && reqContentType?.toLowerCase().includes("application/json")) {
-    try {
-      const parsed = JSON.parse(new TextDecoder().decode(corpo as ArrayBuffer)) as unknown;
-      const cleanJson = (value: unknown): unknown => {
-        if (typeof value === "string") return unwrapProxyValue(value, id, target.hostname);
-        if (Array.isArray(value)) return value.map(cleanJson);
-        if (value && typeof value === "object") {
-          return Object.fromEntries(
-            Object.entries(value as Record<string, unknown>).map(([key, value]) => [key, cleanJson(value)]),
-          );
-        }
-        return value;
-      };
-      corpo = JSON.stringify(cleanJson(parsed));
-    } catch {
-      /* mantém o corpo original */
-    }
-  }
-  // O captcha usado durante a emissão pode ser enviado junto de um formulário
-  // multipart. Reconstruir o formulário também gera um boundary válido; manter
-  // o Content-Type antigo após alterar o corpo faria o portal perder os campos.
-  if (corpo && reqContentType?.toLowerCase().includes("multipart/form-data")) {
-    try {
-      const incoming = await new Response(corpo, {
-        headers: { "content-type": reqContentType },
-      }).formData();
-      const clean = new FormData();
-      for (const [key, value] of incoming.entries()) {
-        clean.append(
-          key,
-          typeof value === "string" ? unwrapProxyValue(value, id, target.hostname) : value,
-        );
-      }
-      corpo = clean;
-      forwardHeaders.delete("content-type");
-    } catch {
-      /* mantém o corpo original e o boundary recebido */
     }
   }
   try {
@@ -506,7 +418,6 @@ async function handle(request: Request) {
   // Arquivos baixados (nota em PDF/XML): guarda na central e avisa o painel,
   // que abre a opção de enviar para um contato.
   const disposition = upstream.headers.get("content-disposition") ?? "";
-  if (disposition) headers.set("content-disposition", disposition);
   const contentLength = Number(upstream.headers.get("content-length") ?? "0");
   const targetLooksLikeFile = /\.(pdf|xml|zip)(?:$|[?#])/i.test(finalTarget.toString());
   const shouldInspectBody =
@@ -532,9 +443,6 @@ async function handle(request: Request) {
       magicIsFile);
   if (isDownload) {
     const bytes = inspectedBytes ?? new Uint8Array(await upstream.arrayBuffer());
-    if (params.get("raw") === "1") {
-      return new Response(new Uint8Array(bytes).buffer, { status: upstream.status, headers });
-    }
     let name =
       /filename\*=(?:UTF-8'')?([^;]+)/i.exec(disposition)?.[1] ??
       /filename="?([^";]+)"?/i.exec(disposition)?.[1] ??
