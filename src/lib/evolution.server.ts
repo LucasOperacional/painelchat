@@ -1243,6 +1243,7 @@ export async function evolutionSendMedia(
     type,
     url: input.url,
     filename: input.fileName,
+    mimetype: input.mimeType,
     caption: input.caption ?? "",
   });
 }

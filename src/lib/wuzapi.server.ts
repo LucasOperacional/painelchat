@@ -167,7 +167,8 @@ async function toDataUri(url: string, fallbackMime: string): Promise<string> {
   const buffer = await response.arrayBuffer();
   if (buffer.byteLength > MAX_MEDIA_BYTES)
     throw new Error("Arquivo grande demais para enviar pelo WhatsApp (limite de 25 MB).");
-  const mime = response.headers.get("content-type")?.split(";")[0]?.trim() || fallbackMime;
+  const header = response.headers.get("content-type")?.split(";")[0]?.trim() ?? "";
+  const mime = !header || header === "application/octet-stream" || header === "binary/octet-stream" ? fallbackMime : header;
   return `data:${mime};base64,${Buffer.from(buffer).toString("base64")}`;
 }
 
@@ -440,8 +441,8 @@ export async function wuzapiDispatch(options: WuzapiCall): Promise<unknown> {
       }
       const data = await run("/chat/send/document", "POST", {
         Phone: phone,
-        Document: await toDataUri(url, "application/octet-stream"),
-        FileName: String(body["filename"] ?? "arquivo"),
+        Document: await toDataUri(url, String(body["mimetype"] ?? body["mimeType"] ?? "") || mimeFromName(String(body["filename"] ?? ""))),
+        FileName: nomeComExtensao(String(body["filename"] ?? "arquivo"), String(body["mimetype"] ?? body["mimeType"] ?? "") || mimeFromName(String(body["filename"] ?? ""))),
       });
       return sentEnvelope(data);
     }
@@ -697,4 +698,14 @@ export async function wuzapiDownloadMedia(input: {
     console.error("[wuzapi] falha ao baixar mídia recebida:", (error as Error).message);
     return null;
   }
+}
+
+function mimeFromName(name: string, fallback = "application/octet-stream"): string {
+  const ext = (name.split(".").pop() ?? "").toLowerCase();
+  const map: Record<string, string> = { pdf: "application/pdf", xml: "application/xml", zip: "application/zip", doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", txt: "text/plain", csv: "text/csv", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg" };
+  return map[ext] ?? fallback;
+}
+function nomeComExtensao(name: string, mime: string): string {
+  if (/\.[a-z0-9]{2,5}$/i.test(name)) return name;
+  return mime === "application/pdf" ? `${name}.pdf` : name;
 }
