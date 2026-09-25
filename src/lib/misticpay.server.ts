@@ -44,7 +44,15 @@ export async function loadMisticpayCredentials(): Promise<MisticpayCredentials |
     clientId,
     clientSecret,
     baseUrl: (row?.base_url?.trim() || DEFAULT_BASE_URL).replace(/\/+$/, ""),
-    authMode: row?.auth_mode === "cics" ? "cics" : "basic",
+    // Detecta o tipo pelo prefixo da chave (ci_/cs_ = legado, pk_/sk_ = basic)
+    // para não quebrar quando o tipo salvo estiver errado.
+    authMode: /^ci[_-]/i.test(clientId)
+      ? "cics"
+      : /^pk[_-]/i.test(clientId)
+        ? "basic"
+        : row?.auth_mode === "cics"
+          ? "cics"
+          : "basic",
     defaultPayerName: row?.default_payer_name?.trim() || "",
     defaultPayerDocument: (row?.default_payer_document ?? "").replace(/\D/g, ""),
   };
