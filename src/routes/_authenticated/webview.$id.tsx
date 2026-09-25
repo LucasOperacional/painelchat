@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Download, ExternalLink, FileText, Loader2, RefreshCw, Send } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   listWebviewDocuments,
@@ -40,6 +41,32 @@ function WebviewFramePage() {
   const fetchDocuments = useServerFn(listWebviewDocuments);
   const [reloadKey, setReloadKey] = useState(0);
   const [downloaded, setDownloaded] = useState<DownloadedFile | null>(null);
+  const quadro = useRef<HTMLIFrameElement>(null);
+  const saidas = useRef(0);
+
+  /**
+   * Se o site escapar do proxy (o navegador mostra "conexão recusada" e a tela
+   * fica travada), voltamos automaticamente para a página dentro do painel.
+   */
+  function verificarSaida() {
+    const janela = quadro.current?.contentWindow;
+    if (!janela) return;
+    let url = "";
+    let ilegivel = false;
+    try {
+      url = janela.location.href;
+    } catch {
+      ilegivel = true; // página de fora do painel: o navegador bloqueia a leitura
+    }
+    if (!ilegivel) {
+      if (!url || url === "about:blank" || url.includes("/api/public/webview-proxy")) return;
+    }
+    if (saidas.current >= 2) return;
+    saidas.current += 1;
+    toast.warning("O site tentou abrir fora do painel. Voltamos para ele.");
+    setReloadKey((k) => k + 1);
+  }
+
   const documents = useQuery({
     queryKey: ["webview-documents", id],
     queryFn: () => fetchDocuments({ data: { webviewId: id } }),
