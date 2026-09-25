@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
-import { Download, MessageSquarePlus, Plus, Search, Trash2, Users } from "lucide-react";
+import { Download, MessageSquarePlus, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -166,6 +166,56 @@ function ContatosPage() {
       setName("");
       setPhone("");
       setNotes("");
+      invalidate();
+    },
+    onError: (e: Error) => toast.error("Não foi possível salvar", { description: e.message }),
+  });
+
+  const [editing, setEditing] = useState<Contact | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+
+  const openEdit = (contact: Contact) => {
+    setEditing(contact);
+    setEditName(contact.name);
+    setEditPhone(contact.phone);
+    setEditNotes(contact.notes ?? "");
+  };
+
+  const update = useMutation({
+    mutationFn: async () => {
+      if (!editing) throw new Error("Selecione um contato.");
+      const digits = digitsOnly(editPhone);
+      if (!editName.trim()) throw new Error("Informe o nome do contato.");
+      if (!isGroupJid(editing.wa_jid) && digits.length < 10) {
+        throw new Error("Informe o telefone com DDD.");
+      }
+      const duplicate = (contacts.data ?? []).find(
+        (c) => c.id !== editing.id && digitsOnly(c.phone) === digits,
+      );
+      if (duplicate && !isGroupJid(editing.wa_jid)) {
+        throw new Error(`Este telefone já está cadastrado para ${duplicate.name}.`);
+      }
+      const { error } = await supabase
+        .from("contacts")
+        .update({
+          name: editName.trim(),
+          phone: isGroupJid(editing.wa_jid) ? editing.phone : digits,
+          notes: editNotes,
+        })
+        .eq("id", editing.id);
+      if (error) {
+        throw new Error(
+          error.code === "23505" || error.message.includes("duplicate")
+            ? "Este telefone já está cadastrado em outro contato."
+            : error.message,
+        );
+      }
+    },
+    onSuccess: () => {
+      toast.success("Contato atualizado");
+      setEditing(null);
       invalidate();
     },
     onError: (e: Error) => toast.error("Não foi possível salvar", { description: e.message }),
@@ -387,6 +437,14 @@ function ContatosPage() {
                 <Button
                   variant="ghost"
                   size="icon"
+                  onClick={() => openEdit(contact)}
+                  aria-label={`Editar ${contact.name}`}
+                >
+                  <Pencil className="size-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => remove.mutate(contact.id)}
                   aria-label={`Remover ${contact.name}`}
                 >
@@ -398,6 +456,59 @@ function ContatosPage() {
           </ul>
         )}
       </section>
+
+      <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar contato</DialogTitle>
+            <DialogDescription>
+              Altere o nome, o telefone e as observações do contato.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="edit-name">Nome</Label>
+            <Input
+              id="edit-name"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              placeholder="Maria Silva"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-phone">Telefone (com DDD)</Label>
+            <Input
+              id="edit-phone"
+              value={editPhone}
+              onChange={(e) => setEditPhone(e.target.value)}
+              placeholder="5511999998888"
+              disabled={!!editing && isGroupJid(editing.wa_jid)}
+            />
+            {editing && isGroupJid(editing.wa_jid) && (
+              <p className="text-xs text-muted-foreground">
+                O identificador de grupos do WhatsApp não pode ser alterado.
+              </p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-notes">Observações</Label>
+            <Textarea
+              id="edit-notes"
+              value={editNotes}
+              onChange={(e) => setEditNotes(e.target.value)}
+              rows={3}
+              placeholder="Cliente preferencial"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setEditing(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={() => update.mutate()} disabled={update.isPending}>
+              {update.isPending ? "Salvando..." : "Salvar alterações"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!target} onOpenChange={(open) => !open && setTarget(null)}>
         <DialogContent>
