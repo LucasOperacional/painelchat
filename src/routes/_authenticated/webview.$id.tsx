@@ -132,6 +132,8 @@ function WebviewFramePage() {
       <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_320px]">
         <iframe
           key={reloadKey}
+          ref={quadro}
+          onLoad={verificarSaida}
           src={site.use_proxy ? `/api/public/webview-proxy?id=${site.id}` : site.url}
           title={site.title}
           className="h-full min-h-[55vh] w-full bg-background"
