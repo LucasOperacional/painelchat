@@ -495,13 +495,15 @@ function MisticpayCard() {
     onError: (error: Error) => toast.error("Não foi possível remover", { description: error.message }),
   });
 
-  const misticStatus = status.data?.configured
-    ? status.data.error
-      ? "Erro na conexão"
-      : status.data.account
-        ? `Conectado como ${status.data.account.name ?? status.data.account.email}`
-        : "Credenciais cadastradas"
-    : "Não configurado";
+  const misticStatus = status.isFetching
+    ? "Verificando conexão com a MisticPay…"
+    : status.data?.configured
+      ? status.data.error
+        ? "Falha na conexão com a MisticPay"
+        : status.data.account
+          ? `Conectado ao servidor da MisticPay${status.data.account.name ? ` — ${status.data.account.name}` : ""}`
+          : "Conectado (credencial legada)"
+      : "Não configurado";
 
   return (
     <ConfigSectionCard
@@ -517,18 +519,44 @@ function MisticpayCard() {
       </p>
 
       {status.data?.configured && (
-        <div className="rounded-md border p-3 text-sm">
-          {status.data.error ? (
-            <span className="text-destructive">{status.data.error}</span>
-          ) : status.data.account ? (
-            <span>
-              Conectado como <strong>{status.data.account.name ?? status.data.account.email}</strong>
+        <div
+          className={`rounded-md border p-3 text-sm ${
+            status.data.error ? "border-destructive/40 bg-destructive/5" : "border-success/40 bg-success/5"
+          }`}
+        >
+          <div className="flex items-center gap-2 font-medium">
+            <span
+              className={`inline-block size-2.5 shrink-0 rounded-full ${
+                status.isFetching
+                  ? "animate-pulse bg-yellow-500"
+                  : status.data.error
+                    ? "bg-destructive"
+                    : "bg-success"
+              }`}
+            />
+            {status.data.error ? (
+              <span className="text-destructive">Sem conexão com o servidor da MisticPay</span>
+            ) : (
+              <span>Conectado ao servidor da MisticPay</span>
+            )}
+          </div>
+          <p className="mt-1 pl-4.5 text-xs text-muted-foreground">
+            Servidor: {status.data.baseUrl}
+            {status.data.authMode === "cics" && " · credencial legada (ci/cs)"}
+          </p>
+          {!status.data.error && status.data.account && (
+            <p className="mt-1 pl-4.5 text-xs text-muted-foreground">
+              Conta: <strong>{status.data.account.name ?? status.data.account.email}</strong>
               {typeof status.data.account.availableBalance === "number" && (
-                <> · saldo R$ {status.data.account.availableBalance.toFixed(2).replace(".", ",")}</>
+                <>
+                  {" "}
+                  · saldo disponível R$ {status.data.account.availableBalance.toFixed(2).replace(".", ",")}
+                </>
               )}
-            </span>
-          ) : (
-            <span>Credenciais cadastradas.</span>
+            </p>
+          )}
+          {status.data.error && (
+            <p className="mt-1 pl-4.5 text-xs text-destructive">{status.data.error}</p>
           )}
         </div>
       )}
@@ -605,6 +633,19 @@ function MisticpayCard() {
         >
           {saveMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
           Salvar credenciais
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={status.isFetching}
+          onClick={() => status.refetch()}
+        >
+          {status.isFetching ? (
+            <Loader2 className="mr-2 size-4 animate-spin" />
+          ) : (
+            <RefreshCw className="mr-2 size-4" />
+          )}
+          Testar conexão
         </Button>
         {status.data?.configured && (
           <Button
