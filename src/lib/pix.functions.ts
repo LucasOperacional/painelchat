@@ -25,6 +25,7 @@ const pixSchema = z.object({
   city: z.string().trim().max(40).default("SAO PAULO"),
   amount: z.string().trim().max(20).default(""),
   estoqueCategoriaId: z.string().uuid().nullable().default(null),
+  customText: z.string().trim().max(1500).default(""),
 });
 
 /** Remove acentos e caracteres não aceitos no BR Code. */
@@ -223,7 +224,9 @@ export const sendPixCard = createServerFn({ method: "POST" })
       !!config?.base_url && !!config?.instance_id && !!(await loadEvolutionApiKey(config.id));
 
     const payload = buildPixPayload(data);
-    const body = pixText({ ...data, payload });
+    const body = data.customText
+      ? `${data.customText}\n\nPix copia e cola:\n\`\`\`${payload}\`\`\``
+      : pixText({ ...data, payload });
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&margin=10&data=${encodeURIComponent(payload)}`;
     let externalId: string | null = null;
     let deliveryError: string | null = null;
@@ -243,17 +246,19 @@ export const sendPixCard = createServerFn({ method: "POST" })
         configId: config!.id,
       };
 
-      const descricao = [
-        data.description,
-        `Nome: ${data.name}`,
-        `Banco: ${data.bank}`,
-        `Tipo de chave: ${PIX_KEY_TYPES.find((t) => t.value === data.keyType)?.label ?? "Chave Pix"}`,
-        `Chave Pix: ${data.key}`,
-        data.amount ? `Valor: R$ ${data.amount}` : "",
-        "Toque no botão abaixo para copiar a chave Pix.",
-      ]
-        .filter(Boolean)
-        .join("\n");
+      const descricao = data.customText
+        ? data.customText
+        : [
+            data.description,
+            `Nome: ${data.name}`,
+            `Banco: ${data.bank}`,
+            `Tipo de chave: ${PIX_KEY_TYPES.find((t) => t.value === data.keyType)?.label ?? "Chave Pix"}`,
+            `Chave Pix: ${data.key}`,
+            data.amount ? `Valor: R$ ${data.amount}` : "",
+            "Toque no botão abaixo para copiar a chave Pix.",
+          ]
+            .filter(Boolean)
+            .join("\n");
 
       const entrega = await entregarPix(target, {
         number,
