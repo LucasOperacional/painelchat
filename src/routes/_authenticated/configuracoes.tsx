@@ -1663,9 +1663,7 @@ function GithubCard() {
     setRepoSelecionado(null);
   }
 
-  const info = infoQuery.data as
-    | (Awaited<ReturnType<typeof getGithubRepoInfo>> & undefined)
-    | undefined;
+  const info = infoQuery.data;
   const totalIdiomas = (info?.languages ?? []).reduce((soma, i) => soma + i.bytes, 0);
 
   return (
