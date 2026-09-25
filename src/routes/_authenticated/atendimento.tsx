@@ -1611,9 +1611,11 @@ function AtendimentoPage() {
               </div>
             </header>
 
+            <div className="relative min-h-0 flex-1">
             <div
               ref={chatScrollRef}
-              className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-muted/40 bg-repeat bg-center p-3 sm:space-y-4 sm:p-5"
+              onScroll={atualizarSeta}
+              className="h-full space-y-3 overflow-y-auto bg-muted/40 bg-repeat bg-center p-3 sm:space-y-4 sm:p-5"
               style={{
                 backgroundColor: chatBackground,
                 backgroundImage: project?.chatBackgroundUrl
