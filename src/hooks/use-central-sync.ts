@@ -6,6 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 
 /** Sincronização de segurança: mesmo sem tempo real, tudo atualiza neste intervalo. */
 const FULL_SYNC_INTERVAL_MS = 90 * 1000;
+/** Recarga garantida: busca de novo todas as listas neste intervalo, sem exceção. */
+const RECARGA_GARANTIDA_MS = 2 * 60 * 1000;
 /** Se o canal ficar mudo por este tempo, reconectamos do zero. */
 const CANAL_MUDO_MS = 60 * 1000;
 
@@ -238,6 +240,18 @@ export function useCentralSync() {
       if (Date.now() - ultimoSinal > CANAL_MUDO_MS) reconectar();
     }, FULL_SYNC_INTERVAL_MS);
 
+    // Regra dos 2 minutos: de tempos em tempos, busca tudo de novo direto na
+    // fonte, mesmo que o tempo real diga que está tudo em dia. Assim nenhuma
+    // mensagem recebida fica de fora do painel por ficar presa num pedido antigo.
+    const recargaGarantida = window.setInterval(() => {
+      if (!navigator.onLine) return;
+      sinal();
+      void queryClient.refetchQueries({
+        predicate: (q) =>
+          CENTRAL_QUERY_KEYS.includes(q.queryKey[0] as (typeof CENTRAL_QUERY_KEYS)[number]),
+      });
+    }, RECARGA_GARANTIDA_MS);
+
     // Vigia: se a lista de conversas parar de atualizar (pedido travado ou
     // sessão presa), força nova busca; se continuar travada, recarrega a página
     // sozinho — o mesmo que apertar F5, sem o atendente precisar fazer.
@@ -289,6 +303,7 @@ export function useCentralSync() {
       if (agrupando !== null) window.clearTimeout(agrupando);
       window.clearInterval(timer);
       window.clearInterval(vigia);
+      window.clearInterval(recargaGarantida);
       window.removeEventListener("online", acordar);
       window.removeEventListener("focus", acordar);
       document.removeEventListener("visibilitychange", onVisible);
