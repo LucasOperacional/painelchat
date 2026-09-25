@@ -340,7 +340,34 @@ function AtendimentoPage() {
     bank: "",
     city: "SAO PAULO",
     amount: "",
+    customText: "",
   });
+  useEffect(() => {
+    try {
+      const salvo = localStorage.getItem("pix-chave-propria");
+      if (salvo) setPixForm((f) => ({ ...f, ...JSON.parse(salvo), amount: "" }));
+    } catch {
+      /* ignora */
+    }
+  }, []);
+  const salvarPixPadrao = () => {
+    const { amount: _a, ...resto } = pixForm;
+    localStorage.setItem("pix-chave-propria", JSON.stringify(resto));
+    toast.success("Pix salvo", { description: "Os dados ficam prontos na próxima vez." });
+  };
+  const textoPixPadrao = () =>
+    [
+      `*${pixForm.title || "Pagamento via Pix"}*`,
+      pixForm.description ? `\n${pixForm.description}` : "",
+      pixForm.amount ? `\nValor: R$ ${pixForm.amount}` : "",
+      `\n*Nome:* ${pixForm.name}`,
+      `*Banco:* ${pixForm.bank}`,
+      `*Tipo de chave:* ${PIX_KEY_TYPES.find((t) => t.value === pixForm.keyType)?.label ?? "Chave Pix"}`,
+      `*Chave Pix:* ${pixForm.key}`,
+      "\nToque no botão abaixo para copiar a chave Pix e cole no aplicativo do seu banco.",
+    ]
+      .filter(Boolean)
+      .join("\n");
   const sendPixFn = useServerFn(sendPixCard);
   const sendPixMutation = useMutation({
     mutationFn: () => sendPixFn({ data: { conversationId: selectedId!, ...pixForm, estoqueCategoriaId } }),
@@ -2518,6 +2545,43 @@ function AtendimentoPage() {
                   onChange={(e) => setPixForm((f) => ({ ...f, buttonText: e.target.value }))}
                 />
               </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="pix-custom">Texto que o cliente recebe</Label>
+                  <div className="flex gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setPixForm((f) => ({ ...f, customText: textoPixPadrao() }))}
+                    >
+                      Usar modelo
+                    </Button>
+                    {pixForm.customText && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setPixForm((f) => ({ ...f, customText: "" }))}
+                      >
+                        Limpar
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <textarea
+                  id="pix-custom"
+                  rows={6}
+                  maxLength={1500}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={pixForm.customText}
+                  onChange={(e) => setPixForm((f) => ({ ...f, customText: e.target.value }))}
+                  placeholder="Deixe vazio para usar o texto automático, ou clique em Usar modelo para editar."
+                />
+              </div>
+              <Button type="button" variant="secondary" className="w-full" onClick={salvarPixPadrao}>
+                Salvar este Pix como padrão
+              </Button>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setPixOpen(false)}>
