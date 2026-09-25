@@ -968,6 +968,7 @@ function mimeFromName(name: string, fallback = "application/octet-stream"): stri
   return map[ext] ?? fallback;
 }
 function nomeComExtensao(name: string, mime: string): string {
+  if (mime === "application/pdf" && /\.bin$/i.test(name)) return name.replace(/\.bin$/i, ".pdf");
   if (/\.[a-z0-9]{2,5}$/i.test(name)) return name;
   return mime === "application/pdf" ? `${name}.pdf` : name;
 }
