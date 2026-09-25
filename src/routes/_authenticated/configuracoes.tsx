@@ -1619,6 +1619,275 @@ const EMPTY: Form = {
   tagline: "",
 };
 
+function dataRelativa(valor: string | undefined) {
+  if (!valor) return "—";
+  const data = new Date(valor);
+  if (Number.isNaN(data.getTime())) return "—";
+  return data.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
+
+function GithubCard() {
+  const [open, setOpen] = useState(false);
+  const [repoSelecionado, setRepoSelecionado] = useState<string | null>(null);
+  const [pronto, setPronto] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setRepoSelecionado(window.localStorage.getItem("github-repo"));
+    setPronto(true);
+  }, [open]);
+
+  const listar = useServerFn(listGithubRepos);
+  const buscarInfo = useServerFn(getGithubRepoInfo);
+
+  const reposQuery = useQuery({
+    queryKey: ["github-repos"],
+    queryFn: () => listar({}),
+    enabled: open && pronto && !repoSelecionado,
+  });
+
+  const infoQuery = useQuery({
+    queryKey: ["github-repo-info", repoSelecionado],
+    queryFn: () => buscarInfo({ data: { fullName: repoSelecionado! } }),
+    enabled: open && pronto && Boolean(repoSelecionado),
+  });
+
+  function escolherRepo(fullName: string) {
+    window.localStorage.setItem("github-repo", fullName);
+    setRepoSelecionado(fullName);
+  }
+
+  function trocarRepo() {
+    window.localStorage.removeItem("github-repo");
+    setRepoSelecionado(null);
+  }
+
+  const info = infoQuery.data as
+    | (Awaited<ReturnType<typeof getGithubRepoInfo>> & undefined)
+    | undefined;
+  const totalIdiomas = (info?.languages ?? []).reduce((soma, i) => soma + i.bytes, 0);
+
+  return (
+    <ConfigSectionCard
+      icon={Github}
+      title="GitHub"
+      description="Sincronize e veja as informações completas do repositório do projeto."
+      status={repoSelecionado ? `Repositório: ${repoSelecionado}` : "Toque para escolher o repositório"}
+    >
+      <div className="space-y-4">
+        {pronto && !repoSelecionado ? (
+          <div className="space-y-3">
+            {reposQuery.isLoading && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" /> Buscando repositórios no GitHub…
+              </div>
+            )}
+            {reposQuery.error instanceof Error && (
+              <p className="text-sm text-destructive">{reposQuery.error.message}</p>
+            )}
+            {reposQuery.data && reposQuery.data.repos.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                Nenhum repositório encontrado nesta conta do GitHub.
+              </p>
+            )}
+            {reposQuery.data && reposQuery.data.repos.length > 0 && (
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  Escolha o repositório (conta: {reposQuery.data.login})
+                </p>
+                <div className="mt-2 max-h-72 space-y-2 overflow-y-auto pr-1">
+                  {reposQuery.data.repos.map((repo) => (
+                    <button
+                      key={repo.fullName}
+                      type="button"
+                      onClick={() => escolherRepo(repo.fullName)}
+                      className="flex w-full items-center justify-between gap-2 rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/40"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium text-foreground">
+                          {repo.fullName}
+                        </span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {repo.description || "Sem descrição"} · atualizado em {dataRelativa(repo.updatedAt)}
+                        </span>
+                      </span>
+                      <span className="shrink-0 rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                        {repo.private ? "Privado" : "Público"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {pronto && repoSelecionado ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => infoQuery.refetch()}>
+                {infoQuery.isFetching ? (
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-2 size-4" />
+                )}
+                Sincronizar agora
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={trocarRepo}>
+                Trocar repositório
+              </Button>
+              {info?.htmlUrl ? (
+                <Button type="button" variant="outline" size="sm" asChild>
+                  <a href={info.htmlUrl} target="_blank" rel="noreferrer">
+                    <ExternalLink className="mr-2 size-4" /> Abrir no GitHub
+                  </a>
+                </Button>
+              ) : null}
+            </div>
+
+            {infoQuery.error instanceof Error && (
+              <p className="text-sm text-destructive">{infoQuery.error.message}</p>
+            )}
+
+            {infoQuery.isLoading && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" /> Buscando informações no GitHub…
+              </div>
+            )}
+
+            {info ? (
+              <div className="space-y-4">
+                <div className="rounded-lg border border-border p-4">
+                  <div className="flex items-center gap-3">
+                    {info.avatarUrl ? (
+                      <img src={info.avatarUrl} alt="" className="size-10 rounded-full" />
+                    ) : null}
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-foreground">{info.fullName}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {info.description || "Sem descrição"}
+                      </p>
+                    </div>
+                    <span className="ml-auto shrink-0 rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                      {info.private ? "Privado" : "Público"}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground sm:grid-cols-4">
+                    <span className="flex items-center gap-1">
+                      <Star className="size-3.5" /> {info.stars} estrelas
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <GitBranch className="size-3.5" /> {info.forks} forks
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <CircleDot className="size-3.5" /> {info.openIssues} issues abertas
+                    </span>
+                    <span>Tamanho: {formatarBytes(info.sizeKb * 1024)}</span>
+                  </div>
+                  <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+                    <p>Branch principal: {info.defaultBranch}</p>
+                    <p>Linguagem principal: {info.language || "—"}</p>
+                    <p>Criado em {dataRelativa(info.createdAt)}</p>
+                    <p>Último envio: {dataRelativa(info.pushedAt)}</p>
+                  </div>
+                </div>
+
+                {info.languages.length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Linguagens</p>
+                    <div className="mt-2 space-y-1.5">
+                      {info.languages.slice(0, 6).map((l) => (
+                        <div key={l.name} className="space-y-0.5">
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>{l.name}</span>
+                            <span>{Math.round((l.bytes / totalIdiomas) * 100)}%</span>
+                          </div>
+                          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                            <div
+                              className="h-full rounded-full bg-primary"
+                              style={{ width: `${Math.max(2, (l.bytes / totalIdiomas) * 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-sm font-medium text-foreground">Últimos envios</p>
+                  <div className="mt-2 space-y-2">
+                    {info.commits.map((c) => (
+                      <div key={c.sha} className="rounded-lg border border-border p-3">
+                        <p className="flex items-center gap-2 text-sm text-foreground">
+                          <GitCommitHorizontal className="size-4 shrink-0 text-muted-foreground" />
+                          <span className="truncate">{c.message}</span>
+                        </p>
+                        <p className="mt-1 pl-6 text-xs text-muted-foreground">
+                          {c.author || "—"} · {dataRelativa(c.date)} · {c.sha}
+                        </p>
+                      </div>
+                    ))}
+                    {info.commits.length === 0 && (
+                      <p className="text-sm text-muted-foreground">Nenhum envio encontrado.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    Branches ({info.branches.length})
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {info.branches.map((b) => (
+                      <span
+                        key={b.name}
+                        className="flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground"
+                      >
+                        <GitBranch className="size-3" /> {b.name}
+                        {b.name === info.defaultBranch ? " (principal)" : ""}
+                      </span>
+                    ))}
+                    {info.branches.length === 0 && (
+                      <p className="text-sm text-muted-foreground">Nenhuma branch encontrada.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-sm font-medium text-foreground">Issues abertas recentes</p>
+                  <div className="mt-2 space-y-2">
+                    {info.issues.map((i) => (
+                      <a
+                        key={i.number}
+                        href={i.htmlUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block rounded-lg border border-border p-3 transition-colors hover:bg-muted/40"
+                      >
+                        <p className="flex items-center gap-2 text-sm text-foreground">
+                          <CircleDot className="size-4 shrink-0 text-muted-foreground" />
+                          <span className="truncate">{i.title}</span>
+                        </p>
+                        <p className="mt-1 pl-6 text-xs text-muted-foreground">
+                          #{i.number} · atualizada em {dataRelativa(i.updatedAt)}
+                        </p>
+                      </a>
+                    ))}
+                    {info.issues.length === 0 && (
+                      <p className="text-sm text-muted-foreground">Nenhuma issue aberta.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </ConfigSectionCard>
+  );
+}
+
 function ColorField({
   id,
   label,
