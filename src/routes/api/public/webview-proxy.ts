@@ -344,7 +344,13 @@ async function handle(request: Request) {
   const reqContentType = request.headers.get("content-type");
   if (reqContentType) forwardHeaders.set("content-type", reqContentType);
   // Validação do captcha (chamada AJAX do portal) depende destes cabeçalhos.
-  for (const h of ["x-requested-with", "__requestverificationtoken", "requestverificationtoken"]) {
+  for (const h of [
+    "x-requested-with",
+    "__requestverificationtoken",
+    "requestverificationtoken",
+    "x-csrf-token",
+    "x-xsrf-token",
+  ]) {
     const v = request.headers.get(h);
     if (v) forwardHeaders.set(h, v);
   }
