@@ -130,7 +130,10 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "WEBVIEW",
-    items: [{ to: "/webview", label: "Sites", icon: Globe, adminOnly: false }],
+    items: [
+      { to: "/webview", label: "Sites", icon: Globe, adminOnly: false },
+      { to: "/documentos", label: "Documentos salvos", icon: FolderDown, adminOnly: false },
+    ],
   },
   {
     label: "Administração",
