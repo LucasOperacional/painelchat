@@ -18,3 +18,4 @@
 - [x] Evitar bloqueio no download e abrir o PDF no leitor sem substituir a página do emissor
 - [x] Salvar automaticamente documentos do Webview e mostrá-los em um card para abrir, baixar ou enviar
 - [x] Impedir que downloads da NFS-e escapem do painel por nova janela, subdomínio ou redirecionamento interno
+- [x] Capturar automaticamente PDFs mesmo com tipo incorreto, blob ou formulário com destino próprio
