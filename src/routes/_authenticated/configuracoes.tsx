@@ -88,6 +88,8 @@ type ConfigSectionProps = {
   description: string;
   status?: string | undefined;
   statusOk?: boolean | undefined;
+  open?: boolean | undefined;
+  onOpenChange?: ((value: boolean) => void) | undefined;
   children: React.ReactNode;
 };
 
@@ -97,14 +99,21 @@ function ConfigSectionCard({
   description,
   status,
   statusOk,
+  open,
+  onOpenChange,
   children,
 }: ConfigSectionProps) {
-  const [open, setOpen] = useState(false);
+  const [interno, setInterno] = useState(false);
+  const aberto = open ?? interno;
+  const setAberto = (value: boolean) => {
+    setInterno(value);
+    onOpenChange?.(value);
+  };
   return (
     <>
       <Card
         className="cursor-pointer transition-colors hover:bg-muted/40"
-        onClick={() => setOpen(true)}
+        onClick={() => setAberto(true)}
       >
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -129,7 +138,7 @@ function ConfigSectionCard({
         </CardContent>
       </Card>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={aberto} onOpenChange={setAberto}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
