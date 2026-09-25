@@ -15,6 +15,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ArrowLeft,
+  ArrowDown,
   Paperclip,
   Smile,
   ContactRound,
@@ -711,6 +712,14 @@ function AtendimentoPage() {
   // tela quando você já está perto do fim; se estiver lendo mensagens antigas,
   // a posição é mantida.
   const chatScrollRef = useRef<HTMLDivElement>(null);
+  // Mostra a seta "ir para a última mensagem" quando você está lendo
+  // mensagens antigas, longe do fim do chat.
+  const [longeDoFim, setLongeDoFim] = useState(false);
+  const atualizarSeta = () => {
+    const el = chatScrollRef.current;
+    if (!el) return;
+    setLongeDoFim(el.scrollHeight - el.scrollTop - el.clientHeight > 400);
+  };
   useEffect(() => {
     const el = chatScrollRef.current;
     if (!el) return;
@@ -719,6 +728,9 @@ function AtendimentoPage() {
     const pertoDoFim = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
     if (ultima?.direction === "outbound" || pertoDoFim) {
       el.scrollTop = el.scrollHeight;
+      setLongeDoFim(false);
+    } else {
+      atualizarSeta();
     }
   }, [messages.data, selectedId]);
 
