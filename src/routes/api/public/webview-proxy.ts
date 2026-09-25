@@ -146,6 +146,8 @@ function rewriteHtml(html: string, id: string, target: URL) {
  function nome(h,fallback){try{var p=new URL(h,B).pathname.split("/").pop();return decodeURIComponent(p||fallback||"nota-fiscal.pdf");}catch(e){return fallback||"nota-fiscal.pdf";}}
  function envia(b,n){if(!b||!b.size||seen.has(b))return Promise.resolve();seen.add(b);var fd=new FormData();fd.append("arquivo",b,n||"nota-fiscal.pdf");fd.append("nome",n||"nota-fiscal.pdf");return f.call(window,P+"?id="+encodeURIComponent(I)+"&recebe-arquivo=1&formato=json",{method:"POST",body:fd,credentials:"same-origin"}).then(function(r){if(!r.ok)throw new Error("falha");return r.json();}).then(function(d){if(d&&d.type==="webview-download")parent.postMessage(d,location.origin);});}
  function arquivo(r){var t=(r.headers.get("content-type")||"").toLowerCase(),d=(r.headers.get("content-disposition")||"").toLowerCase();return /pdf|xml|zip|octet-stream/.test(t)||/attachment/.test(d);}
+ var co=URL.createObjectURL;if(co)URL.createObjectURL=function(b){var u=co.call(URL,b);try{if(b instanceof Blob&&(/pdf|xml|zip|octet-stream/i.test(b.type||"")||b.size>0))setTimeout(function(){envia(b,b instanceof File&&b.name?b.name:"nota-fiscal.pdf");},0);}catch(e){}return u;};
+ if(navigator.msSaveBlob)navigator.msSaveBlob=function(b,n){envia(b,n||"nota-fiscal.pdf");return true;};if(navigator.msSaveOrOpenBlob)navigator.msSaveOrOpenBlob=function(b,n){envia(b,n||"nota-fiscal.pdf");return true;};
  var f=window.fetch;if(f)window.fetch=function(i,o){var raw=typeof i==="string"?i:(i&&i.url)||"",req=typeof i==="string"?w(i):i;return f.call(this,req,o).then(function(r){if(arquivo(r)){var c=r.clone();c.blob().then(function(b){return envia(b,nome(raw,"nota-fiscal.pdf"));}).catch(function(){});}return r;});};
  var x=XMLHttpRequest.prototype.open,s=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.open=function(m,u){this.__wvNome=nome(String(u),"nota-fiscal.pdf");arguments[1]=w(String(u));return x.apply(this,arguments);};XMLHttpRequest.prototype.send=function(){this.addEventListener("load",function(){try{var t=(this.getResponseHeader("content-type")||"").toLowerCase(),d=(this.getResponseHeader("content-disposition")||"").toLowerCase();if(!/pdf|xml|zip|octet-stream/.test(t)&&!/attachment/.test(d))return;var b=this.response instanceof Blob?this.response:new Blob([this.response],{type:t||"application/pdf"});envia(b,this.__wvNome);}catch(e){}});return s.apply(this,arguments);};
   var wo=window.open;window.open=function(u,n,o){if(u==null||u==="")return window;if(typeof u!=="string")return wo.call(window,u,n,o);if(u.indexOf("blob:")===0||u.indexOf("data:")===0){f.call(window,u).then(function(r){return r.blob();}).then(function(b){return envia(b,nome(u,"nota-fiscal.pdf"));}).catch(function(){});return window;}try{var a=new URL(u,B);if(portal(a.hostname)||(a.origin===location.origin&&a.pathname===P)){location.href=w(u);return window;}}catch(e){}return wo.call(window,u,n,o);};
@@ -416,12 +418,31 @@ async function handle(request: Request) {
   // Arquivos baixados (nota em PDF/XML): guarda na central e avisa o painel,
   // que abre a opção de enviar para um contato.
   const disposition = upstream.headers.get("content-disposition") ?? "";
+  const contentLength = Number(upstream.headers.get("content-length") ?? "0");
+  const targetLooksLikeFile = /\.(pdf|xml|zip)(?:$|[?#])/i.test(finalTarget.toString());
+  const shouldInspectBody =
+    upstream.ok &&
+    contentLength <= 20 * 1024 * 1024 &&
+    !/^(?:image|audio|video)\//i.test(contentType) &&
+    !/(?:javascript|text\/css|font\/|woff)/i.test(contentType);
+  let inspectedBytes: Uint8Array | null = null;
+  let magicIsFile = false;
+  if (shouldInspectBody) {
+    inspectedBytes = new Uint8Array(await upstream.arrayBuffer());
+    const signature = new TextDecoder("latin1").decode(inspectedBytes.slice(0, 16));
+    magicIsFile =
+      signature.startsWith("%PDF-") ||
+      signature.startsWith("PK\u0003\u0004") ||
+      /^\s*<\?xml/i.test(new TextDecoder().decode(inspectedBytes.slice(0, 128)));
+  }
   const isDownload =
     upstream.ok &&
     (/attachment/i.test(disposition) ||
-      /application\/(pdf|xml|zip|octet-stream)|text\/xml/i.test(contentType));
+      /application\/(pdf|xml|zip|octet-stream)|text\/xml/i.test(contentType) ||
+      targetLooksLikeFile ||
+      magicIsFile);
   if (isDownload) {
-    const bytes = new Uint8Array(await upstream.arrayBuffer());
+    const bytes = inspectedBytes ?? new Uint8Array(await upstream.arrayBuffer());
     let name =
       /filename\*=(?:UTF-8'')?([^;]+)/i.exec(disposition)?.[1] ??
       /filename="?([^";]+)"?/i.exec(disposition)?.[1] ??
@@ -440,7 +461,9 @@ async function handle(request: Request) {
   }
 
   if (contentType.includes("text/html")) {
-    const html = await upstream.text();
+    const html = inspectedBytes
+      ? new TextDecoder().decode(inspectedBytes)
+      : await upstream.text();
     return new Response(rewriteHtml(html, id, finalTarget), {
       status: upstream.status,
       headers,
@@ -462,7 +485,7 @@ async function handle(request: Request) {
     return new Response(rewritten, { status: upstream.status, headers });
   }
 
-  return new Response(upstream.body, { status: upstream.status, headers });
+  return new Response(inspectedBytes ?? upstream.body, { status: upstream.status, headers });
 }
 
 export const Route = createFileRoute("/api/public/webview-proxy")({
