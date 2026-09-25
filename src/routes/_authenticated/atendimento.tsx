@@ -15,6 +15,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ArrowLeft,
+  ArrowDown,
   Paperclip,
   Smile,
   ContactRound,
@@ -711,6 +712,14 @@ function AtendimentoPage() {
   // tela quando você já está perto do fim; se estiver lendo mensagens antigas,
   // a posição é mantida.
   const chatScrollRef = useRef<HTMLDivElement>(null);
+  // Mostra a seta "ir para a última mensagem" quando você está lendo
+  // mensagens antigas, longe do fim do chat.
+  const [longeDoFim, setLongeDoFim] = useState(false);
+  const atualizarSeta = () => {
+    const el = chatScrollRef.current;
+    if (!el) return;
+    setLongeDoFim(el.scrollHeight - el.scrollTop - el.clientHeight > 400);
+  };
   useEffect(() => {
     const el = chatScrollRef.current;
     if (!el) return;
@@ -719,6 +728,9 @@ function AtendimentoPage() {
     const pertoDoFim = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
     if (ultima?.direction === "outbound" || pertoDoFim) {
       el.scrollTop = el.scrollHeight;
+      setLongeDoFim(false);
+    } else {
+      atualizarSeta();
     }
   }, [messages.data, selectedId]);
 
@@ -1599,9 +1611,11 @@ function AtendimentoPage() {
               </div>
             </header>
 
+            <div className="relative min-h-0 flex-1">
             <div
               ref={chatScrollRef}
-              className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-muted/40 bg-repeat bg-center p-3 sm:space-y-4 sm:p-5"
+              onScroll={atualizarSeta}
+              className="h-full space-y-3 overflow-y-auto bg-muted/40 bg-repeat bg-center p-3 sm:space-y-4 sm:p-5"
               style={{
                 backgroundColor: chatBackground,
                 backgroundImage: project?.chatBackgroundUrl
@@ -1857,9 +1871,28 @@ function AtendimentoPage() {
                       </>
                     )}
                   </div>
-                );
-              })}
+              );
+            })}
             </div>
+
+            {longeDoFim && (
+              <button
+                type="button"
+                aria-label="Ir para a última mensagem"
+                title="Ir para a última mensagem"
+                className="absolute bottom-4 right-4 z-10 flex size-10 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-lg transition hover:bg-muted"
+                onClick={() => {
+                  const el = chatScrollRef.current;
+                  if (!el) return;
+                  el.scrollTop = el.scrollHeight;
+                  setLongeDoFim(false);
+                }}
+              >
+                <ArrowDown className="size-5" />
+              </button>
+            )}
+            </div>
+
 
             {pending.length > 0 && (
               <div className="flex flex-wrap gap-2 border-t border-border px-3 pt-3">
