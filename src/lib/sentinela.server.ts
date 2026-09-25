@@ -45,8 +45,8 @@ export type Achado = {
 
 const MAX_TENTATIVAS_EVENTO = 5;
 /** Limites de segurança: o ciclo nunca pode demorar a ponto de ser cortado pelo servidor. */
-const MAX_EVENTOS_POR_CICLO = 25;
-const ORCAMENTO_CICLO_MS = 30_000;
+const MAX_EVENTOS_POR_CICLO = 80;
+const ORCAMENTO_CICLO_MS = 45_000;
 const TEMPO_MAX_EVENTO_MS = 8_000;
 const TEMPO_MAX_CONEXOES_MS = 15_000;
 const TEMPO_MAX_WEBHOOK_MS = 12_000;
