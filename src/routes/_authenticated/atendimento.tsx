@@ -573,6 +573,7 @@ function AtendimentoPage() {
     queryKey: ["conversations"],
     queryFn: fetchConversations,
     refetchInterval: 10_000,
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
     refetchOnMount: "always",
   });
@@ -721,6 +722,7 @@ function AtendimentoPage() {
     // A Evolution pode entregar várias mensagens em sequência; esta conferência
     // curta recupera qualquer evento perdido sem esperar minutos.
     refetchInterval: 10_000,
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
     refetchOnMount: "always",
     placeholderData: (prev: any) => prev,
