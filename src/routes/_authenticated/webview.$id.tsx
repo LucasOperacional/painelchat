@@ -81,6 +81,11 @@ function WebviewFramePage() {
         setProcessingDownload(true);
         return;
       }
+      if (d?.type === "webview-download-waiting") {
+        setProcessingDownload(false);
+        toast.info(d.message ?? "Valide o captcha aberto no emissor e clique no download novamente.");
+        return;
+      }
       if (d?.type === "webview-download-error") {
         setProcessingDownload(false);
         toast.error(d.message ?? "Não foi possível capturar o PDF automaticamente.");
@@ -100,7 +105,7 @@ function WebviewFramePage() {
     if (!processingDownload) return;
     const timer = window.setTimeout(() => {
       setProcessingDownload(false);
-      toast.warning("Ainda não recebemos o PDF. Se o captcha apareceu, conclua a validação e tente baixar novamente.");
+      toast.info("Valide o captcha aberto no emissor e clique no download novamente.");
     }, 35_000);
     return () => window.clearTimeout(timer);
   }, [processingDownload]);
