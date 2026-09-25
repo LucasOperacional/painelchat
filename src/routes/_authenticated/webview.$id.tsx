@@ -108,7 +108,7 @@ function WebviewFramePage() {
           src={site.use_proxy ? `/api/public/webview-proxy?id=${site.id}` : site.url}
           title={site.title}
           className="h-full min-h-[55vh] w-full bg-background"
-          referrerPolicy="no-referrer"
+          referrerPolicy="same-origin"
           sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-downloads allow-modals"
         />
         <Card className="m-3 min-h-0 overflow-hidden lg:ml-0">
