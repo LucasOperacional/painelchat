@@ -303,6 +303,7 @@ export function useCentralSync() {
       if (agrupando !== null) window.clearTimeout(agrupando);
       window.clearInterval(timer);
       window.clearInterval(vigia);
+      window.clearInterval(recargaGarantida);
       window.removeEventListener("online", acordar);
       window.removeEventListener("focus", acordar);
       document.removeEventListener("visibilitychange", onVisible);
