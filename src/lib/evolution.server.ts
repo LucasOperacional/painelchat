@@ -1225,12 +1225,56 @@ export async function evolutionSendText(
   });
 }
 
+async function normalizeOutgoingMedia(input: {
+  url: string;
+  fileName: string;
+  mimeType: string;
+}): Promise<{ fileName: string; mimeType: string }> {
+  const originalName = input.fileName.trim() || "arquivo";
+  const originalMime = input.mimeType.split(";")[0]?.trim().toLowerCase() || "application/octet-stream";
+  const genericMime = !originalMime || originalMime === "application/octet-stream" || originalMime === "binary/octet-stream";
+  let isPdf = originalMime === "application/pdf" || /\.pdf$/i.test(originalName);
+
+  if (!isPdf && (genericMime || /\.bin$/i.test(originalName))) {
+    try {
+      const response = await fetch(input.url, { headers: { Range: "bytes=0-7" } });
+      if (response.ok) {
+        const responseMime = response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
+        const reader = response.body?.getReader();
+        const firstChunk = reader ? await reader.read() : null;
+        await reader?.cancel().catch(() => undefined);
+        const bytes = firstChunk?.value;
+        const pdfSignature =
+          !!bytes &&
+          bytes.length >= 5 &&
+          bytes[0] === 0x25 &&
+          bytes[1] === 0x50 &&
+          bytes[2] === 0x44 &&
+          bytes[3] === 0x46 &&
+          bytes[4] === 0x2d;
+        isPdf = responseMime === "application/pdf" || pdfSignature;
+      }
+    } catch {
+      // Se a origem temporária não aceitar inspeção, preserva os metadados recebidos.
+    }
+  }
+
+  if (!isPdf) return { fileName: originalName, mimeType: originalMime };
+  const fileName = /\.pdf$/i.test(originalName)
+    ? originalName
+    : /\.bin$/i.test(originalName)
+      ? originalName.replace(/\.bin$/i, ".pdf")
+      : `${originalName}.pdf`;
+  return { fileName, mimeType: "application/pdf" };
+}
+
 /** POST /send/media — type: image | video | audio | document */
 export async function evolutionSendMedia(
   target: SendTarget,
   input: { number: string; url: string; fileName: string; mimeType: string; caption?: string },
 ) {
-  const mime = (input.mimeType || "").toLowerCase();
+  const normalized = await normalizeOutgoingMedia(input);
+  const mime = normalized.mimeType.toLowerCase();
   const type = mime.startsWith("image/")
     ? "image"
     : mime.startsWith("video/")
@@ -1242,8 +1286,8 @@ export async function evolutionSendMedia(
     number: input.number,
     type,
     url: input.url,
-    filename: input.fileName,
-    mimetype: input.mimeType,
+    filename: normalized.fileName,
+    mimetype: normalized.mimeType,
     caption: input.caption ?? "",
   });
 }
