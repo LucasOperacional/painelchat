@@ -88,6 +88,21 @@ function unwrapNestedProxyParams(target: URL, id: string) {
   }
 }
 
+function originalProxyUrl(value: string | null, id: string, allowedHost: string) {
+  if (!value) return null;
+  try {
+    const ref = new URL(value);
+    if (ref.pathname !== PROXY_PATH || ref.searchParams.get("id") !== id) return null;
+    const inner = ref.searchParams.get("u");
+    if (!inner) return null;
+    const original = new URL(inner);
+    if (!mesmoPortal(original.hostname, allowedHost) || !/^https?:$/.test(original.protocol)) return null;
+    return original.toString();
+  } catch {
+    return null;
+  }
+}
+
 function rewriteHtml(html: string, id: string, target: URL) {
   // Remove meta-tags de CSP que bloqueiam a exibição embutida.
   let out = html.replace(
@@ -333,17 +348,10 @@ async function handle(request: Request) {
     const v = request.headers.get(h);
     if (v) forwardHeaders.set(h, v);
   }
-  let referer = target.origin + "/";
-  const refIn = request.headers.get("referer");
-  if (refIn) {
-    try {
-      const r = new URL(refIn);
-      const inner = r.searchParams.get("u");
-      if (inner && mesmoPortal(new URL(inner).hostname, target.hostname)) referer = inner;
-    } catch {
-      /* mantém */
-    }
-  }
+  // Preserve a página exata que originou a ação. O antiforgery/captcha do
+  // Emissor rejeita o POST quando recebe apenas a raiz como Referer.
+  const referer =
+    originalProxyUrl(request.headers.get("referer"), id, target.hostname) ?? target.toString();
   forwardHeaders.set("referer", referer);
   if (request.method !== "GET" && request.method !== "HEAD") forwardHeaders.set("origin", target.origin);
 
@@ -360,6 +368,26 @@ async function handle(request: Request) {
         if (clean !== value) form.set(key, clean);
       }
       corpo = form.toString();
+    } catch {
+      /* mantém o corpo original */
+    }
+  }
+  // Algumas telas enviam o retorno do captcha em JSON. Limpa somente strings
+  // que contêm uma URL deste proxy, preservando tokens e demais campos.
+  if (corpo && reqContentType?.toLowerCase().includes("application/json")) {
+    try {
+      const parsed = JSON.parse(new TextDecoder().decode(corpo as ArrayBuffer)) as unknown;
+      const cleanJson = (value: unknown): unknown => {
+        if (typeof value === "string") return unwrapProxyValue(value, id, target.hostname);
+        if (Array.isArray(value)) return value.map(cleanJson);
+        if (value && typeof value === "object") {
+          return Object.fromEntries(
+            Object.entries(value as Record<string, unknown>).map(([key, value]) => [key, cleanJson(value)]),
+          );
+        }
+        return value;
+      };
+      corpo = JSON.stringify(cleanJson(parsed));
     } catch {
       /* mantém o corpo original */
     }
