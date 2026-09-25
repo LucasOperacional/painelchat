@@ -646,7 +646,8 @@ async function wahaDispatchOnce(options: WahaCall): Promise<unknown> {
       const url = String(body["url"] ?? "");
       const chatId = destino;
       const caption = String(body["caption"] ?? "");
-      const filename = String(body["filename"] ?? "arquivo");
+      const docMime = String(body["mimetype"] ?? body["mimeType"] ?? "") || mimeFromName(String(body["filename"] ?? ""));
+      const filename = nomeComExtensao(String(body["filename"] ?? "arquivo"), docMime);
       if (type === "image") {
         return sentEnvelope(
           await run(
@@ -695,7 +696,7 @@ async function wahaDispatchOnce(options: WahaCall): Promise<unknown> {
           {
             session,
             chatId,
-            file: { mimetype: "application/octet-stream", filename, url },
+            file: { mimetype: docMime, filename, url },
             caption,
           },
           90_000,
@@ -959,4 +960,14 @@ export function wahaSignedMediaUrl(url: string, apiKey: string): string {
   } catch {
     return url;
   }
+}
+
+function mimeFromName(name: string, fallback = "application/octet-stream"): string {
+  const ext = (name.split(".").pop() ?? "").toLowerCase();
+  const map: Record<string, string> = { pdf: "application/pdf", xml: "application/xml", zip: "application/zip", doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", txt: "text/plain", csv: "text/csv", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg" };
+  return map[ext] ?? fallback;
+}
+function nomeComExtensao(name: string, mime: string): string {
+  if (/\.[a-z0-9]{2,5}$/i.test(name)) return name;
+  return mime === "application/pdf" ? `${name}.pdf` : name;
 }
