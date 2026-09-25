@@ -66,6 +66,7 @@ import {
   PIX_KEY_TYPES,
   type PixKeyType,
 } from "@/lib/pix.functions";
+import { getPaymentTexts } from "@/lib/payment-texts.functions";
 import { syncContactPhotos } from "@/lib/contacts.functions";
 import { getWavoipCallLink } from "@/lib/wavoip.functions";
 import { ContactBilling } from "@/components/contact-billing";
