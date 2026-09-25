@@ -19,6 +19,7 @@ import {
   Gauge,
   Sparkles,
   ChevronRight,
+  MessageSquareText,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -33,6 +34,7 @@ import {
   clearMisticpaySettings,
 } from "@/lib/misticpay.functions";
 import { getEfiStatus, saveEfiSettings, clearEfiSettings } from "@/lib/efi.functions";
+import { getPaymentTexts, savePaymentTexts } from "@/lib/payment-texts.functions";
 import {
   getAltispayStatus,
   saveAltispaySettings,
@@ -1940,6 +1942,7 @@ function SettingsPage() {
             <ButtonMenusCard />
             <MisticpayCard />
             <EfiCard />
+            <TextosPagamentoCard />
             <AltispayCard />
             <WavoipCard />
             <OtimizacaoCard />
