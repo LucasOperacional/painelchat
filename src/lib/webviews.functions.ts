@@ -208,3 +208,49 @@ export const deleteWebview = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+/** Salva um PDF/XML baixado no site oficial (após o captcha) em Documentos salvos. */
+export const uploadWebviewDocument = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: unknown) =>
+    z
+      .object({
+        webviewId: z.string().uuid(),
+        name: z.string().min(1).max(200),
+        mimeType: z.string().max(100),
+        base64: z.string().min(1).max(28_000_000),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context as never as Ctx;
+    const { data: site, error } = await supabase
+      .from("webviews")
+      .select("id, project_id")
+      .eq("id", data.webviewId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!site) throw new Error("Site não encontrado.");
+    const bytes = Uint8Array.from(atob(data.base64), (c) => c.charCodeAt(0));
+    if (bytes.byteLength > 20 * 1024 * 1024) throw new Error("Arquivo maior que 20 MB.");
+    const safe = data.name.replace(/[^\w.\-]+/g, "_").slice(0, 120);
+    const path = `webview/${data.webviewId}/${crypto.randomUUID()}-${safe}`;
+    const mime = data.mimeType || "application/pdf";
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const up = await supabaseAdmin.storage.from("anexos").upload(path, bytes, { contentType: mime });
+    if (up.error) throw new Error(up.error.message);
+    const saved = await supabaseAdmin.from("webview_documents").insert({
+      webview_id: data.webviewId,
+      project_id: (site as { project_id: string | null }).project_id,
+      storage_path: path,
+      file_name: data.name,
+      mime_type: mime,
+      size_bytes: bytes.byteLength,
+    });
+    if (saved.error) {
+      await supabaseAdmin.storage.from("anexos").remove([path]);
+      throw new Error(saved.error.message);
+    }
+    const s = await supabaseAdmin.storage.from("anexos").createSignedUrl(path, 60 * 60);
+    return { url: s.data?.signedUrl ?? "", name: data.name, mimeType: mime };
+  });

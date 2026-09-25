@@ -2,12 +2,13 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Download, ExternalLink, FileText, Loader2, RefreshCw, Send } from "lucide-react";
+import { ArrowLeft, Download, ExternalLink, FileText, Loader2, RefreshCw, Send, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import {
   listWebviewDocuments,
   listWebviews,
+  uploadWebviewDocument,
   type WebviewDocument,
   type WebviewSite,
 } from "@/lib/webviews.functions";
@@ -44,6 +45,34 @@ function WebviewFramePage() {
   const [processingDownload, setProcessingDownload] = useState(false);
   const quadro = useRef<HTMLIFrameElement>(null);
   const saidas = useRef(0);
+  const arquivo = useRef<HTMLInputElement>(null);
+  const [enviando, setEnviando] = useState(false);
+  const uploadDoc = useServerFn(uploadWebviewDocument);
+
+  async function anexarArquivo(f: File | undefined) {
+    if (!f) return;
+    if (f.size > 20 * 1024 * 1024) {
+      toast.error("Arquivo maior que 20 MB.");
+      return;
+    }
+    setEnviando(true);
+    try {
+      const buf = new Uint8Array(await f.arrayBuffer());
+      let bin = "";
+      for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+      const r = await uploadDoc({
+        data: { webviewId: id, name: f.name, mimeType: f.type || "application/pdf", base64: btoa(bin) },
+      });
+      toast.success("Documento salvo.");
+      setDownloaded(r);
+      void documents.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível salvar o arquivo.");
+    } finally {
+      setEnviando(false);
+      if (arquivo.current) arquivo.current.value = "";
+    }
+  }
 
   /**
    * Se o site escapar do proxy (o navegador mostra "conexão recusada" e a tela
@@ -149,8 +178,18 @@ function WebviewFramePage() {
           </Button>
           <Button asChild size="sm" variant="outline">
             <a href={site.url} target="_blank" rel="noreferrer">
-              <ExternalLink className="size-4" /> Nova aba
+              <ExternalLink className="size-4" /> Site oficial (captcha)
             </a>
+          </Button>
+          <input
+            ref={arquivo}
+            type="file"
+            accept="application/pdf,.pdf,.xml,text/xml,application/xml"
+            className="hidden"
+            onChange={(e) => void anexarArquivo(e.target.files?.[0])}
+          />
+          <Button size="sm" onClick={() => arquivo.current?.click()} disabled={enviando}>
+            {enviando ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />} Salvar PDF baixado
           </Button>
         </div>
       </div>
