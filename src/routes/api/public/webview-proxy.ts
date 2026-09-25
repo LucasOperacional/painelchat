@@ -146,10 +146,34 @@ function rewriteHtml(html: string, id: string, target: URL) {
  function nome(h,fallback){try{var p=new URL(h,B).pathname.split("/").pop();return decodeURIComponent(p||fallback||"nota-fiscal.pdf");}catch(e){return fallback||"nota-fiscal.pdf";}}
  function envia(b,n){if(!b||!b.size||seen.has(b))return Promise.resolve();seen.add(b);var fd=new FormData();fd.append("arquivo",b,n||"nota-fiscal.pdf");fd.append("nome",n||"nota-fiscal.pdf");return f.call(window,P+"?id="+encodeURIComponent(I)+"&recebe-arquivo=1&formato=json",{method:"POST",body:fd,credentials:"same-origin"}).then(function(r){if(!r.ok)throw new Error("falha");return r.json();}).then(function(d){if(d&&d.type==="webview-download")parent.postMessage(d,location.origin);});}
  function arquivo(r){var t=(r.headers.get("content-type")||"").toLowerCase(),d=(r.headers.get("content-disposition")||"").toLowerCase();return /pdf|xml|zip|octet-stream/.test(t)||/attachment/.test(d);}
- var co=URL.createObjectURL;if(co)URL.createObjectURL=function(b){var u=co.call(URL,b);try{if(b instanceof Blob&&(/pdf|xml|zip|octet-stream/i.test(b.type||"")||b.size>0))setTimeout(function(){envia(b,b instanceof File&&b.name?b.name:"nota-fiscal.pdf");},0);}catch(e){}return u;};
+  function cheira(b,n){var t=(b.type||"").toLowerCase();if(/pdf|xml|zip|octet-stream/.test(t)){envia(b,n);return;}if(t&&!/octet-stream/.test(t))return;Promise.resolve(b.slice(0,16).arrayBuffer()).then(function(x){var s=new TextDecoder("latin1").decode(x);if(/^%PDF-|^PK/.test(s)||/^\s*<\?xml/.test(s)||/^\s*<.+\?/i.test(s))envia(b,n);}).catch(function(){});}
+  var co=URL.createObjectURL;if(co)URL.createObjectURL=function(b){var u=co.call(URL,b);try{if(b instanceof Blob&&b.size>0)cheira(b,b instanceof File&&b.name?b.name:"nota-fiscal.pdf");}catch(e){}return u;};
  if(navigator.msSaveBlob)navigator.msSaveBlob=function(b,n){envia(b,n||"nota-fiscal.pdf");return true;};if(navigator.msSaveOrOpenBlob)navigator.msSaveOrOpenBlob=function(b,n){envia(b,n||"nota-fiscal.pdf");return true;};
  var f=window.fetch;if(f)window.fetch=function(i,o){var raw=typeof i==="string"?i:(i&&i.url)||"",req=typeof i==="string"?w(i):i;return f.call(this,req,o).then(function(r){if(arquivo(r)){var c=r.clone();c.blob().then(function(b){return envia(b,nome(raw,"nota-fiscal.pdf"));}).catch(function(){});}return r;});};
- var x=XMLHttpRequest.prototype.open,s=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.open=function(m,u){this.__wvNome=nome(String(u),"nota-fiscal.pdf");arguments[1]=w(String(u));return x.apply(this,arguments);};XMLHttpRequest.prototype.send=function(){this.addEventListener("load",function(){try{var t=(this.getResponseHeader("content-type")||"").toLowerCase(),d=(this.getResponseHeader("content-disposition")||"").toLowerCase();if(!/pdf|xml|zip|octet-stream/.test(t)&&!/attachment/.test(d))return;var b=this.response instanceof Blob?this.response:new Blob([this.response],{type:t||"application/pdf"});envia(b,this.__wvNome);}catch(e){}});return s.apply(this,arguments);};
+  var x=XMLHttpRequest.prototype.open,s=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.open=function(m,u){this.__wvNome=nome(String(u),"nota-fiscal.pdf");arguments[1]=w(String(u));return x.apply(this,arguments);};XMLHttpRequest.prototype.send=function(){this.addEventListener("load",function(){try{var t=(this.getResponseHeader("content-type")||"").toLowerCase(),d=(this.getResponseHeader("content-disposition")||"").toLowerCase();if(!/pdf|xml|zip|octet-stream/.test(t)&&!/attachment/.test(d))return;var b=this.response instanceof Blob?this.response:new Blob([this.response],{type:t||"application/pdf"});envia(b,this.__wvNome);}catch(e){}});return s.apply(this,arguments);};
+  // Downloads gerados por script criam um <a> fora da página e clicam nele: sem
+  // estar na página, nenhum ouvinte da página vê o clique e o navegador tenta
+  // abrir o endereço original (que o painel não consegue mostrar). Aqui o
+  // arquivo é capturado e o destino é reescrito para passar pelo proxy.
+  var hc=HTMLElement.prototype.click;
+  HTMLElement.prototype.click=function(){
+   try{
+    if(this.tagName==="A"){
+     var h=this.getAttribute("href")||"";
+     if(h.indexOf("blob:")===0||h.indexOf("data:")===0){
+      if(this.hasAttribute("download")){
+       var n=this.getAttribute("download")||nome(h,"arquivo");
+       f.call(window,h).then(function(r){return r.blob();}).then(function(b){return envia(b,n);}).catch(function(){});
+       return;
+      }
+     }else if(!/^(javascript:|mailto:|tel:|#)/i.test(h)){
+      sa.call(this,"target","_self");
+      sa.call(this,"href",w(h));
+     }
+    }
+   }catch(e){}
+   return hc.apply(this,arguments);
+  };
   var wo=window.open;window.open=function(u,n,o){if(u==null||u==="")return window;if(typeof u!=="string")return wo.call(window,u,n,o);if(u.indexOf("blob:")===0||u.indexOf("data:")===0){f.call(window,u).then(function(r){return r.blob();}).then(function(b){return envia(b,nome(u,"nota-fiscal.pdf"));}).catch(function(){});return window;}try{var a=new URL(u,B);if(portal(a.hostname)||(a.origin===location.origin&&a.pathname===P)){location.href=w(u);return window;}}catch(e){}return wo.call(window,u,n,o);};
  function protege(proto,prop){try{var d=Object.getOwnPropertyDescriptor(proto,prop);if(!d||!d.set||!d.get)return;Object.defineProperty(proto,prop,{configurable:d.configurable,enumerable:d.enumerable,get:d.get,set:function(v){return d.set.call(this,typeof v==="string"?w(v):v);}});}catch(e){}}
   protege(HTMLAnchorElement.prototype,"href");protege(HTMLFormElement.prototype,"action");if(window.HTMLButtonElement)protege(HTMLButtonElement.prototype,"formAction");if(window.HTMLInputElement)protege(HTMLInputElement.prototype,"formAction");protege(HTMLIFrameElement.prototype,"src");if(window.HTMLFrameElement)protege(HTMLFrameElement.prototype,"src");protege(HTMLObjectElement.prototype,"data");protege(HTMLEmbedElement.prototype,"src");

@@ -20,3 +20,5 @@
 - [x] Impedir que downloads da NFS-e escapem do painel por nova janela, subdomínio ou redirecionamento interno
 - [x] Capturar automaticamente PDFs mesmo com tipo incorreto, blob ou formulário com destino próprio
 - [x] Recuperar mensagens de uma conexão anterior após reconectar o número 5562996928605
+- [x] Colocar "Documentos salvos" no menu lateral (visível mesmo recolhido) com página própria
+- [x] Download de nota no Webview: não baixa, não captura e a página dá "conexão recusada"

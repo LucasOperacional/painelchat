@@ -38,6 +38,27 @@ export type WebviewDocument = {
   url: string;
 };
 
+export type SavedDocument = WebviewDocument & { site_title: string };
+
+type DocumentRow = {
+  id: string;
+  webview_id: string;
+  storage_path: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+  created_at: string;
+};
+
+async function signDocuments(supabase: Ctx["supabase"], rows: DocumentRow[]) {
+  return Promise.all(
+    rows.map(async (row) => {
+      const signed = await supabase.storage.from("anexos").createSignedUrl(row.storage_path, 60 * 60);
+      return signed.data?.signedUrl ? { ...row, url: signed.data.signedUrl } : null;
+    }),
+  );
+}
+
 const SELECT = "id, title, url, description, open_external, use_proxy, sort_order";
 
 async function assertAdmin(ctx: Ctx) {
@@ -94,6 +115,41 @@ export const listWebviewDocuments = createServerFn({ method: "GET" })
       }),
     );
     return documents.filter((row): row is NonNullable<typeof row> => row !== null) as WebviewDocument[];
+  });
+
+/** Lista todos os documentos salvos pela central, com o site de origem. */
+export const listSavedDocuments = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: unknown) =>
+    z
+      .object({
+        search: z.string().trim().max(120).default(""),
+        limit: z.number().int().min(1).max(200).default(100),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context as never as Ctx;
+
+    let query = supabase
+      .from("webview_documents")
+      .select("id, webview_id, storage_path, file_name, mime_type, size_bytes, created_at")
+      .order("created_at", { ascending: false })
+      .limit(data.limit);
+    if (data.search) query = query.ilike("file_name", `%${data.search}%`);
+
+    const { data: rows, error } = await query;
+    if (error) throw new Error(error.message);
+
+    const { data: sites, error: sitesError } = await supabase.from("webviews").select("id, title");
+    if (sitesError) throw new Error(sitesError.message);
+
+    const titles = new Map<string, string>((sites ?? []).map((s: { id: string; title: string }) => [s.id, s.title]));
+    const signed = await signDocuments(supabase, (rows ?? []) as DocumentRow[]);
+
+    return signed
+      .filter((row): row is NonNullable<typeof row> => row !== null)
+      .map((row) => ({ ...row, site_title: titles.get(row.webview_id) ?? "Site removido" })) as SavedDocument[];
   });
 
 const siteSchema = z.object({
