@@ -44,6 +44,45 @@ type EvolutionWebhook = {
   };
 };
 
+function phoneVariants(value: unknown): Set<string> {
+  const phone = digitsOnly(String(value ?? ""));
+  const variants = new Set<string>();
+  if (!phone) return variants;
+  variants.add(phone);
+  if (phone.startsWith("55") && phone.length === 13 && phone[4] === "9") {
+    variants.add(`${phone.slice(0, 4)}${phone.slice(5)}`);
+  } else if (phone.startsWith("55") && phone.length === 12) {
+    variants.add(`${phone.slice(0, 4)}9${phone.slice(4)}`);
+  }
+  return variants;
+}
+
+function sameBrazilianPhone(left: unknown, right: unknown): boolean {
+  const leftVariants = phoneVariants(left);
+  return [...phoneVariants(right)].some((phone) => leftVariants.has(phone));
+}
+
+function nestedStringByKeys(value: unknown, keys: Set<string>, depth = 0): string {
+  if (!value || typeof value !== "object" || depth > 5) return "";
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = nestedStringByKeys(item, keys, depth + 1);
+      if (found) return found;
+    }
+    return "";
+  }
+  for (const [rawKey, item] of Object.entries(value as Record<string, unknown>)) {
+    if (keys.has(rawKey.toLowerCase()) && typeof item === "string" && item.trim()) {
+      return item.trim();
+    }
+  }
+  for (const item of Object.values(value as Record<string, unknown>)) {
+    const found = nestedStringByKeys(item, keys, depth + 1);
+    if (found) return found;
+  }
+  return "";
+}
+
 /** Todos os JIDs marcados (@) dentro da mensagem, em qualquer nível. */
 function collectMentions(value: unknown, out: string[] = []): string[] {
   if (Array.isArray(value)) {
@@ -718,6 +757,7 @@ async function fromWaha(raw: Record<string, any>): Promise<EvolutionWebhook> {
   }
 
   return {
+    sourceProvider: "waha",
     event: fromMe ? "SendMessage" : "Message",
     data: { Info: info, Message: mensagem },
     ...base,
@@ -829,6 +869,7 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
           provider: string | null;
           instance_id?: string | null;
           instance_name?: string | null;
+          base_url?: string | null;
         };
         let config = byToken as ConfigWebhook | null;
 
@@ -862,6 +903,43 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
             (doProvedor.length === 1 ? doProvedor[0] : null) ??
             (lista.length === 1 ? lista[0] : null) ??
             null;
+
+          // A WuzAPI pode recriar a sessão e continuar entregando pelo endereço
+          // antigo por alguns minutos. Confirmamos o token da sessão no próprio
+          // servidor e ligamos pelo número do WhatsApp (aceitando com/sem o 9).
+          // Isso preserva as mensagens sem alterar a conexão fixa da conversa.
+          if (!config && payload.sourceProvider === "wuzapi" && instanceRef) {
+            const { evolutionListInstances } = await import("@/lib/evolution.server");
+            const consultados = new Set<string>();
+            for (const candidato of doProvedor) {
+              const baseUrl = (candidato.base_url ?? "").trim();
+              if (!baseUrl || consultados.has(baseUrl)) continue;
+              consultados.add(baseUrl);
+              try {
+                const sessoes = await evolutionListInstances({
+                  baseUrl,
+                  configId: candidato.id,
+                  provider: "wuzapi",
+                });
+                const sessao = sessoes.find(
+                  (item) =>
+                    nestedStringByKeys(item, new Set(["token", "usertoken", "clienttoken"])) ===
+                    instanceRef,
+                );
+                if (!sessao) continue;
+                const telefone = nestedStringByKeys(
+                  sessao,
+                  new Set(["jid", "phone", "phonenumber", "number", "wid"]),
+                );
+                config = doProvedor.find(
+                  (item) => item.base_url === baseUrl && sameBrazilianPhone(item.phone, telefone),
+                ) ?? null;
+                if (config) break;
+              } catch {
+                // A mensagem fica no diário e será tentada novamente pela Sentinela.
+              }
+            }
+          }
 
           if (!config) return Response.json({ received: true, ignored: "aparelho-desconhecido" });
           console.warn(
