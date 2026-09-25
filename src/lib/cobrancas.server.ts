@@ -64,6 +64,7 @@ export function montarTexto(cobranca: Cobranca): string {
     "{link}": cobranca.boleto_url,
   };
   let texto = cobranca.mensagem.trim();
+  if (!texto) texto = (padrao ?? "").trim();
   if (!texto) {
     texto =
       "Olá {cliente}! Sua cobrança de {descricao} no valor de {valor} vence em {vencimento}.";
