@@ -42,7 +42,9 @@ import {
   Landmark,
   KeyRound,
   Pin,
+  BellOff,
 } from "lucide-react";
+import { toggleConversationMuted, useMutedConversations } from "@/lib/muted-contacts";
 import { toast } from "sonner";
 
 
@@ -682,6 +684,7 @@ function AtendimentoPage() {
 
   const selected = (conversations.data ?? []).find((c) => c.id === selectedId) ?? null;
   const unreadMap = useUnreadMap();
+  const mutedIds = useMutedConversations();
 
   // Abrir a conversa marca as mensagens dela como lidas.
   useEffect(() => {
@@ -1339,6 +1342,22 @@ function AtendimentoPage() {
                         }}
                       >
                         {c.pinned_at ? <Pin className="size-3.5 fill-current" /> : <Pin className="size-3.5" />}
+                      </span>
+                      <span
+                        role="button"
+                        aria-label={mutedIds.includes(c.id) ? "Ativar avisos do contato" : "Silenciar contato"}
+                        title={mutedIds.includes(c.id) ? "Ativar avisos" : "Silenciar contato"}
+                        className={cn(
+                          "rounded-md p-1 transition-colors hover:bg-accent",
+                          mutedIds.includes(c.id) ? "text-primary" : "text-muted-foreground/60",
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const m = toggleConversationMuted(c.id);
+                          toast.success(m ? "Contato silenciado" : "Avisos do contato ativados");
+                        }}
+                      >
+                        <BellOff className="size-3.5" />
                       </span>
                       {timeAgo(c.last_message_at)}
                       {(unreadMap[c.id] ?? 0) > 0 && (
