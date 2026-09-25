@@ -19,6 +19,7 @@ import {
   Gauge,
   Sparkles,
   ChevronRight,
+  MessageSquareText,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -33,6 +34,7 @@ import {
   clearMisticpaySettings,
 } from "@/lib/misticpay.functions";
 import { getEfiStatus, saveEfiSettings, clearEfiSettings } from "@/lib/efi.functions";
+import { getPaymentTexts, savePaymentTexts } from "@/lib/payment-texts.functions";
 import {
   getAltispayStatus,
   saveAltispaySettings,
@@ -324,6 +326,104 @@ function OtimizacaoCard() {
             <Sparkles className="mr-2 size-4" />
           )}
           Otimizar agora
+        </Button>
+      </div>
+    </ConfigSectionCard>
+  );
+}
+
+function TextosPagamentoCard() {
+  const load = useServerFn(getPaymentTexts);
+  const save = useServerFn(savePaymentTexts);
+  const queryClient = useQueryClient();
+  const textos = useQuery({ queryKey: ["payment-texts"], queryFn: () => load({}) });
+  const [form, setForm] = useState({ pix_padrao: "", pix_confirmacao: "", cobranca_padrao: "" });
+  const [carregou, setCarregou] = useState(false);
+
+  useEffect(() => {
+    if (!textos.data || carregou) return;
+    setForm(textos.data);
+    setCarregou(true);
+  }, [textos.data, carregou]);
+
+  const salvar = useMutation({
+    mutationFn: () => save({ data: form }),
+    onSuccess: async () => {
+      toast.success("Textos de pagamento salvos");
+      await queryClient.invalidateQueries({ queryKey: ["payment-texts"] });
+    },
+    onError: (error: Error) =>
+      toast.error("Não foi possível salvar", { description: error.message }),
+  });
+
+  return (
+    <ConfigSectionCard
+      icon={MessageSquareText}
+      title="Textos de pagamento"
+      description="Edite as mensagens do Pix manual, da confirmação de pagamento e das cobranças automáticas."
+      status={
+        form.pix_padrao || form.pix_confirmacao || form.cobranca_padrao
+          ? "Textos personalizados ativos"
+          : "Usando os textos padrão"
+      }
+    >
+      <p className="text-sm text-muted-foreground">
+        Deixe um campo em branco para voltar ao texto padrão do sistema. Use as variáveis entre
+        chaves — elas são trocadas pelos dados reais na hora do envio.
+      </p>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="txt-pix">Mensagem padrão do Pix (chave própria)</Label>
+        <Textarea
+          id="txt-pix"
+          rows={6}
+          maxLength={2000}
+          value={form.pix_padrao}
+          onChange={(e) => setForm({ ...form, pix_padrao: e.target.value })}
+          placeholder="*Pagamento via Pix*&#10;Valor: {valor}&#10;*Nome:* {nome}&#10;*Banco:* {banco}&#10;*Chave Pix:* {chave}"
+        />
+        <p className="text-xs text-muted-foreground">
+          Variáveis: {"{titulo}"}, {"{descricao}"}, {"{valor}"}, {"{nome}"}, {"{banco}"},{" "}
+          {"{tipo}"} e {"{chave}"}.
+        </p>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="txt-confirmacao">Confirmação de pagamento Pix</Label>
+        <Textarea
+          id="txt-confirmacao"
+          rows={4}
+          maxLength={2000}
+          value={form.pix_confirmacao}
+          onChange={(e) => setForm({ ...form, pix_confirmacao: e.target.value })}
+          placeholder="✅ *Pagamento confirmado!*&#10;Recebemos o seu Pix de {valor} referente a {descricao}."
+        />
+        <p className="text-xs text-muted-foreground">
+          Variáveis: {"{valor}"} e {"{descricao}"}. Enviada automaticamente quando o pagamento é
+          confirmado.
+        </p>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="txt-cobranca">Mensagem padrão das cobranças automáticas</Label>
+        <Textarea
+          id="txt-cobranca"
+          rows={4}
+          maxLength={2000}
+          value={form.cobranca_padrao}
+          onChange={(e) => setForm({ ...form, cobranca_padrao: e.target.value })}
+          placeholder="Olá {cliente}! Sua cobrança de {descricao} no valor de {valor} vence em {vencimento}."
+        />
+        <p className="text-xs text-muted-foreground">
+          Variáveis: {"{cliente}"}, {"{valor}"}, {"{vencimento}"}, {"{descricao}"}, {"{linha}"} e{" "}
+          {"{link}"}. Usada quando a cobrança não tem mensagem própria.
+        </p>
+      </div>
+
+      <div className="flex justify-end">
+        <Button onClick={() => salvar.mutate()} disabled={salvar.isPending || textos.isPending}>
+          {salvar.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+          Salvar textos
         </Button>
       </div>
     </ConfigSectionCard>
@@ -1940,6 +2040,7 @@ function SettingsPage() {
             <ButtonMenusCard />
             <MisticpayCard />
             <EfiCard />
+            <TextosPagamentoCard />
             <AltispayCard />
             <WavoipCard />
             <OtimizacaoCard />

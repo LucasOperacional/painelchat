@@ -66,6 +66,7 @@ import {
   PIX_KEY_TYPES,
   type PixKeyType,
 } from "@/lib/pix.functions";
+import { getPaymentTexts } from "@/lib/payment-texts.functions";
 import { syncContactPhotos } from "@/lib/contacts.functions";
 import { getWavoipCallLink } from "@/lib/wavoip.functions";
 import { ContactBilling } from "@/components/contact-billing";
@@ -355,8 +356,32 @@ function AtendimentoPage() {
     localStorage.setItem("pix-chave-propria", JSON.stringify(resto));
     toast.success("Pix salvo", { description: "Os dados ficam prontos na próxima vez." });
   };
-  const textoPixPadrao = () =>
-    [
+  const getPaymentTextsFn = useServerFn(getPaymentTexts);
+  const paymentTexts = useQuery({
+    queryKey: ["payment-texts"],
+    queryFn: () => getPaymentTextsFn({}),
+    staleTime: 60_000,
+  });
+  const textoPixPadrao = () => {
+    const modelo = paymentTexts.data?.pix_padrao?.trim();
+    if (modelo) {
+      return modelo
+        .split("{titulo}")
+        .join(pixForm.title || "Pagamento via Pix")
+        .split("{descricao}")
+        .join(pixForm.description)
+        .split("{valor}")
+        .join(pixForm.amount ? `R$ ${pixForm.amount}` : "")
+        .split("{nome}")
+        .join(pixForm.name)
+        .split("{banco}")
+        .join(pixForm.bank)
+        .split("{tipo}")
+        .join(PIX_KEY_TYPES.find((t) => t.value === pixForm.keyType)?.label ?? "Chave Pix")
+        .split("{chave}")
+        .join(pixForm.key);
+    }
+    return [
       `*${pixForm.title || "Pagamento via Pix"}*`,
       pixForm.description ? `\n${pixForm.description}` : "",
       pixForm.amount ? `\nValor: R$ ${pixForm.amount}` : "",
@@ -368,6 +393,7 @@ function AtendimentoPage() {
     ]
       .filter(Boolean)
       .join("\n");
+  };
   const sendPixFn = useServerFn(sendPixCard);
   const sendPixMutation = useMutation({
     mutationFn: () => sendPixFn({ data: { conversationId: selectedId!, ...pixForm, estoqueCategoriaId } }),
