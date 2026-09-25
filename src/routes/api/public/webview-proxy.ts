@@ -392,6 +392,27 @@ async function handle(request: Request) {
       /* mantém o corpo original */
     }
   }
+  // O captcha usado durante a emissão pode ser enviado junto de um formulário
+  // multipart. Reconstruir o formulário também gera um boundary válido; manter
+  // o Content-Type antigo após alterar o corpo faria o portal perder os campos.
+  if (corpo && reqContentType?.toLowerCase().includes("multipart/form-data")) {
+    try {
+      const incoming = await new Response(corpo, {
+        headers: { "content-type": reqContentType },
+      }).formData();
+      const clean = new FormData();
+      for (const [key, value] of incoming.entries()) {
+        clean.append(
+          key,
+          typeof value === "string" ? unwrapProxyValue(value, id, target.hostname) : value,
+        );
+      }
+      corpo = clean;
+      forwardHeaders.delete("content-type");
+    } catch {
+      /* mantém o corpo original e o boundary recebido */
+    }
+  }
   try {
     // Redirecionamentos são seguidos manualmente para não sair do site cadastrado
     // nem alcançar endereços internos.
