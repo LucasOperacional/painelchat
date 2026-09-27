@@ -120,7 +120,9 @@ function DashboardPage() {
             />
           )}
           <div className="min-w-0">
-            <h1 className="text-xl font-semibold text-foreground">Dashboard</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              Dashboard
+            </h1>
             <p className="text-sm text-muted-foreground">Visão geral da central de atendimento.</p>
           </div>
         </div>
@@ -174,25 +176,33 @@ function DashboardPage() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                   <XAxis
                     dataKey="dia"
-                    tick={{ fontSize: 12 }}
+                    tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
                     axisLine={false}
                     tickLine={false}
                   />
                   <YAxis
                     allowDecimals={false}
-                    tick={{ fontSize: 12 }}
+                    width={32}
+                    tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
                     axisLine={false}
                     tickLine={false}
                   />
+                  {/* As cores do tema são oklch: envolvê-las em hsl() gera um
+                      valor inválido e o gráfico perde a cor da marca. Use as
+                      variáveis diretamente. */}
                   <Tooltip
-                    cursor={{ fill: "hsl(var(--muted) / 0.3)" }}
+                    cursor={{ fill: "var(--muted)", fillOpacity: 0.45 }}
                     contentStyle={{
-                      borderRadius: 8,
-                      border: "1px solid hsl(var(--border))",
-                      background: "hsl(var(--card))",
+                      borderRadius: 12,
+                      border: "1px solid var(--border)",
+                      background: "var(--card)",
+                      color: "var(--card-foreground)",
+                      boxShadow: "var(--shadow-soft)",
+                      fontSize: 12,
                     }}
+                    labelStyle={{ color: "var(--muted-foreground)" }}
                   />
-                  <Bar dataKey="total" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="total" fill="var(--primary)" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -255,14 +265,18 @@ function MetricCard({
   description: string;
 }) {
   return (
-    <Card>
-      <CardContent className="flex min-h-28 flex-col items-start gap-2 p-3 sm:min-h-0 sm:flex-row sm:items-center sm:gap-4 sm:p-5">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary sm:size-11">
+    <Card className="transition-shadow hover:shadow-md">
+      <CardContent className="flex min-h-28 flex-col items-start gap-3 p-4 sm:min-h-0 sm:flex-row sm:items-center sm:gap-4 sm:p-5">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary sm:size-11">
           <Icon className="size-5" />
         </div>
         <div className="min-w-0">
-          <p className="text-sm text-muted-foreground">{label}</p>
-          <p className="text-2xl font-semibold text-foreground">{value}</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {label}
+          </p>
+          <p className="font-display text-3xl font-semibold leading-tight tracking-tight text-foreground tabular-nums">
+            {value}
+          </p>
           <p className="text-xs text-muted-foreground">{description}</p>
         </div>
       </CardContent>
@@ -281,7 +295,7 @@ function ConversationItem({ conversation }: { conversation: Conversation }) {
     <Link
       to="/atendimento"
       search={{ conversation: conversation.id }}
-      className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 transition-colors hover:bg-muted/50"
+      className="flex items-center gap-3 rounded-xl border border-border/70 bg-card p-3 transition-colors hover:border-primary/30 hover:bg-muted/50"
     >
       <ContactAvatar name={contact?.name ?? "—"} avatarUrl={contact?.avatar_url ?? null} size="md" />
       <div className="min-w-0 flex-1">

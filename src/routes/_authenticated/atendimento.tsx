@@ -1886,7 +1886,11 @@ function AtendimentoPage() {
             )}
 
             <form
-              className="flex shrink-0 items-start gap-2 border-t border-border bg-card px-2 py-2 sm:px-3 sm:py-2.5"
+              // data-compact: a barra de envio é densa de propósito. Sem essa
+              // marca, a regra de alvo de toque do celular (44px) esticaria
+              // cada botãozinho de ícone e quebraria o layout do rodapé.
+              data-compact
+              className="flex shrink-0 items-start gap-2 border-t border-border bg-card px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-3 sm:py-2.5"
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!selectedId || (!draft.trim() && pending.length === 0)) return;
@@ -1948,7 +1952,7 @@ function AtendimentoPage() {
                 </button>
               </div>
 
-              <div className="min-w-0 flex-1 rounded-[10px] border border-border bg-background transition-colors focus-within:border-primary/50 focus-within:bg-card">
+              <div className="min-w-0 flex-1 rounded-xl border border-border bg-background transition-colors focus-within:border-primary/50 focus-within:bg-card focus-within:ring-2 focus-within:ring-ring/25">
                 <Textarea
                   ref={textareaRef}
                   value={draft}

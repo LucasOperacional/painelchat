@@ -97,7 +97,9 @@
   --secondary: oklch(0.962 0.004 260);
   --secondary-foreground: oklch(0.3 0.015 265);
   --muted: oklch(0.965 0.004 260);
-  --muted-foreground: oklch(0.55 0.02 262);
+  /* Texto de apoio escurecido o suficiente para passar no contraste AA
+     sobre o fundo claro, mantendo o mesmo tom azulado do tema. */
+  --muted-foreground: oklch(0.505 0.02 262);
   --accent: oklch(0.955 0.012 30);
   --accent-foreground: oklch(0.38 0.12 27);
   --destructive: oklch(0.58 0.22 27);
@@ -145,7 +147,9 @@
   --secondary: oklch(0.216 0.011 265);
   --secondary-foreground: oklch(0.96 0.004 260);
   --muted: oklch(0.216 0.011 265);
-  --muted-foreground: oklch(0.675 0.018 262);
+  /* Mesma ideia no tema escuro: clareia o texto de apoio para ficar legível
+     sobre o fundo grafite, sem mudar o tom. */
+  --muted-foreground: oklch(0.715 0.018 262);
   --accent: oklch(0.24 0.02 27);
   --accent-foreground: oklch(0.9 0.08 27);
   --destructive: oklch(0.655 0.208 27);
@@ -192,7 +196,11 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
     font-size: 0.9375rem;
+    /* Linhas um pouco mais altas deixam blocos de texto e listas mais fáceis
+       de ler sem alterar o tamanho da fonte. */
+    line-height: 1.55;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     overflow-x: hidden;
     text-rendering: optimizeLegibility;
   }
@@ -200,10 +208,26 @@
   h1, h2, h3 {
     font-family: var(--font-display);
     letter-spacing: -0.02em;
+    line-height: 1.2;
+    text-wrap: balance;
   }
 
+  /* Parágrafos de apoio não esticam demais em telas largas. */
+  p {
+    text-wrap: pretty;
+  }
+
+  /* O Card passou a marcar data-slot="card"; antes nenhum elemento carregava
+     esse atributo e a sombra suave do tema nunca era aplicada. */
   [data-slot="card"] {
     box-shadow: var(--shadow-soft);
+  }
+
+  /* Foco visível e consistente em todo o painel, inclusive na navegação por
+     teclado, sem depender de cada componente declarar o próprio anel. */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
   }
 
   ::-webkit-scrollbar {
@@ -231,6 +255,9 @@
 
   body {
     overscroll-behavior-y: none;
+    /* Respeita a faixa segura dos aparelhos com recorte na tela. */
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
 
   button,
@@ -242,6 +269,23 @@
     -webkit-tap-highlight-color: transparent;
     touch-manipulation: manipulation;
     touch-action: manipulation;
+  }
+
+  /* Alvo de toque confortável no celular: botões e abas que no desktop têm
+     36px passam a ocupar os 44px recomendados, sem mudar o visual.
+     Barras densas (composer do chat, cabeçalhos) podem escapar da regra
+     marcando o container com data-compact. */
+  button:not([data-compact] *),
+  [role="button"]:not([data-compact] *),
+  [role="tab"]:not([data-compact] *),
+  [role="menuitem"],
+  [role="option"] {
+    min-height: 2.75rem;
+  }
+
+  /* Títulos grandes quebram melhor em telas estreitas. */
+  h1 {
+    font-size: clamp(1.25rem, 5vw, 1.5rem);
   }
 
   button:active,

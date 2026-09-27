@@ -103,10 +103,10 @@ function ContactRow({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition",
+        "flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors",
         selected
           ? "border-primary/40 bg-primary/8 ring-1 ring-primary/30"
-          : "border-border bg-card hover:bg-accent/50",
+          : "border-border/70 bg-card hover:border-border hover:bg-accent/50",
       )}
     >
       <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
@@ -236,11 +236,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         <AppSidebar />
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-20 grid h-14 shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-border/70 bg-background/85 px-3 backdrop-blur-md sm:gap-4 sm:px-5">
+          <header
+            data-compact
+            className="sticky top-0 z-20 grid h-16 shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-border/70 bg-background/85 px-3 backdrop-blur-md sm:gap-4 sm:px-5"
+          >
             <div className="flex min-w-0 items-center gap-2">
               <SidebarTrigger />
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold leading-tight text-foreground">
+                <p className="truncate font-display text-base font-semibold leading-tight tracking-tight text-foreground">
                   {titulo}
                 </p>
                 <nav className="hidden items-center gap-1 text-[11px] text-muted-foreground sm:flex">
@@ -260,7 +263,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="Pesquisar conversas, contatos…"
-                  className="h-9 rounded-xl border-border/70 bg-secondary/60 pl-9 text-sm"
+                  className="h-10 rounded-xl border-border/70 bg-secondary/60 pl-9 text-sm"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") navigate({ to: "/atendimento" });
                   }}
@@ -273,7 +276,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <ThemeToggle variant="icon" />
               <Button
                 size="sm"
-                className="h-9 rounded-xl bg-primary px-3 text-primary-foreground shadow-sm hover:bg-primary/90"
+                className="h-10 rounded-xl bg-primary px-3 text-primary-foreground shadow-sm hover:bg-primary/90"
                 onClick={() => setDialogOpen(true)}
               >
                 <Plus className="size-4" />
