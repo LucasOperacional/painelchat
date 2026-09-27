@@ -1,7 +1,12 @@
 // Motor de divulgação em grupos: envia pelos canais DivulgaZap ou
 // Evolution Go. Uso exclusivo no servidor.
 
+import { fetchComPrazo } from "./http.server";
+
 const DIVULGAZAP_URL = "https://divulgazap.spanel.space/api/v1/send-message";
+// Envio não pode ser repetido automaticamente (duplicaria a mensagem no grupo),
+// então vale apenas o tempo limite.
+const DIVULGAZAP_TIMEOUT_MS = 30_000;
 
 export type BroadcastCampaign = {
   id: string;
@@ -39,15 +44,19 @@ async function sendToTarget(
   try {
     if (campaign.channel === "divulgazap") {
       const apiKey = await loadDivulgaZapKey();
-      const res = await fetch(DIVULGAZAP_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": apiKey },
-        body: JSON.stringify({
-          number: target,
-          message: campaign.message,
-          ...(campaign.image_url ? { image_url: campaign.image_url } : {}),
-        }),
-      });
+      const res = await fetchComPrazo(
+        DIVULGAZAP_URL,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-api-key": apiKey },
+          body: JSON.stringify({
+            number: target,
+            message: campaign.message,
+            ...(campaign.image_url ? { image_url: campaign.image_url } : {}),
+          }),
+        },
+        { label: "o DivulgaZap", timeoutMs: DIVULGAZAP_TIMEOUT_MS },
+      );
       if (!res.ok) {
         const text = await res.text();
         return { ok: false, detail: `DivulgaZap HTTP ${res.status}: ${text.slice(0, 200)}` };

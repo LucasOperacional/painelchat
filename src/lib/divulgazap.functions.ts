@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { fetchComPrazo } from "@/lib/http.server";
 
 const DIVULGAZAP_URL = "https://divulgazap.spanel.space/api/v1/send-message";
 
@@ -99,18 +100,23 @@ export const enviarDivulgaZap = createServerFn({ method: "POST" })
     if (!apiKey) throw new Error("Chave da API DivulgaZap não configurada.");
 
 
-    const res = await fetch(DIVULGAZAP_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
+    // Envio único: sem nova tentativa automática para não duplicar a mensagem.
+    const res = await fetchComPrazo(
+      DIVULGAZAP_URL,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          number: data.number,
+          message: data.message,
+          ...(data.imageUrl ? { image_url: data.imageUrl } : {}),
+        }),
       },
-      body: JSON.stringify({
-        number: data.number,
-        message: data.message,
-        ...(data.imageUrl ? { image_url: data.imageUrl } : {}),
-      }),
-    });
+      { label: "o DivulgaZap", timeoutMs: 30_000 },
+    );
 
     const text = await res.text();
     let payload: Plain = null;

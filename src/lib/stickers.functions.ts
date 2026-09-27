@@ -19,7 +19,13 @@ export const saveReceivedSticker = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
-    const res = await fetch(data.url);
+    // Download é idempotente: ganha prazo e novas tentativas.
+    const { fetchResiliente } = await import("@/lib/http.server");
+    const res = await fetchResiliente(
+      data.url,
+      {},
+      { label: "o servidor da figurinha", timeoutMs: 20_000 },
+    );
     if (!res.ok) throw new Error("Não foi possível baixar a figurinha.");
     const buffer = await res.arrayBuffer();
     if (buffer.byteLength === 0) throw new Error("A figurinha está vazia.");

@@ -10,6 +10,8 @@
 // envelope { data: ... } que o restante do sistema já entende.
 // Uso exclusivo no servidor.
 
+import { fetchResiliente } from "@/lib/http.server";
+
 export const WUZAPI_DEFAULT_BASE_URL = "https://api.wuzapi.com";
 
 type Method = "GET" | "POST" | "PUT" | "DELETE";
@@ -162,7 +164,11 @@ const MAX_MEDIA_BYTES = 25 * 1024 * 1024;
 /** A WuzAPI só aceita mídia em base64 (data URI); baixamos o arquivo antes de enviar. */
 async function toDataUri(url: string, fallbackMime: string): Promise<string> {
   if (url.startsWith("data:")) return url;
-  const response = await fetch(url);
+  const response = await fetchResiliente(
+    url,
+    {},
+    { label: "o servidor do arquivo", timeoutMs: 30_000 },
+  );
   if (!response.ok) throw new Error("Não foi possível baixar o arquivo para enviar no WhatsApp.");
   const buffer = await response.arrayBuffer();
   if (buffer.byteLength > MAX_MEDIA_BYTES)

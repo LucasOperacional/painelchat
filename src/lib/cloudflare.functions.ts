@@ -2,8 +2,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { fetchComPrazo, fetchResiliente } from "@/lib/http.server";
 
 const CF_API = "https://api.cloudflare.com/client/v4";
+const CF_TIMEOUT_MS = 30_000;
 const DEFAULT_TARGET_IP = "185.158.133.1";
 
 type Ctx = { supabase: { from: (table: string) => any }; userId: string };
@@ -84,14 +86,21 @@ async function carregarCredenciais(): Promise<Credenciais | null> {
 }
 
 async function cloudflare(auth: Auth, path: string, init?: RequestInit) {
-  const resp = await fetch(`${CF_API}${path}`, {
-    ...init,
-    headers: {
-      ...authHeaders(auth),
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
+  // Leitura pode ser repetida; criar/alterar registro DNS, não.
+  const metodo = (init?.method ?? "GET").toUpperCase();
+  const enviar = metodo === "GET" ? fetchResiliente : fetchComPrazo;
+  const resp = await enviar(
+    `${CF_API}${path}`,
+    {
+      ...init,
+      headers: {
+        ...authHeaders(auth),
+        "Content-Type": "application/json",
+        ...(init?.headers ?? {}),
+      },
     },
-  });
+    { label: "a Cloudflare", timeoutMs: CF_TIMEOUT_MS },
+  );
   const body = (await resp.json().catch(() => null)) as
     | { success?: boolean; result?: any; errors?: { message?: string }[] }
     | null;

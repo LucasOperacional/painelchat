@@ -78,12 +78,12 @@ export const gerarBackup = createServerFn({ method: "POST" })
       ...(data.incluirChaves ? SECRET_TABLES : []),
     ];
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const conteudo: Record<string, any[]> = {};
     const resumo: { tabela: string; registros: number }[] = [];
 
     for (const tabela of tabelas) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const linhas: any[] = [];
       const pagina = 1000;
       for (let inicio = 0; ; inicio += pagina) {

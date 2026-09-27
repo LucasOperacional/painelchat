@@ -3,8 +3,11 @@
 // conversa. Se o cliente responder com uma imagem (ou PDF) de comprovante, a
 // IA confere o documento e, dando certo, o pagamento é confirmado sozinho.
 
+import { fetchResiliente } from "./http.server";
+
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const VISION_MODEL = "google/gemini-2.5-flash";
+const VISION_TIMEOUT_MS = 45_000;
 
 /** Primeira imagem/arquivo presente no corpo da mensagem recebida. */
 export function extractMediaUrl(body: string): string | null {
@@ -28,30 +31,35 @@ export async function analyzePixReceipt(url: string): Promise<ReceiptAnalysis | 
   const apiKey = process.env["LOVABLE_API_KEY"];
   if (!apiKey) return null;
 
-  const response = await fetch(GATEWAY_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model: VISION_MODEL,
-      messages: [
-        {
-          role: "system",
-          content:
-            "Você confere comprovantes de pagamento Pix brasileiros. Responda SOMENTE um JSON: " +
-            '{"isReceipt": boolean, "amount": number|null, "payer": string|null}. ' +
-            "isReceipt é true apenas se a imagem for mesmo um comprovante/recibo de transferência Pix concluída. " +
-            "amount é o valor pago em reais (ponto como separador decimal).",
-        },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: "Este arquivo é um comprovante de Pix? Qual o valor?" },
-            { type: "image_url", image_url: { url } },
-          ],
-        },
-      ],
-    }),
-  });
+  // Só leitura da imagem: repetir não confirma pagamento duas vezes.
+  const response = await fetchResiliente(
+    GATEWAY_URL,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: VISION_MODEL,
+        messages: [
+          {
+            role: "system",
+            content:
+              "Você confere comprovantes de pagamento Pix brasileiros. Responda SOMENTE um JSON: " +
+              '{"isReceipt": boolean, "amount": number|null, "payer": string|null}. ' +
+              "isReceipt é true apenas se a imagem for mesmo um comprovante/recibo de transferência Pix concluída. " +
+              "amount é o valor pago em reais (ponto como separador decimal).",
+          },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Este arquivo é um comprovante de Pix? Qual o valor?" },
+              { type: "image_url", image_url: { url } },
+            ],
+          },
+        ],
+      }),
+    },
+    { label: "a IA de comprovantes", timeoutMs: VISION_TIMEOUT_MS },
+  );
 
   if (!response.ok) {
     console.error("[pix-receipt] IA respondeu", response.status, await response.text());

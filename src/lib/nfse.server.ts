@@ -2,7 +2,10 @@
 // Docs: https://www.gerandonotafacil.com.br/api-reference
 // Uso exclusivo no servidor.
 
+import { fetchComPrazo, fetchResiliente } from "./http.server";
+
 const DEFAULT_BASE_URL = "https://hgnusnokkqfvasrkualk.supabase.co/functions/v1/api-nfse";
+const NFSE_TIMEOUT_MS = 60_000;
 const PROVIDER = "gerandonotafacil";
 
 export type NfseCredentials = { token: string; baseUrl: string };
@@ -68,15 +71,22 @@ export async function nfseRequest<T>(
     );
   }
 
-  const res = await fetch(`${creds.baseUrl}${path}`, {
-    method: init.method ?? "GET",
-    headers: {
-      Authorization: `Bearer ${creds.token}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
+  const method = init.method ?? "GET";
+  // Consultas podem ser repetidas; emissão e cancelamento de nota, não.
+  const enviar = method === "GET" ? fetchResiliente : fetchComPrazo;
+  const res = await enviar(
+    `${creds.baseUrl}${path}`,
+    {
+      method,
+      headers: {
+        Authorization: `Bearer ${creds.token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
     },
-    ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
-  });
+    { label: "a GerandoNotaFácil", timeoutMs: NFSE_TIMEOUT_MS },
+  );
 
   const text = await res.text();
   let parsed: unknown = text;

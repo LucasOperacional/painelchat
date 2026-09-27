@@ -2,8 +2,12 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { fetchResiliente } from "@/lib/http.server";
 
-const BASE = "https://apigateway.conectagov.estaleiro.serpro.gov.br/api-beneficios-previdenciarios/v3";
+// O Conecta gov.br costuma responder devagar sob carga.
+const CONECTA_TIMEOUT_MS = 45_000;
+
+const BASE ="https://apigateway.conectagov.estaleiro.serpro.gov.br/api-beneficios-previdenciarios/v3";
 const TOKEN_URL = "https://apigateway.conectagov.estaleiro.serpro.gov.br/oauth2/jwt-token";
 
 export type PrevidenciaTipo = "beneficios" | "pertence-especie" | "pertence-especie-87";
@@ -72,14 +76,18 @@ export const consultarPrevidencia = createServerFn({ method: "POST" })
     let token: string;
     try {
       const auth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-      const tokenRes = await fetch(TOKEN_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Basic ${auth}`,
-          "Content-Type": "application/x-www-form-urlencoded",
+      const tokenRes = await fetchResiliente(
+        TOKEN_URL,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Basic ${auth}`,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: "grant_type=client_credentials",
         },
-        body: "grant_type=client_credentials",
-      });
+        { label: "o Conecta gov.br", timeoutMs: CONECTA_TIMEOUT_MS },
+      );
       const tokenBody = (await tokenRes.json().catch(() => ({}))) as { access_token?: string };
       if (!tokenRes.ok || !tokenBody.access_token) {
         return {
@@ -104,13 +112,17 @@ export const consultarPrevidencia = createServerFn({ method: "POST" })
     const situacao = digits(data.situacao);
     if (situacao && data.tipo !== "pertence-especie-87") query.set("situacao", situacao);
 
-    const res = await fetch(`${BASE}${path}?${query.toString()}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "x-cpf-usuario": cpf,
-        accept: "application/json",
+    const res = await fetchResiliente(
+      `${BASE}${path}?${query.toString()}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "x-cpf-usuario": cpf,
+          accept: "application/json",
+        },
       },
-    });
+      { label: "o Conecta gov.br", timeoutMs: CONECTA_TIMEOUT_MS },
+    );
 
     if (res.status === 404) return { ...vazio, erro: "Nenhum benefício encontrado para este CPF." };
     if (!res.ok) {

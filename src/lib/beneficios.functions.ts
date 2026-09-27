@@ -2,6 +2,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { fetchResiliente } from "@/lib/http.server";
+
+// O Conecta gov.br costuma responder devagar sob carga.
+const CONECTA_TIMEOUT_MS = 45_000;
 
 // API Benefícios Previdenciários (gov.br Conecta / SERPRO) — v3
 const DEFAULT_BASE =
@@ -40,14 +44,18 @@ async function obterToken(): Promise<string> {
     );
   }
   const basic = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-  const res = await fetch(tokenUrl, {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${basic}`,
-      "Content-Type": "application/x-www-form-urlencoded",
+  const res = await fetchResiliente(
+    tokenUrl,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${basic}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: "grant_type=client_credentials",
     },
-    body: "grant_type=client_credentials",
-  });
+    { label: "o gov.br Conecta", timeoutMs: CONECTA_TIMEOUT_MS },
+  );
   if (!res.ok) {
     throw new Error(
       `Não foi possível autenticar no gov.br Conecta (HTTP ${res.status}). Confira as credenciais.`,
@@ -64,9 +72,11 @@ async function chamar(path: string, params: Record<string, string>) {
   const url = new URL(`${base.replace(/\/$/, "")}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
 
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-  });
+  const res = await fetchResiliente(
+    url,
+    { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+    { label: "o gov.br Conecta", timeoutMs: CONECTA_TIMEOUT_MS },
+  );
 
   if (res.status === 404) return null;
   if (!res.ok) {

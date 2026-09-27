@@ -1,6 +1,12 @@
 // Integrações de IA: Google Gemini (ai.google.dev) e Manus API v2 (open.manus.ai).
 // Uso exclusivo no servidor.
 
+import { fetchComPrazo, fetchResiliente } from "./http.server";
+
+// Consultar o andamento da tarefa é rápido; criar a tarefa pode demorar mais.
+const MANUS_GET_TIMEOUT_MS = 20_000;
+const MANUS_POST_TIMEOUT_MS = 45_000;
+
 export type AiConfig = {
   id: string;
   provider: string;
@@ -116,7 +122,12 @@ async function manusRequest<T>(
   };
   if (options.body !== undefined) init.body = JSON.stringify(options.body);
 
-  const response = await fetch(url, init);
+  // GET (consulta de andamento) pode ser repetido; POST cria tarefa e não pode.
+  const enviar = options.method === "GET" ? fetchResiliente : fetchComPrazo;
+  const response = await enviar(url, init, {
+    label: "o Manus",
+    timeoutMs: options.method === "GET" ? MANUS_GET_TIMEOUT_MS : MANUS_POST_TIMEOUT_MS,
+  });
   const payload = (await response.json().catch(() => null)) as ManusEnvelope<T> | null;
   if (!response.ok || payload?.ok === false) {
     throw new Error(payload?.error?.message ?? `Falha na API do Manus (HTTP ${response.status}).`);

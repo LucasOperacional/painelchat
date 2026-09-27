@@ -6,6 +6,8 @@
 //   Header instanceId  = UUID da instância
 // Uso exclusivo no servidor.
 
+import { fetchResiliente } from "@/lib/http.server";
+
 export const EVOLUTION_DEFAULT_BASE_URL = "https://api.nxsplus.xyz";
 export { WUZAPI_DEFAULT_BASE_URL } from "@/lib/wuzapi.server";
 
@@ -242,6 +244,22 @@ function normalizeBaseUrl(baseUrl: string) {
  * Sem ele cada envio gastava 2 consultas ao banco antes do HTTP.
  */
 const memo = new Map<string, { value: string | boolean; expires: number }>();
+// Entradas vencidas só saíam do mapa quando alguém as lia de novo. Como a chave
+// inclui o id do dispositivo, o mapa crescia a cada dispositivo trocado ou
+// removido. A faxina abaixo mantém o cache pequeno no processo que fica de pé.
+const MEMO_MAX = 500;
+
+function memoPurge() {
+  const agora = Date.now();
+  for (const [key, hit] of memo) {
+    if (hit.expires < agora) memo.delete(key);
+  }
+  // Ainda cheio depois da faxina: descarta as entradas mais antigas (o Map
+  // preserva a ordem de inserção).
+  if (memo.size > MEMO_MAX) {
+    for (const key of [...memo.keys()].slice(0, memo.size - MEMO_MAX)) memo.delete(key);
+  }
+}
 
 function memoGet<T extends string | boolean>(key: string): T | undefined {
   const hit = memo.get(key);
@@ -254,6 +272,7 @@ function memoGet<T extends string | boolean>(key: string): T | undefined {
 }
 
 function memoSet(key: string, value: string | boolean, ttlMs: number) {
+  if (memo.size >= MEMO_MAX) memoPurge();
   memo.set(key, { value, expires: Date.now() + ttlMs });
 }
 
@@ -426,30 +445,51 @@ export async function evolutionRequest<T = unknown>(options: {
   const init: RequestInit = { method: options.method ?? "GET", headers };
   if (options.body !== undefined) init.body = JSON.stringify(options.body);
 
-  // A Evolution Go limita requisições (429 rate-overlimit). Em vez de quebrar a
-  // tela, esperamos um pouco e tentamos de novo algumas vezes.
+  // A Evolution Go limita requisições (429 rate-overlimit) e às vezes devolve
+  // 502/504 do proxy. Em vez de quebrar a tela, esperamos um pouco e tentamos
+  // de novo algumas vezes.
+  //
+  // Envios (/send/*) recebem tratamento diferente: quando a rede cai no meio da
+  // chamada não há como saber se a mensagem chegou, então não repetimos para não
+  // entregar a mesma mensagem duas vezes. Leituras e consultas podem repetir.
+  const isSend = /^\/send\//i.test(options.path);
   let response!: Response;
   let text = "";
+  let ultimoErroDeRede: Error | null = null;
   const maxAttempts = 4;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 12_000);
     try {
       response = await fetch(`${base}${options.path}`, { ...init, signal: controller.signal });
+      ultimoErroDeRede = null;
     } catch (error) {
-      if ((error as Error).name === "AbortError")
-        throw new Error(
-          "O servidor Evolution Go não respondeu no tempo esperado. Tente novamente.",
-        );
-      throw new Error(
-        "Não foi possível falar com o servidor Evolution Go. Confira o endereço em Administração → API de conexão.",
+      const falha =
+        (error as Error).name === "AbortError"
+          ? new Error("O servidor Evolution Go não respondeu no tempo esperado. Tente novamente.")
+          : new Error(
+              "Não foi possível falar com o servidor Evolution Go. Confira o endereço em Administração → API de conexão.",
+            );
+      if (isSend || attempt === maxAttempts) throw falha;
+      ultimoErroDeRede = falha;
+      console.error(
+        `[evolution] ${options.path}: tentativa ${attempt}/${maxAttempts} falhou —`,
+        falha.message,
       );
+      await new Promise((resolve) => setTimeout(resolve, attempt * 800));
+      continue;
     } finally {
       clearTimeout(timer);
     }
 
     text = await response.text();
-    if ((response.status === 429 || response.status === 503) && attempt < maxAttempts) {
+    if (
+      (response.status === 429 ||
+        response.status === 502 ||
+        response.status === 503 ||
+        response.status === 504) &&
+      attempt < maxAttempts
+    ) {
       const retryAfter = Number(response.headers.get("retry-after"));
       const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
         ? Math.min(retryAfter * 1000, 10_000)
@@ -459,6 +499,7 @@ export async function evolutionRequest<T = unknown>(options: {
     }
     break;
   }
+  if (ultimoErroDeRede) throw ultimoErroDeRede;
 
   let payload: unknown = null;
   try {
@@ -1922,11 +1963,16 @@ async function evolutionDownloadMedia(input: {
       "Content-Type": "application/json",
     };
     if (config?.instance_id?.trim()) headers["instanceId"] = config.instance_id.trim();
-    const res = await fetch(`${baseUrl}/message/downloadmedia`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ message: { [`${input.kind}Message`]: input.media } }),
-    });
+    // Baixar mídia é idempotente: vale repetir quando o servidor engasga.
+    const res = await fetchResiliente(
+      `${baseUrl}/message/downloadmedia`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ message: { [`${input.kind}Message`]: input.media } }),
+      },
+      { label: "o servidor Evolution Go", timeoutMs: 30_000 },
+    );
     const texto = await res.text();
     if (!res.ok) {
       console.error(`[evolution] download de mídia falhou (${res.status}): ${texto.slice(0, 300)}`);

@@ -1,6 +1,10 @@
 // Recebimento de áudios do WhatsApp: guarda o arquivo na central e transcreve.
 // Uso exclusivo no servidor.
 
+import { fetchResiliente } from "./http.server";
+
+const DOWNLOAD_TIMEOUT_MS = 30_000;
+
 const EXT_BY_MIME: Record<string, string> = {
   "audio/ogg": "ogg",
   "audio/opus": "ogg",
@@ -71,7 +75,11 @@ export async function storeInboundAudio(input: {
       bytes = base64ToBytes(input.base64);
     }
     if (!bytes && usableUrl && !isEncryptedWhatsappUrl(usableUrl)) {
-      const res = await fetch(usableUrl);
+      const res = await fetchResiliente(
+        usableUrl,
+        {},
+        { label: "o servidor do áudio", timeoutMs: DOWNLOAD_TIMEOUT_MS },
+      );
       if (res.ok) {
         bytes = new Uint8Array(await res.arrayBuffer());
         const headerMime = res.headers.get("content-type");
@@ -232,7 +240,11 @@ export async function outboundAudioBody(input: {
 }): Promise<string> {
   let transcript: string | null = null;
   try {
-    const res = await fetch(input.url);
+    const res = await fetchResiliente(
+      input.url,
+      {},
+      { label: "o servidor do áudio", timeoutMs: DOWNLOAD_TIMEOUT_MS },
+    );
     if (res.ok) {
       const bytes = new Uint8Array(await res.arrayBuffer());
       const mime =

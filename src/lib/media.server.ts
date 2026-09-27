@@ -1,6 +1,11 @@
 // Recebimento de figurinhas e imagens do WhatsApp: guarda o arquivo na central
 // para exibir na conversa. Uso exclusivo no servidor.
 
+import { fetchOpcional, fetchResiliente } from "./http.server";
+
+const DOWNLOAD_TIMEOUT_MS = 30_000;
+const HEAD_TIMEOUT_MS = 8_000;
+
 const EXT_BY_MIME: Record<string, string> = {
   "image/webp": "webp",
   "image/jpeg": "jpg",
@@ -36,7 +41,11 @@ async function bytesFromInput(input: { base64?: string | null; url?: string | nu
   const decoded = input.base64 ? base64ToBytes(input.base64) : null;
   if (decoded) return decoded;
   if (!usableUrl) return null;
-  const res = await fetch(usableUrl);
+  const res = await fetchResiliente(
+    usableUrl,
+    {},
+    { label: "o servidor da mídia", timeoutMs: DOWNLOAD_TIMEOUT_MS },
+  );
   return res.ok ? new Uint8Array(await res.arrayBuffer()) : null;
 }
 
@@ -87,7 +96,11 @@ export async function storeInboundImage(input: {
   try {
     bytes = await bytesFromInput(input, usableUrl);
     if (bytes && usableUrl && !input.base64) {
-      const res = await fetch(usableUrl, { method: "HEAD" }).catch(() => null);
+      const res = await fetchOpcional(
+        usableUrl,
+        { method: "HEAD" },
+        { label: "o servidor da mídia", timeoutMs: HEAD_TIMEOUT_MS, attempts: 1 },
+      );
       const headerMime = res?.headers.get("content-type");
       if (headerMime?.startsWith("image/")) mime = headerMime.split(";")[0]!.trim();
     }
@@ -141,7 +154,11 @@ export async function storeInboundVideo(input: {
   try {
     bytes = await bytesFromInput(input, usableUrl);
     if (bytes && usableUrl && !input.base64) {
-      const res = await fetch(usableUrl, { method: "HEAD" }).catch(() => null);
+      const res = await fetchOpcional(
+        usableUrl,
+        { method: "HEAD" },
+        { label: "o servidor da mídia", timeoutMs: HEAD_TIMEOUT_MS, attempts: 1 },
+      );
       const headerMime = res?.headers.get("content-type");
       if (headerMime?.startsWith("video/")) mime = headerMime.split(";")[0]!.trim();
     }
@@ -199,7 +216,11 @@ export async function storeInboundDocument(input: {
   try {
     bytes = await bytesFromInput(input, usableUrl);
     if (bytes && usableUrl && !input.base64) {
-      const res = await fetch(usableUrl, { method: "HEAD" }).catch(() => null);
+      const res = await fetchOpcional(
+        usableUrl,
+        { method: "HEAD" },
+        { label: "o servidor da mídia", timeoutMs: HEAD_TIMEOUT_MS, attempts: 1 },
+      );
       const headerMime = res?.headers.get("content-type");
       if (headerMime) mime = headerMime.split(";")[0]?.trim() || mime;
     }

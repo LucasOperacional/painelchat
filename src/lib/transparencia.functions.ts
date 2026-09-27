@@ -151,9 +151,19 @@ export const consultarTransparencia = createServerFn({ method: "POST" })
     const { path, query } = pedido;
     const url = `${BASE}${path}?${new URLSearchParams(query).toString()}`;
 
-    const res = await fetch(url, {
-      headers: { "chave-api-dados": apiKey, accept: "application/json" },
-    });
+    // Consulta é idempotente: prazo e novas tentativas. O 429 fica fora da
+    // repetição porque abaixo já virou uma mensagem própria para o usuário —
+    // insistir só gastaria a cota do Portal.
+    const { fetchResiliente } = await import("@/lib/http.server");
+    const res = await fetchResiliente(
+      url,
+      { headers: { "chave-api-dados": apiKey, accept: "application/json" } },
+      {
+        label: "o Portal da Transparência",
+        timeoutMs: 25_000,
+        retryStatus: [408, 425, 500, 502, 503, 504],
+      },
+    );
 
     if (res.status === 401 || res.status === 403) {
       return { ...vazio, erro: "A chave cadastrada foi recusada pelo Portal da Transparência." };

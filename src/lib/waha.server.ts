@@ -8,6 +8,8 @@
 //
 // Uso exclusivo no servidor.
 
+import { fetchResiliente } from "@/lib/http.server";
+
 export const WAHA_DEFAULT_BASE_URL = "http://localhost:3000";
 
 /**
@@ -930,9 +932,11 @@ export async function wahaDownloadMedia(input: {
       alvo.hostname = base.hostname;
       alvo.port = base.port;
     }
-    const response = await fetch(alvo.toString(), {
-      headers: { "X-Api-Key": input.apiKey },
-    });
+    const response = await fetchResiliente(
+      alvo.toString(),
+      { headers: { "X-Api-Key": input.apiKey } },
+      { label: "o servidor WAHA", timeoutMs: 30_000 },
+    );
     if (!response.ok) return null;
     const buffer = Buffer.from(await response.arrayBuffer());
     if (!buffer.length) return null;

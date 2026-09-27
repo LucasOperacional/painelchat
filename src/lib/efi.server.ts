@@ -9,6 +9,8 @@
 //
 // Uso exclusivo no servidor.
 
+import { fetchResiliente } from "./http.server";
+
 const EFI_PRODUCTION = "https://pix.api.efipay.com.br";
 const EFI_SANDBOX = "https://pix-h.api.efipay.com.br";
 const PROVIDER = "efi";
@@ -176,15 +178,20 @@ async function efiAccessToken(creds: EfiCredentials): Promise<string> {
   if (tokenCache && tokenCache.expiresAt > Date.now() + 30_000) return tokenCache.token;
 
   const basic = Buffer.from(`${creds.clientId}:${creds.clientSecret}`).toString("base64");
-  const res = await fetch(`${baseUrlFor(creds)}/oauth/token`, {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${basic}`,
-      "Content-Type": "application/json",
-      ...relayHeaders(creds),
+  // Pedir token é idempotente: pode ser repetido sem gerar cobrança duplicada.
+  const res = await fetchResiliente(
+    `${baseUrlFor(creds)}/oauth/token`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${basic}`,
+        "Content-Type": "application/json",
+        ...relayHeaders(creds),
+      },
+      body: JSON.stringify({ grant_type: "client_credentials" }),
     },
-    body: JSON.stringify({ grant_type: "client_credentials" }),
-  });
+    { label: "a Efí", timeoutMs: 20_000 },
+  );
 
   const text = await res.text();
   let body: unknown = text;
