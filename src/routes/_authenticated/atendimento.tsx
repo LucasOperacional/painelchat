@@ -937,6 +937,16 @@ function AtendimentoPage() {
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
       queryClient.invalidateQueries({ queryKey: ["messages", context?.conversationId] });
       if (result && !result.sent) {
+        // Envio incerto: a API não respondeu, então a mensagem PODE ter saído.
+        // Avisar para conferir antes de repetir evita mandar duas vezes.
+        if (result.uncertain) {
+          toast.warning("Sem confirmação do WhatsApp", {
+            description:
+              "A mensagem pode ter sido entregue. Confira a conversa no WhatsApp antes de enviar de novo.",
+            duration: 10000,
+          });
+          return;
+        }
         toast.warning("Mensagem salva, mas não enviada pelo WhatsApp", {
           description: result.deliveryError ?? "Conecte o WhatsApp na aba WhatsApp.",
         });

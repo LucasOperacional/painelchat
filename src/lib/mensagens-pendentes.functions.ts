@@ -2,6 +2,12 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { fetchComPrazo } from "@/lib/http.server";
+
+// Reentrega de evento de webhook: uma tentativa por vez. O evento continua
+// marcado como pendente quando falha e volta na próxima rodada, então repetir
+// aqui só arriscaria gravar a mesma mensagem duas vezes.
+const REENTREGA_TIMEOUT_MS = 30_000;
 
 async function requireAdmin(context: {
   supabase: { from: (t: string) => any };
@@ -202,11 +208,22 @@ export const reprocessarAviso = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: evento, error } = await supabaseAdmin
       .from("webhook_eventos")
-      .select("id, token, payload")
+      .select("id, token, payload, corpo_bruto, corpo_path")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!evento) throw new Error("Aviso não encontrado.");
+
+    // Reentrega com o corpo ORIGINAL. O campo `payload` é só o resumo da tela,
+    // onde mídia grande aparece encurtada: reenviá-lo gravaria a mensagem sem
+    // o arquivo. O corpo fiel fica em `corpo_bruto` ou no armazenamento.
+    const registro = evento as Record<string, unknown>;
+    let corpoEnvio = texto(registro["corpo_bruto"]);
+    if (!corpoEnvio && texto(registro["corpo_path"])) {
+      const { lerCorpoGuardado } = await import("@/lib/mensagens-durabilidade.server");
+      corpoEnvio = (await lerCorpoGuardado(texto(registro["corpo_path"]))) ?? "";
+    }
+    if (!corpoEnvio) corpoEnvio = JSON.stringify(registro["payload"] ?? {});
 
     const base =
       process.env["PUBLIC_SITE_URL"] ??
@@ -215,11 +232,15 @@ export const reprocessarAviso = createServerFn({ method: "POST" })
       String((evento as Record<string, unknown>)["token"] ?? ""),
     )}`;
 
-    const resposta = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify((evento as Record<string, unknown>)["payload"] ?? {}),
-    });
+    const resposta = await fetchComPrazo(
+      url,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: corpoEnvio,
+      },
+      { label: "a central", timeoutMs: REENTREGA_TIMEOUT_MS },
+    );
     const corpo = await resposta.text();
 
     await supabaseAdmin
@@ -251,7 +272,9 @@ export const reprocessarTodos = createServerFn({ method: "POST" })
 
     const { data: eventos, error } = await supabaseAdmin
       .from("webhook_eventos")
-      .select("id, token, evento, status, external_id, payload, created_at")
+      .select(
+        "id, token, evento, status, external_id, payload, corpo_bruto, corpo_path, created_at",
+      )
       .gte("created_at", desde)
       .order("created_at", { ascending: true })
       .limit(2000);
@@ -300,11 +323,24 @@ export const reprocessarTodos = createServerFn({ method: "POST" })
         String(evento["token"] ?? ""),
       )}`;
       try {
-        const resposta = await fetch(url, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(evento["payload"] ?? {}),
-        });
+        // Corpo original primeiro: o `payload` é o resumo da tela e reenviá-lo
+        // gravaria a mensagem sem a mídia.
+        let corpoEnvio = texto(evento["corpo_bruto"]);
+        if (!corpoEnvio && texto(evento["corpo_path"])) {
+          const { lerCorpoGuardado } = await import("@/lib/mensagens-durabilidade.server");
+          corpoEnvio = (await lerCorpoGuardado(texto(evento["corpo_path"]))) ?? "";
+        }
+        if (!corpoEnvio) corpoEnvio = JSON.stringify(evento["payload"] ?? {});
+
+        const resposta = await fetchComPrazo(
+          url,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: corpoEnvio,
+          },
+          { label: "a central", timeoutMs: REENTREGA_TIMEOUT_MS },
+        );
         const corpo = await resposta.text();
         if (resposta.ok) enviados += 1;
         else falhas += 1;
@@ -336,4 +372,163 @@ export const reprocessarTodos = createServerFn({ method: "POST" })
       falhas,
       restantes: Math.max(0, pendentes.length - alvo.length),
     };
+  });
+
+/* ------------------------------------------------------------------ */
+/* Mensagens ENVIADAS que não chegaram a sair                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Lista os envios que ficaram pelo caminho. Três situações distintas:
+ *
+ *  - `falhou`   → a API recusou. Pode reenviar sem risco.
+ *  - `incerto`  → a API não respondeu. PODE ter entregue: reenviar duplicaria a
+ *                 mensagem no WhatsApp do cliente, então quem decide é o
+ *                 atendente, depois de conferir a conversa.
+ *  - `enviando` → o servidor caiu no meio do envio e nunca gravou o desfecho.
+ *                 Tratado como incerto pelo mesmo motivo.
+ */
+export const enviosPendentes = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) =>
+    z
+      .object({ horas: z.number().min(1).max(168).default(24) })
+      .partial()
+      .parse(data ?? {}),
+  )
+  .handler(async ({ context, data }) => {
+    await requireAdmin(context as never);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const horas = data?.horas ?? 24;
+    const desde = new Date(Date.now() - horas * 3600_000).toISOString();
+
+    const { data: linhas, error } = await supabaseAdmin
+      .from("mensagens_saida")
+      .select(
+        "id, conversation_id, destino, tipo, status, tentativas, erro, external_id, payload, created_at, processado_em",
+      )
+      .in("status", ["pendente", "enviando", "falhou", "incerto"])
+      .gte("created_at", desde)
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (error) throw new Error(error.message);
+
+    const agora = Date.now();
+    const lista = ((linhas ?? []) as Record<string, unknown>[])
+      // "enviando" recente pode estar saindo agora mesmo: só conta como preso
+      // depois de dois minutos.
+      .filter((linha) => {
+        const status = texto(linha["status"]);
+        if (status !== "enviando" && status !== "pendente") return true;
+        return agora - new Date(String(linha["created_at"])).getTime() > 120_000;
+      })
+      .map((linha) => {
+        const status = texto(linha["status"]);
+        const conteudo = obj(linha["payload"]);
+        const preso = status === "enviando" || status === "pendente";
+        return {
+          id: String(linha["id"]),
+          conversationId: texto(linha["conversation_id"]) || null,
+          destino: texto(linha["destino"]),
+          tipo: texto(linha["tipo"]) || "texto",
+          // Um envio preso em "enviando" é, na prática, incerto.
+          status: preso ? "incerto" : status,
+          tentativas: Number(linha["tentativas"] ?? 0),
+          erro: texto(linha["erro"]) || null,
+          externalId: texto(linha["external_id"]) || null,
+          conteudo: texto(conteudo["texto"]).slice(0, 500),
+          criadoEm: String(linha["created_at"] ?? ""),
+          processadoEm: (linha["processado_em"] as string | null) ?? null,
+          // Só o que a API recusou pode ser reenviado sem risco de duplicar.
+          podeReenviar: status === "falhou",
+        };
+      });
+
+    return {
+      horas,
+      total: lista.length,
+      podemReenviar: lista.filter((l) => l.podeReenviar).length,
+      incertos: lista.filter((l) => !l.podeReenviar).length,
+      envios: lista,
+    };
+  });
+
+/**
+ * Reenvia um envio que a API recusou. Recusa envios `incerto` de propósito: sem
+ * confirmação da API, repetir pode entregar a mesma mensagem duas vezes ao
+ * cliente. Use `forcar` só depois de conferir a conversa no WhatsApp.
+ */
+export const reenviarPendente = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) =>
+    z.object({ id: z.string().uuid(), forcar: z.boolean().default(false) }).parse(data),
+  )
+  .handler(async ({ context, data }) => {
+    await requireAdmin(context as never);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: linha, error } = await supabaseAdmin
+      .from("mensagens_saida")
+      .select("id, conversation_id, config_id, destino, tipo, status, tentativas, payload")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!linha) throw new Error("Envio não encontrado.");
+
+    const registro = linha as Record<string, unknown>;
+    const status = texto(registro["status"]);
+    if (status === "enviado") {
+      return { ok: true, detalhe: "Esta mensagem já foi entregue." };
+    }
+    if (status !== "falhou" && !data.forcar) {
+      throw new Error(
+        "A API não confirmou este envio: a mensagem pode ter sido entregue. Confira a conversa no WhatsApp e, se realmente não chegou, use a opção de reenviar mesmo assim.",
+      );
+    }
+
+    const conteudo = obj(registro["payload"]);
+    const texto0 = texto(conteudo["texto"]);
+    if (!texto0) {
+      throw new Error(
+        "Este envio tinha anexo ou figurinha: reenvie pela conversa para o arquivo ir junto.",
+      );
+    }
+
+    const { loadEvolutionConfig, evolutionSendText } = await import("@/lib/evolution.server");
+    const config = await loadEvolutionConfig(texto(registro["config_id"]) || null);
+    if (!config?.base_url || !config?.instance_id) {
+      throw new Error("O dispositivo deste envio não está configurado.");
+    }
+
+    const tentativas = Number(registro["tentativas"] ?? 0) + 1;
+    try {
+      const externalId = await evolutionSendText(
+        { baseUrl: config.base_url, instanceId: config.instance_id, configId: config.id },
+        { number: texto(registro["destino"]), text: texto0 },
+      );
+      await supabaseAdmin
+        .from("mensagens_saida")
+        .update({
+          status: "enviado",
+          external_id: externalId,
+          tentativas,
+          erro: null,
+          processado_em: new Date().toISOString(),
+        })
+        .eq("id", data.id);
+      return { ok: true, detalhe: "Mensagem reenviada." };
+    } catch (e) {
+      const { classificarFalhaDeEnvio } = await import("@/lib/mensagens-durabilidade.server");
+      const desfecho = classificarFalhaDeEnvio(e);
+      await supabaseAdmin
+        .from("mensagens_saida")
+        .update({
+          status: desfecho.estado,
+          tentativas,
+          erro: desfecho.erro.slice(0, 500),
+          processado_em: new Date().toISOString(),
+        })
+        .eq("id", data.id);
+      return { ok: false, detalhe: desfecho.erro.slice(0, 300) };
+    }
   });

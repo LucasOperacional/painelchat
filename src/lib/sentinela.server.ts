@@ -243,25 +243,6 @@ const EVENTOS_SEM_DIARIO = new Set([
   "connected",
 ]);
 
-/** Limite de texto por campo: arquivos em base64 não entram no diário. */
-const LIMITE_CAMPO = 4_000;
-
-/** Remove anexos gigantes (base64) antes de guardar o evento. */
-function enxugarPayload(valor: unknown, profundidade = 0): unknown {
-  if (typeof valor === "string") {
-    return valor.length > LIMITE_CAMPO ? `[conteúdo grande removido: ${valor.length} caracteres]` : valor;
-  }
-  if (profundidade > 8 || valor === null || typeof valor !== "object") return valor;
-  if (Array.isArray(valor)) {
-    return valor.slice(0, 50).map((item) => enxugarPayload(item, profundidade + 1));
-  }
-  const saida: Record<string, unknown> = {};
-  for (const [chave, item] of Object.entries(valor as Record<string, unknown>)) {
-    saida[chave] = enxugarPayload(item, profundidade + 1);
-  }
-  return saida;
-}
-
 /**
  * Envelope de segurança do webhook: protege contra enxurrada, grava o evento
  * recebido e só então processa. Se o processamento falhar, o evento fica
@@ -333,29 +314,25 @@ export async function guardarWebhook(
     }
   }
 
-  let registroId: string | null = null;
   const nomeEvento = payload ? eventoDoPayload(payload) : "";
-  const vaiParaDiario = !!payload && !EVENTOS_SEM_DIARIO.has(nomeEvento.toLowerCase());
+  // Um corpo que não deu para interpretar TAMBÉM entra no diário. Antes ele era
+  // descartado (`vaiParaDiario` exigia payload), e um aviso com formato novo ou
+  // JSON truncado desaparecia sem deixar rastro.
+  const vaiParaDiario = !!corpo && !EVENTOS_SEM_DIARIO.has(nomeEvento.toLowerCase());
+  let registroId: string | null = null;
   if (vaiParaDiario) {
-    try {
-      const db = await admin();
-      const { data } = await db
-        .from("webhook_eventos")
-        .insert({
-          token,
-          url: request.url,
-          evento: nomeEvento,
-          external_id: externalIdDoPayload(payload),
-          status: "processando",
-          tentativas: 1,
-          payload: enxugarPayload(payload) as never,
-        } as never)
-        .select("id")
-        .single();
-      registroId = (data as { id?: string } | null)?.id ?? null;
-    } catch {
-      /* o diário é complementar */
-    }
+    const { registrarEntrada } = await import("@/lib/mensagens-durabilidade.server");
+    // O corpo original é guardado inteiro (mídia em base64 inclusive), para o
+    // reprocessamento devolver a mensagem completa, e não um aviso de texto.
+    const registro = await registrarEntrada({
+      token,
+      url: request.url,
+      evento: nomeEvento,
+      externalId: payload ? externalIdDoPayload(payload) : null,
+      corpo: payload ? JSON.stringify(payload) : corpo,
+      contentType: tipoConteudo,
+    });
+    registroId = registro.id;
   }
 
   const clone = new Request(request.url, {
@@ -413,21 +390,10 @@ async function marcarEvento(
   erro: string | null,
   descartadoPor?: string | null,
 ) {
-  try {
-    const db = await admin();
-    await db
-      .from("webhook_eventos")
-      .update({
-        status:
-          erro || httpStatus >= 400 ? "erro" : descartadoPor ? "ignorado" : "ok",
-        http_status: httpStatus,
-        erro: (erro ?? descartadoPor ?? null)?.slice(0, 500) ?? null,
-        processado_em: new Date().toISOString(),
-      } as never)
-      .eq("id", id);
-  } catch {
-    /* o diário é complementar */
-  }
+  // A gravação do desfecho agora tem nova tentativa e registra em log quando
+  // falha: antes o erro era engolido e o evento ficava sem desfecho, sem aviso.
+  const { concluirEntrada } = await import("@/lib/mensagens-durabilidade.server");
+  await concluirEntrada(id, httpStatus, erro, descartadoPor);
 }
 
 /** Reprocessa um evento guardado (mensagem perdida ou mídia que falhou). */
@@ -437,15 +403,33 @@ async function reprocessarEvento(linha: Record<string, unknown>): Promise<boolea
   const token = String(linha["token"] ?? "");
   const db = await admin();
 
-  // A fila carrega apenas os campos leves; o conteúdo vem só na hora de reprocessar.
+  // A fila carrega apenas os campos leves; o conteúdo vem só na hora de
+  // reprocessar. Prioridade para o corpo original (`corpo_bruto`/`corpo_path`),
+  // que preserva mídia em base64. O `payload` é só o resumo da tela e, se usado
+  // para reprocessar, devolveria a mensagem sem o arquivo.
   let payload = linha["payload"];
-  if (payload === undefined) {
-    const { data } = await db
-      .from("webhook_eventos")
-      .select("payload")
-      .eq("id", String(linha["id"]))
-      .maybeSingle();
-    payload = (data as { payload?: unknown } | null)?.payload ?? {};
+  let corpoOriginal: string | null = null;
+  const { data: guardado } = await db
+    .from("webhook_eventos")
+    .select("payload, corpo_bruto, corpo_path")
+    .eq("id", String(linha["id"]))
+    .maybeSingle();
+  const registro = guardado as
+    | { payload?: unknown; corpo_bruto?: string | null; corpo_path?: string | null }
+    | null;
+  if (registro?.corpo_bruto) {
+    corpoOriginal = registro.corpo_bruto;
+  } else if (registro?.corpo_path) {
+    const { lerCorpoGuardado } = await import("@/lib/mensagens-durabilidade.server");
+    corpoOriginal = await lerCorpoGuardado(registro.corpo_path);
+  }
+  if (payload === undefined) payload = registro?.payload ?? {};
+  if (corpoOriginal) {
+    try {
+      payload = JSON.parse(corpoOriginal);
+    } catch {
+      /* corpo ilegível: segue com o resumo */
+    }
   }
 
   // Sincronização de histórico não é uma mensagem nova e pode ter milhares de
@@ -692,6 +676,32 @@ export async function executarCicloSentinela(
       titulo: "Não foi possível verificar as conexões",
       detalhe: error instanceof Error ? error.message : "Falha na verificação.",
     });
+  }
+
+  /* 1.5 Eventos que ficaram só na memória porque o banco estava fora. */
+  try {
+    const { drenarReserva, tamanhoDaReserva } = await import(
+      "@/lib/mensagens-durabilidade.server"
+    );
+    const aguardando = tamanhoDaReserva();
+    if (aguardando > 0) {
+      const salvos = await drenarReserva();
+      corrigidos += salvos;
+      achados.push({
+        tipo: "mensagem",
+        severidade: salvos === aguardando ? "aviso" : "erro",
+        titulo:
+          salvos === aguardando
+            ? `${salvos} evento(s) da reserva foram gravados`
+            : `${aguardando - salvos} evento(s) ainda presos na reserva`,
+        detalhe:
+          "Estes avisos chegaram enquanto o banco estava indisponível e ficaram guardados na memória do servidor.",
+        acao: salvos ? "Gravados no diário." : "O banco segue recusando a gravação.",
+        status: salvos === aguardando ? "corrigido" : "aberto",
+      });
+    }
+  } catch (error) {
+    console.error("[sentinela] falha ao drenar a reserva:", (error as Error).message);
   }
 
   /* 2. Eventos recebidos que não foram processados (nenhuma mensagem se perde). */
@@ -1012,7 +1022,12 @@ async function resumirComIA(
     .join("\n");
 
   try {
-    const resposta = await fetch("https://ai.gateway.lovable.dev/v1/responses", {
+    const { fetchComPrazo } = await import("@/lib/http.server");
+    // O resumo é opcional: se a IA demorar, o ciclo segue com o texto simples.
+    // Sem prazo, esta chamada podia prender o ciclo até o servidor cortar.
+    const resposta = await fetchComPrazo(
+      "https://ai.gateway.lovable.dev/v1/responses",
+      {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1028,7 +1043,9 @@ async function resumirComIA(
           "Você é a IA Sentinela de uma central de atendimento no WhatsApp. Responda em português do Brasil, em no máximo 4 linhas curtas, linguagem simples, dizendo o que está acontecendo, o que já foi corrigido sozinho e o que a pessoa precisa fazer. Não use termos técnicos.",
         input: `${base}\n\nOcorrências do ciclo:\n${lista}`,
       }),
-    });
+      },
+      { label: "a IA do resumo", timeoutMs: 20_000 },
+    );
 
     if (!resposta.ok || !resposta.body) {
       return `${base}\n${achados.map((a) => `• ${a.titulo}`).join("\n")}`;

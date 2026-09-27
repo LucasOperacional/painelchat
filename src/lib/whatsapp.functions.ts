@@ -1078,6 +1078,11 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
     let externalId: string | null = null;
     let deliveryError: string | null = null;
     let delivered = false;
+    // Envio incerto: a API não respondeu, então pode ter entregue. A central
+    // não reenvia sozinha nesse caso — duplicar mensagem no WhatsApp do cliente
+    // é pior que avisar o atendente para conferir.
+    let envioIncerto = false;
+    let filaId: string | null = null;
 
     if (canSend) {
 
@@ -1113,6 +1118,27 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
           ...(participant ? { participant } : {}),
         };
       }
+      // A intenção de envio é gravada ANTES de chamar a API. É isto que impede
+      // a perda: se o servidor cair no meio do envio, o pedido continua
+      // registrado e aparece no painel, em vez de desaparecer.
+      const { registrarSaida, concluirSaida, classificarFalhaDeEnvio } = await import(
+        "@/lib/mensagens-durabilidade.server"
+      );
+      filaId = await registrarSaida({
+        conversationId: data.conversationId,
+        configId: config!.id,
+        senderId: userId,
+        destino: number,
+        tipo: text ? "texto" : attachments.length ? "midia" : stickerUrl ? "figurinha" : "contato",
+        payload: {
+          texto: outgoing,
+          anexos: attachments,
+          figurinha: stickerUrl,
+          contato: sharedContact,
+          citacao: data.reply ?? null,
+        },
+      });
+
       try {
         if (text) {
           externalId = await evolutionSendText(target, {
@@ -1148,15 +1174,18 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
           externalId = externalId ?? id;
         }
         delivered = true;
+        await concluirSaida(filaId, { estado: "enviado", externalId });
         console.log(
           `[envio] ok conversa=${data.conversationId} destino=${number} dispositivo=${config!.id} id=${externalId ?? "-"}`,
         );
       } catch (e) {
         deliveryError = (e as Error).message;
+        const desfecho = classificarFalhaDeEnvio(e);
+        envioIncerto = desfecho.estado === "incerto";
+        await concluirSaida(filaId, desfecho);
         console.error(
-          `[envio] FALHOU conversa=${data.conversationId} destino=${number} dispositivo=${config!.id} erro=${deliveryError}`,
+          `[envio] ${desfecho.estado.toUpperCase()} conversa=${data.conversationId} destino=${number} dispositivo=${config!.id} erro=${deliveryError}`,
         );
-
       }
 
     } else {
@@ -1232,7 +1261,13 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
       supabase.from("conversations").update(patch).eq("id", data.conversationId),
     ]);
 
-    return { sent: delivered, deliveryError };
+    return {
+      sent: delivered,
+      deliveryError,
+      // O painel avisa o atendente para conferir no WhatsApp antes de repetir:
+      // a mensagem pode ter saído mesmo sem resposta da API.
+      uncertain: envioIncerto,
+    };
   });
 
 // ---------------------------------------------------------------------------
