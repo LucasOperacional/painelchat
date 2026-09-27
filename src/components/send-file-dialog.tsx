@@ -31,16 +31,31 @@ export function SendFileDialog({
     if (!isPdf || !file) return;
     let url: string | null = null;
     let cancel = false;
-    fetch(file.url)
-      .then((r) => r.blob())
+    // O PDF é baixado para um blob porque o portal costuma marcar o arquivo como
+    // anexo, e aí o navegador baixaria em vez de exibir. Documento grande do
+    // governo pode passar de 100 MB: com prazo e alternativa, uma demora deixa
+    // de virar tela travada — mostramos o arquivo direto pela URL assinada.
+    const corta = new AbortController();
+    const prazo = setTimeout(() => corta.abort(), 60_000);
+    fetch(file.url, { signal: corta.signal })
+      .then((r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.blob();
+      })
       .then((b) => {
         if (cancel) return;
         url = URL.createObjectURL(new Blob([b], { type: "application/pdf" }));
         setPdfUrl(url);
       })
-      .catch(() => setPdfUrl(null));
+      .catch(() => {
+        // Sem o blob, a URL assinada ainda abre na maioria dos casos.
+        if (!cancel) setPdfUrl(file.url);
+      })
+      .finally(() => clearTimeout(prazo));
     return () => {
       cancel = true;
+      clearTimeout(prazo);
+      corta.abort();
       if (url) URL.revokeObjectURL(url);
       setPdfUrl(null);
     };

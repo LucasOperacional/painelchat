@@ -7,23 +7,37 @@ import { createFileRoute } from "@tanstack/react-router";
  * impedem serem abertos dentro de outra página. Aqui o servidor busca o site,
  * resolve o DNS/TLS do domínio e devolve o conteúdo sem esses bloqueios.
  *
- * Os links, imagens, scripts e formulários do mesmo domínio são reescritos para
- * passarem por este proxy, e os cookies da sessão do site são repassados nos
- * dois sentidos (limitados ao caminho deste endpoint).
+ * Os links, imagens, scripts e formulários são reescritos para passarem por este
+ * proxy, e os cookies da sessão do site são repassados nos dois sentidos.
  *
- * Só funciona com sites já cadastrados na tabela `webviews` — o parâmetro `u`
- * precisa apontar para o mesmo domínio do site cadastrado.
+ * O proxy acompanha o portal para qualquer domínio público que ele apontar. Isso
+ * é necessário para o login único do governo, que salta entre domínios
+ * (sso.acesso.gov.br → cav.receita.fazenda.gov.br → …): preso a um domínio só, a
+ * sessão escapava do proxy no primeiro salto e o acesso morria.
+ *
+ * O único limite que continua valendo é `enderecoInterno`: endereços da rede do
+ * próprio servidor (loopback, rede local, metadados de nuvem) seguem barrados,
+ * senão um portal comprometido poderia usar a central para alcançar o que ela vê
+ * e o operador não.
  */
 
 const PROXY_PATH = "/api/public/webview-proxy";
 
-function mesmoPortal(hostname: string, allowedHostname: string) {
-  const host = hostname.toLowerCase();
-  const allowed = allowedHostname.toLowerCase();
-  if (host === allowed) return true;
-  const nfse = "nfse.gov.br";
-  return (host === nfse || host.endsWith(`.${nfse}`)) &&
-    (allowed === nfse || allowed.endsWith(`.${nfse}`));
+/**
+ * Teto do arquivo guardado. Processos e extratos completos do governo passam
+ * fácil de 20 MB — com o teto antigo o PDF grande era recusado sem explicação.
+ */
+const LIMITE_ARQUIVO = 100 * 1024 * 1024;
+
+/**
+ * Domínio público? Vale. Sem restrição de portal, por decisão de operação: o
+ * governo exige o salto entre domínios. `enderecoInterno` é quem segura o que
+ * importa, e é checado junto em todo lugar que chama esta função.
+ */
+function podeProxiar(hostname: string) {
+  const host = hostname.toLowerCase().trim();
+  if (!host) return false;
+  return !enderecoInterno(host);
 }
 
 /** Bloqueia endereços internos (rede local, loopback, metadados de nuvem). */
@@ -59,6 +73,64 @@ function proxyUrl(id: string, absolute: string) {
   return `${PROXY_PATH}?id=${encodeURIComponent(id)}&u=${encodeURIComponent(absolute)}`;
 }
 
+/*
+ * Cookies por domínio.
+ *
+ * Todos os portais compartilham o caminho deste proxy, então todos os cookies
+ * caem no mesmo pote do navegador. Como o login do governo passa por vários
+ * domínios, e eles usam nomes iguais (JSESSIONID, .AspNet.Cookies), o cookie de
+ * um sobrescrevia o do outro e a sessão se perdia em laço.
+ *
+ * A solução é prefixar o nome com o domínio de origem na ida e desfazer na
+ * volta, entregando a cada portal apenas os cookies que ele mesmo criou.
+ */
+const SEP = "~";
+
+function chaveDominio(hostname: string) {
+  return hostname.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+}
+
+function etiquetarSetCookie(raw: string, hostname: string): string | null {
+  const corte = raw.indexOf("=");
+  if (corte <= 0) return null;
+  const nome = raw.slice(0, corte).trim();
+  const resto = raw.slice(corte + 1);
+  if (!nome) return null;
+  // Atributos de escopo do site original não servem aqui: o cookie passa a
+  // viver no domínio da central, restrito ao caminho do proxy.
+  const semEscopo = resto
+    .split(";")
+    .filter((part) => !/^\s*(domain|path|secure|samesite)\s*=?/i.test(part))
+    .join(";");
+  const etiqueta = `${chaveDominio(hostname)}${SEP}${nome}`;
+  return `${etiqueta}=${semEscopo}; Path=${PROXY_PATH}; SameSite=None; Secure`;
+}
+
+/**
+ * Monta o Cookie da ida: devolve só os cookies deste domínio, já sem etiqueta.
+ * Cookies sem etiqueta são repassados porque podem vir de um site cadastrado
+ * antes desta mudança.
+ */
+function cookiesDoDominio(cookieHeader: string | null, hostname: string): string {
+  if (!cookieHeader) return "";
+  const prefixo = `${chaveDominio(hostname)}${SEP}`;
+  const saida: string[] = [];
+  for (const parte of cookieHeader.split(";")) {
+    const item = parte.trim();
+    if (!item) continue;
+    const corte = item.indexOf("=");
+    if (corte <= 0) continue;
+    const nome = item.slice(0, corte);
+    const valor = item.slice(corte + 1);
+    if (nome.startsWith(prefixo)) {
+      saida.push(`${nome.slice(prefixo.length)}=${valor}`);
+    } else if (!nome.includes(SEP)) {
+      saida.push(item);
+    }
+  }
+  return saida.join("; ");
+}
+
 /**
  * Alguns portais copiam o href já reescrito pelo proxy para parâmetros como
  * `redirectUrl`. Antes de enviar a requisição ao site original, desfazemos
@@ -74,7 +146,7 @@ function unwrapProxyValue(value: string, id: string, allowedHost: string): strin
     const original = wrapped.searchParams.get("u");
     if (!original) return value;
     const target = new URL(original);
-    if (!mesmoPortal(target.hostname, allowedHost) || !/^https?:$/.test(target.protocol)) return value;
+    if (!podeProxiar(target.hostname) || !/^https?:$/.test(target.protocol)) return value;
     return `${target.pathname}${target.search}${target.hash}`;
   } catch {
     return value;
@@ -96,7 +168,7 @@ function originalProxyUrl(value: string | null, id: string, allowedHost: string)
     const inner = ref.searchParams.get("u");
     if (!inner) return null;
     const original = new URL(inner);
-    if (!mesmoPortal(original.hostname, allowedHost) || !/^https?:$/.test(original.protocol)) return null;
+    if (!podeProxiar(original.hostname) || !/^https?:$/.test(original.protocol)) return null;
     return original.toString();
   } catch {
     return null;
@@ -126,7 +198,7 @@ function rewriteHtml(html: string, id: string, target: URL) {
       if (abs.protocol !== "http:" && abs.protocol !== "https:") return match;
       // Links de outros domínios (ex.: gov.br, certificado digital) não abrem
       // embutidos — marcamos para abrir em nova aba.
-      if (!mesmoPortal(abs.hostname, target.hostname)) return `${match} data-wv-externo="1"`;
+      if (!podeProxiar(abs.hostname)) return `${match} data-wv-externo="1"`;
       return `${prefix}${quote}${proxyUrl(id, abs.toString())}${quote}`;
     },
   );
@@ -144,7 +216,7 @@ function rewriteHtml(html: string, id: string, target: URL) {
       const raw = destination.trim().replace(/^['"]|['"]$/g, "");
       try {
         const abs = new URL(raw, target);
-        if (!mesmoPortal(abs.hostname, target.hostname)) return match;
+        if (!podeProxiar(abs.hostname)) return match;
         return `${prefix}${found[1]}${proxyUrl(id, abs.toString())}${suffix}`;
       } catch {
         return match;
@@ -155,7 +227,10 @@ function rewriteHtml(html: string, id: string, target: URL) {
   // Faz chamadas feitas por JavaScript (fetch/XHR) e links externos
   // funcionarem dentro do proxy.
   const shim = `<script>(function(){var P=${JSON.stringify(PROXY_PATH)},I=${JSON.stringify(id)},B=${JSON.stringify(target.toString())},H=${JSON.stringify(target.hostname)},seen=new WeakSet();
- function portal(h){h=String(h||"").toLowerCase();var a=String(H).toLowerCase(),n="nfse.gov.br";return h===a||((h===n||h.slice(-(n.length+1))==="."+n)&&(a===n||a.slice(-(n.length+1))==="."+n));}
+ // Qualquer domínio público passa pelo proxy — o login do governo salta entre
+ // domínios. O servidor é quem barra endereços internos; aqui só evitamos
+ // reescrever o que claramente não é um site externo.
+ function portal(h){h=String(h||"").toLowerCase();if(!h)return false;if(h==="localhost"||h.slice(-10)===".localhost"||h.slice(-6)===".local"||h.slice(-9)===".internal"||h==="::1")return false;var v4=/^(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})$/.exec(h);if(v4){var a=+v4[1],b=+v4[2];if(a===0||a===10||a===127||(a===169&&b===254)||(a===172&&b>=16&&b<=31)||(a===192&&b===168)||(a===100&&b>=64&&b<=127))return false;}return true;}
  function w(u){try{if(typeof u==="string"&&(u===P||u.indexOf(P+"?")===0))return u;var a=new URL(u,B);if(a.origin===location.origin&&a.pathname===P)return a.pathname+a.search+a.hash;if(!portal(a.hostname))return u;return P+"?id="+encodeURIComponent(I)+"&u="+encodeURIComponent(a.toString());}catch(e){return u;}}
  function raw(u){var v=w(u);try{var a=new URL(v,location.origin);if(a.origin===location.origin&&a.pathname===P){a.searchParams.set("raw","1");return a.pathname+a.search+a.hash;}}catch(e){}return v;}
  function interno(u){try{var a=new URL(u,B);return portal(a.hostname)||(a.origin===location.origin&&a.pathname===P&&a.searchParams.get("id")===I);}catch(e){return false;}}
@@ -213,7 +288,14 @@ async function paginaArquivoBaixado(
   const path = `webview/${id}/${crypto.randomUUID()}-${safe}`;
   let signedUrl: string | null = null;
   let documentId: string | null = null;
-  if (bytes.byteLength > 0 && bytes.byteLength <= 20 * 1024 * 1024) {
+  // Motivo da recusa, para a tela dizer o que houve em vez de um erro genérico.
+  let motivo = "";
+  if (bytes.byteLength === 0) {
+    motivo = "O portal devolveu um arquivo vazio.";
+  } else if (bytes.byteLength > LIMITE_ARQUIVO) {
+    motivo = `O arquivo tem ${(bytes.byteLength / 1024 / 1024).toFixed(1)} MB e o limite é ${LIMITE_ARQUIVO / 1024 / 1024} MB.`;
+  }
+  if (!motivo) {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const up = await supabaseAdmin.storage.from("anexos").upload(path, bytes, { contentType: mime });
     if (!up.error) {
@@ -235,15 +317,20 @@ async function paginaArquivoBaixado(
       if (saved.error) {
         await supabaseAdmin.storage.from("anexos").remove([path]);
         signedUrl = null;
+        motivo = "O arquivo baixou, mas não foi possível registrá-lo.";
       }
+    } else {
+      motivo = "O arquivo baixou, mas não foi possível guardá-lo.";
     }
   }
   if (!signedUrl) {
+    const detalhe = motivo || "Não foi possível guardar o arquivo.";
     if (formato === "json") {
-      return Response.json({ error: "Não foi possível guardar o arquivo." }, { status: 502 });
+      return Response.json({ error: detalhe }, { status: 502 });
     }
+    const escHtml = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
     return new Response(
-      `<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;padding:24px"><h3>Não foi possível guardar o arquivo</h3><p>Tente baixar novamente. Se continuar, use a opção de baixar no computador e anexe manualmente na conversa.</p><p><a href="#" onclick="history.back();return false">Voltar ao site</a></p></body>`,
+      `<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;padding:24px"><h3>Não foi possível guardar o arquivo</h3><p>${escHtml(detalhe)}</p><p>Use a opção de baixar no computador e anexe manualmente na conversa.</p><p><a href="#" onclick="history.back();return false">Voltar ao site</a></p></body>`,
       { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } },
     );
   }
@@ -316,7 +403,7 @@ async function handle(request: Request) {
   if (requested) {
     try {
       const candidate = new URL(requested, target);
-      if (!mesmoPortal(candidate.hostname, target.hostname)) {
+      if (!podeProxiar(candidate.hostname)) {
         return new Response("Endereço fora do site cadastrado.", { status: 403 });
       }
       target = candidate;
@@ -338,8 +425,15 @@ async function handle(request: Request) {
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36",
     accept: request.headers.get("accept") ?? "text/html,*/*",
     "accept-language": request.headers.get("accept-language") ?? "pt-BR,pt;q=0.9",
+    // O filtro de segurança do gov.br usa a ausência destes cabeçalhos como
+    // sinal de robô: um navegador de verdade sempre os envia.
+    "sec-fetch-dest": request.headers.get("sec-fetch-dest") ?? "document",
+    "sec-fetch-mode": request.headers.get("sec-fetch-mode") ?? "navigate",
+    "sec-fetch-site": request.headers.get("sec-fetch-site") ?? "same-origin",
+    "upgrade-insecure-requests": "1",
   });
-  const cookie = request.headers.get("cookie");
+  // Só os cookies deste domínio, sem a etiqueta interna do proxy.
+  const cookie = cookiesDoDominio(request.headers.get("cookie"), target.hostname);
   if (cookie) forwardHeaders.set("cookie", cookie);
   const reqContentType = request.headers.get("content-type");
   if (reqContentType) forwardHeaders.set("content-type", reqContentType);
@@ -429,7 +523,9 @@ async function handle(request: Request) {
       redirect: "manual",
       headers: forwardHeaders,
       body: corpo,
-      signal: AbortSignal.timeout(20_000),
+      // Portais do governo levam tempo para GERAR o documento (DANFSe, DAS-MEI,
+      // extrato do processo). Com 20s o download era cortado no meio da geração.
+      signal: AbortSignal.timeout(90_000),
     });
   } catch {
     const host = target.hostname.replace(/[<>&"']/g, "");
@@ -448,7 +544,10 @@ async function handle(request: Request) {
     "cache-control": "no-store",
   });
 
-  // Repassa os cookies do site, presos ao caminho deste proxy.
+  // Repassa os cookies do site, presos ao caminho deste proxy e etiquetados com
+  // o domínio de origem (ver `etiquetaCookie`). Sem a etiqueta, dois portais do
+  // governo com um cookie de mesmo nome (JSESSIONID, .AspNet.Cookies) se
+  // sobrescreviam no mesmo pote e o login entrava em laço.
   const setCookies =
     typeof (upstream.headers as unknown as { getSetCookie?: () => string[] }).getSetCookie ===
     "function"
@@ -457,11 +556,9 @@ async function handle(request: Request) {
         ? [upstream.headers.get("set-cookie") as string]
         : [];
   for (const raw of setCookies) {
-    const cleaned = raw
-      .split(";")
-      .filter((part) => !/^\s*(domain|path|secure|samesite)\s*=?/i.test(part))
-      .join(";");
-    headers.append("set-cookie", `${cleaned}; Path=${PROXY_PATH}; SameSite=None; Secure`);
+    // `redirect: "manual"` garante que não houve salto: target é o host real.
+    const etiquetado = etiquetarSetCookie(raw, target.hostname);
+    if (etiquetado) headers.append("set-cookie", etiquetado);
   }
 
   // Redirecionamentos voltam para o navegador (passando pelo proxy), assim os
@@ -471,7 +568,7 @@ async function handle(request: Request) {
     let destino = location;
     try {
       const abs = new URL(location, target);
-       destino = mesmoPortal(abs.hostname, target.hostname) ? proxyUrl(id, abs.toString()) : abs.toString();
+       destino = podeProxiar(abs.hostname) ? proxyUrl(id, abs.toString()) : abs.toString();
     } catch {
       /* mantém */
     }
@@ -495,7 +592,7 @@ async function handle(request: Request) {
   const targetLooksLikeFile = /\.(pdf|xml|zip)(?:$|[?#])/i.test(finalTarget.toString());
   const shouldInspectBody =
     upstream.ok &&
-    contentLength <= 20 * 1024 * 1024 &&
+    contentLength <= LIMITE_ARQUIVO &&
     !/^(?:image|audio|video)\//i.test(contentType) &&
     !/(?:javascript|text\/css|font\/|woff)/i.test(contentType);
   let inspectedBytes: Uint8Array | null = null;
@@ -552,7 +649,7 @@ async function handle(request: Request) {
       if (/^(data:|#)/i.test(value.trim())) return match;
       try {
         const abs = new URL(value.trim(), finalTarget);
-        if (!mesmoPortal(abs.hostname, finalTarget.hostname)) return match;
+        if (!podeProxiar(abs.hostname)) return match;
         return `url(${quote}${proxyUrl(id, abs.toString())}${quote})`;
       } catch {
         return match;
