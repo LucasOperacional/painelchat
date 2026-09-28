@@ -6,6 +6,9 @@ import { fetchComPrazo, fetchResiliente } from "./http.server";
 // Consultar o andamento da tarefa é rápido; criar a tarefa pode demorar mais.
 const MANUS_GET_TIMEOUT_MS = 20_000;
 const MANUS_POST_TIMEOUT_MS = 45_000;
+const GEMINI_TIMEOUT_MS = 30_000;
+/** Modelo usado quando nada foi escolhido na tela de IA. */
+export const MODELO_GEMINI_PADRAO = "gemini-3.8-flash";
 
 export type AiConfig = {
   id: string;
@@ -32,11 +35,14 @@ export async function loadAiConfig(): Promise<AiConfig | null> {
 /** Token salvo na central (tabela protegida) ou variável de ambiente. */
 export async function loadApiKey(provider: "gemini" | "manus"): Promise<string | null> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from("ai_secrets")
     .select("api_key")
     .eq("provider", provider)
     .maybeSingle();
+  // A chave ainda pode estar no ambiente, então a falha de leitura não derruba
+  // a integração — mas precisa aparecer no log, em vez de sumir calada.
+  if (error) console.error(`[ia] falha ao ler a chave de ${provider}:`, error.message);
   const saved = (data as { api_key?: string } | null)?.api_key?.trim();
   if (saved) return saved;
   const env = provider === "manus" ? process.env["MANUS_API_KEY"] : process.env["GEMINI_API_KEY"];
@@ -60,6 +66,27 @@ export async function clearApiKey(provider: "gemini" | "manus") {
   if (error) throw new Error(error.message);
 }
 
+/** Traduz a falha do Gemini para algo que o operador entenda e possa resolver. */
+function explicarErroGemini(status: number, model: string, detalhe?: string): string {
+  const extra = detalhe ? ` (${detalhe})` : "";
+  if (status === 400 && /api key|API_KEY/i.test(detalhe ?? "")) {
+    return `A chave do Gemini foi recusada. Gere outra em aistudio.google.com/apikey${extra}`;
+  }
+  if (status === 401 || status === 403) {
+    return `A chave do Gemini não tem permissão para usar a API${extra}`;
+  }
+  if (status === 404) {
+    return `O modelo "${model}" não existe ou não está disponível para esta chave. Escolha outro modelo em Inteligência artificial${extra}`;
+  }
+  if (status === 429) {
+    return `Limite de uso do Gemini atingido. Aguarde um instante e tente de novo${extra}`;
+  }
+  if (status >= 500) {
+    return `O Gemini está instável no momento. Tente novamente em alguns segundos${extra}`;
+  }
+  return `Falha na API do Gemini (HTTP ${status})${extra}`;
+}
+
 /** Google Gemini — generateContent (https://ai.google.dev/gemini-api/docs) */
 export async function geminiGenerate(input: {
   model: string;
@@ -67,10 +94,16 @@ export async function geminiGenerate(input: {
   prompt: string;
 }): Promise<string> {
   const apiKey = await loadApiKey("gemini");
-  if (!apiKey) throw new Error("Token do Google Gemini não configurado.");
-  const model = input.model || "gemini-3.6-flash";
+  if (!apiKey) {
+    throw new Error(
+      "Token do Google Gemini não configurado. Cole a chave em Inteligência artificial.",
+    );
+  }
+  const model = (input.model || MODELO_GEMINI_PADRAO).trim();
 
-  const response = await fetch(
+  // Gerar texto é idempotente para o nosso uso (nada é cobrado nem enviado ao
+  // cliente sem revisão), então vale repetir quando o serviço oscila.
+  const response = await fetchResiliente(
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
     {
       method: "POST",
@@ -81,24 +114,53 @@ export async function geminiGenerate(input: {
         generationConfig: { temperature: 0.6, maxOutputTokens: 600 },
       }),
     },
+    { label: "a IA do Gemini", timeoutMs: GEMINI_TIMEOUT_MS },
   );
 
   const payload = (await response.json().catch(() => null)) as {
     error?: { message?: string };
-    candidates?: { content?: { parts?: { text?: string }[] } }[];
+    promptFeedback?: { blockReason?: string };
+    candidates?: {
+      finishReason?: string;
+      content?: { parts?: { text?: string }[] };
+    }[];
   } | null;
 
   if (!response.ok) {
+    throw new Error(explicarErroGemini(response.status, model, payload?.error?.message));
+  }
+
+  // Pedido recusado pelos filtros de segurança: sem candidato nenhum.
+  if (payload?.promptFeedback?.blockReason) {
     throw new Error(
-      payload?.error?.message ?? `Falha na API do Gemini (HTTP ${response.status}).`,
+      `O Gemini recusou o pedido (${payload.promptFeedback.blockReason}). Ajuste as instruções do agente.`,
     );
   }
 
-  const text = (payload?.candidates?.[0]?.content?.parts ?? [])
+  const candidato = payload?.candidates?.[0];
+  const text = (candidato?.content?.parts ?? [])
     .map((p) => p.text ?? "")
     .join("")
     .trim();
-  if (!text) throw new Error("O Gemini não retornou texto.");
+
+  if (!text) {
+    // Sem texto, o motivo do fim explica o que aconteceu de verdade.
+    const motivo = candidato?.finishReason;
+    if (motivo === "MAX_TOKENS") {
+      throw new Error("A resposta do Gemini ficou longa demais e foi cortada. Tente novamente.");
+    }
+    if (motivo === "SAFETY" || motivo === "PROHIBITED_CONTENT" || motivo === "BLOCKLIST") {
+      throw new Error("O Gemini bloqueou a resposta por política de conteúdo.");
+    }
+    if (motivo === "RECITATION") {
+      throw new Error("O Gemini bloqueou a resposta por repetir conteúdo protegido.");
+    }
+    throw new Error(
+      motivo
+        ? `O Gemini não retornou texto (${motivo}).`
+        : "O Gemini não retornou texto. Tente novamente.",
+    );
+  }
   return text;
 }
 

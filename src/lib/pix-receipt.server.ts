@@ -6,7 +6,8 @@
 import { fetchResiliente } from "./http.server";
 
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const VISION_MODEL = "google/gemini-2.5-flash";
+// O 2.5 Flash está depreciado na plataforma; o 3.8 é o modelo atual de visão.
+const VISION_MODEL = "google/gemini-3.8-flash";
 const VISION_TIMEOUT_MS = 45_000;
 
 /** Primeira imagem/arquivo presente no corpo da mensagem recebida. */

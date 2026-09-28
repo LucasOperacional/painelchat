@@ -43,7 +43,7 @@ export const getAiStatus = createServerFn({ method: "GET" })
 
 const saveInput = z.object({
   provider: z.enum(["gemini", "manus"]).default("gemini"),
-  model: z.string().min(1).default("gemini-3.6-flash"),
+  model: z.string().min(1).default("gemini-3.8-flash"),
   systemPrompt: z.string().min(1),
   isEnabled: z.boolean().default(false),
   autoReply: z.boolean().default(false),

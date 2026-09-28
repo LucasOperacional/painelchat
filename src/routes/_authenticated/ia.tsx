@@ -40,7 +40,16 @@ export const Route = createFileRoute("/_authenticated/ia")({
   component: AiPage,
 });
 
-const GEMINI_MODELS = ["gemini-3.6-flash", "gemini-3.6-pro", "gemini-3.1-flash-lite"];
+// Modelos que existem de verdade na API do Gemini. "gemini-3.6-pro" estava na
+// lista mas não existe: quem escolhesse recebia erro 404 em toda mensagem.
+const GEMINI_MODELS = [
+  { id: "gemini-3.8-flash", nome: "Gemini 3.8 Flash (recomendado)" },
+  { id: "gemini-3.7-flash", nome: "Gemini 3.7 Flash" },
+  { id: "gemini-3.6-flash", nome: "Gemini 3.6 Flash" },
+  { id: "gemini-3.1-pro-preview", nome: "Gemini 3.1 Pro (prévia)" },
+  { id: "gemini-3.1-flash-lite", nome: "Gemini 3.1 Flash-Lite (mais rápido)" },
+];
+const MODELO_GEMINI_PADRAO = "gemini-3.8-flash";
 
 function AiPage() {
   const { isAdmin } = useMe();
@@ -59,7 +68,7 @@ function AiPage() {
   });
 
   const [provider, setProvider] = useState<"gemini" | "manus">("gemini");
-  const [model, setModel] = useState("gemini-3.6-flash");
+  const [model, setModel] = useState(MODELO_GEMINI_PADRAO);
   const [agentProfile, setAgentProfile] = useState<"lite" | "standard" | "max">("lite");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [isEnabled, setIsEnabled] = useState(false);
@@ -73,7 +82,10 @@ function AiPage() {
     const c = status.data?.config;
     if (!c) return;
     setProvider(c.provider === "manus" ? "manus" : "gemini");
-    setModel(c.model || "gemini-3.6-flash");
+    // Configurações antigas podem ter um modelo que já não existe (ou que foi
+    // desativado): cai no padrão em vez de deixar o seletor em branco.
+    const conhecido = GEMINI_MODELS.some((m) => m.id === c.model);
+    setModel(conhecido ? c.model : MODELO_GEMINI_PADRAO);
     setAgentProfile(
       c.manusAgentProfile === "standard" || c.manusAgentProfile === "max"
         ? c.manusAgentProfile
@@ -188,8 +200,8 @@ function AiPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {GEMINI_MODELS.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {m}
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.nome}
                     </SelectItem>
                   ))}
                 </SelectContent>
