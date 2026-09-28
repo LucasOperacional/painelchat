@@ -68,20 +68,25 @@ export async function geminiGenerate(input: {
 }): Promise<string> {
   const apiKey = await loadApiKey("gemini");
   if (!apiKey) throw new Error("Token do Google Gemini não configurado.");
-  const model = input.model || "gemini-3.6-flash";
+  // Modelos antigos (ex.: gemini-2.5-*) foram desligados pelo Google para novas contas.
+  const requested = input.model || "gemini-3.6-flash";
+  const model = /^gemini-(1|2)\./.test(requested) ? "gemini-3.6-flash" : requested;
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: input.systemPrompt }] },
-        contents: [{ role: "user", parts: [{ text: input.prompt }] }],
-        generationConfig: { temperature: 0.6, maxOutputTokens: 600 },
-      }),
-    },
-  );
+  const call = (m: string) =>
+    fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: input.systemPrompt }] },
+          contents: [{ role: "user", parts: [{ text: input.prompt }] }],
+          generationConfig: { temperature: 0.6, maxOutputTokens: 4096 },
+        }),
+      },
+    );
+  let response = await call(model);
+  if (response.status === 404 && model !== "gemini-3.6-flash") response = await call("gemini-3.6-flash");
 
   const payload = (await response.json().catch(() => null)) as {
     error?: { message?: string };
@@ -160,7 +165,7 @@ export async function manusGenerate(input: {
   let lastAssistant = "";
 
   while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 3000));
+    await new Promise((r) => setTimeout(r, 2000));
 
     const page = await manusRequest<{
       messages?: {
@@ -168,6 +173,9 @@ export async function manusGenerate(input: {
         status?: string;
         content?: unknown;
         text?: string;
+        assistant_message?: { content?: unknown };
+        status_update?: { agent_status?: string };
+        error_message?: { content?: unknown; message?: string };
       }[];
     }>("/v2/task.listMessages", {
       method: "GET",
@@ -177,23 +185,27 @@ export async function manusGenerate(input: {
     const messages = page.messages ?? [];
     for (const event of messages) {
       if (event.type === "assistant_message") {
+        const raw = event.assistant_message?.content ?? event.content ?? event.text;
         const text =
-          typeof event.content === "string"
-            ? event.content
-            : Array.isArray(event.content)
-              ? (event.content as { text?: string }[]).map((p) => p.text ?? "").join("")
-              : (event.text ?? "");
+          typeof raw === "string"
+            ? raw
+            : Array.isArray(raw)
+              ? (raw as { text?: string }[]).map((p) => p.text ?? "").join("")
+              : "";
         if (text.trim()) lastAssistant = text.trim();
       }
       if (event.type === "error_message") {
-        throw new Error(
-          typeof event.content === "string" ? event.content : "O Manus retornou um erro.",
-        );
+        const raw = event.error_message?.content ?? event.error_message?.message ?? event.content;
+        throw new Error(typeof raw === "string" ? raw : "O Manus retornou um erro.");
       }
     }
 
     const finished = messages.some(
-      (e) => e.type === "status_update" && (e.status === "stopped" || e.status === "error"),
+      (e) => {
+        if (e.type !== "status_update") return false;
+        const st = e.status_update?.agent_status ?? e.status;
+        return st === "stopped" || st === "error";
+      },
     );
     if (finished && lastAssistant) return lastAssistant;
   }
