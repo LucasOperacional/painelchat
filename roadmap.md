@@ -19,3 +19,9 @@
 - [x] Salvar automaticamente documentos do Webview e mostrá-los em um card para abrir, baixar ou enviar
 - [x] Impedir que downloads da NFS-e escapem do painel por nova janela, subdomínio ou redirecionamento interno
 - [x] Capturar automaticamente PDFs mesmo com tipo incorreto, blob ou formulário com destino próprio
+- [x] Recuperar mensagens de uma conexão anterior após reconectar o número 5562996928605
+- [x] Colocar "Documentos salvos" no menu lateral (visível mesmo recolhido) com página própria
+- [x] Download de nota no Webview: não baixa, não captura e a página dá "conexão recusada"
+- [x] Fazer o botão PDF/DANFSe processar sem travar nem sair do painel
+- [x] Corrigir aviso de PDF não recebido após clicar no download da DANFSe
+- [ ] Intermediário da Efí no ar: hospedar o pacote pronto (Arquivos → efi-relay) e salvar o endereço dele em Configurações

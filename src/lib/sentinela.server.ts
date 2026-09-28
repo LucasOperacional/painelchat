@@ -45,8 +45,8 @@ export type Achado = {
 
 const MAX_TENTATIVAS_EVENTO = 5;
 /** Limites de segurança: o ciclo nunca pode demorar a ponto de ser cortado pelo servidor. */
-const MAX_EVENTOS_POR_CICLO = 25;
-const ORCAMENTO_CICLO_MS = 30_000;
+const MAX_EVENTOS_POR_CICLO = 80;
+const ORCAMENTO_CICLO_MS = 45_000;
 const TEMPO_MAX_EVENTO_MS = 8_000;
 const TEMPO_MAX_CONEXOES_MS = 15_000;
 const TEMPO_MAX_WEBHOOK_MS = 12_000;
@@ -458,7 +458,19 @@ async function reprocessarEvento(linha: Record<string, unknown>): Promise<boolea
   const tentativas = Number(linha["tentativas"] ?? 0) + 1;
   try {
     const resposta = await processarWebhookEvolution(request);
-    const ok = resposta.status < 400;
+    let ignorada: string | null = null;
+    if (resposta.ok) {
+      try {
+        const corpo = (await resposta.clone().json()) as { ignored?: unknown };
+        ignorada = typeof corpo?.ignored === "string" ? corpo.ignored : null;
+      } catch {
+        ignorada = null;
+      }
+    }
+    // "aparelho-desconhecido" não é sucesso: manter na fila evita perder a
+    // mensagem enquanto uma sessão recém-reconectada ainda está sendo ligada.
+    const aguardaAparelho = ignorada === "aparelho-desconhecido";
+    const ok = resposta.status < 400 && !aguardaAparelho;
     // Token recusado (401/403) nunca vai funcionar numa nova tentativa: encerra a fila.
     const definitivo = resposta.status === 401 || resposta.status === 403;
     await db
@@ -467,7 +479,7 @@ async function reprocessarEvento(linha: Record<string, unknown>): Promise<boolea
         status: ok ? "ok" : "erro",
         tentativas: definitivo ? 5 : tentativas,
         http_status: resposta.status,
-        erro: ok ? null : `HTTP ${resposta.status}`,
+        erro: ok ? null : aguardaAparelho ? "aparelho-desconhecido" : `HTTP ${resposta.status}`,
         processado_em: new Date().toISOString(),
       } as never)
       .eq("id", String(linha["id"]));

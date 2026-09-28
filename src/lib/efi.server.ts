@@ -84,6 +84,10 @@ export async function loadEfiCredentials(): Promise<EfiCredentials | null> {
   };
 }
 
+// O painel é servido em *.lovable.app — um intermediário nunca pode ser lá.
+// Qualquer outro domínio (inclusive os do cliente) é um intermediário válido.
+const OWN_HOSTS = /(^|\.)lovable\.app$/i;
+
 export async function saveEfiCredentials(input: {
   clientId: string;
   clientSecret: string;
@@ -96,6 +100,19 @@ export async function saveEfiCredentials(input: {
   certificateName?: string;
   certificatePassword?: string | undefined;
 }) {
+  if (input.relayUrl?.trim()) {
+    let host = "";
+    try {
+      host = new URL(input.relayUrl.trim()).hostname;
+    } catch {
+      throw new Error("Endereço do intermediário inválido.");
+    }
+    if (OWN_HOSTS.test(host)) {
+      throw new Error(
+        "O intermediário não pode ser o endereço do próprio painel. Informe o servidor intermediário que guarda o certificado da Efí.",
+      );
+    }
+  }
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { error } = await supabaseAdmin.from("efi_secrets").upsert(
     {
@@ -140,6 +157,8 @@ function relayHeaders(creds: EfiCredentials): Record<string, string> {
   if (!creds.relayUrl) return {};
   const headers: Record<string, string> = {};
   if (creds.relayToken) headers["x-relay-token"] = creds.relayToken;
+  // Diz ao intermediário em qual ambiente da Efí ele deve entregar o pedido.
+  headers["x-efi-environment"] = creds.environment;
   // O intermediário usa o certificado enviado aqui para a conexão mTLS com a Efí.
   if (creds.certificateP12) {
     headers["x-efi-certificate"] = creds.certificateP12;
@@ -163,6 +182,9 @@ function messageFromBody(body: unknown, status: number): string {
       b["mensagem"] ?? b["detail"] ?? b["error_description"] ?? b["message"] ?? b["error"];
     if (typeof raw === "string" && raw.trim()) return raw.trim();
     if (raw) return JSON.stringify(raw).slice(0, 400);
+  }
+  if (typeof body === "string" && /<!doctype html|<html/i.test(body)) {
+    return "O endereço do intermediário não é um intermediário da Efí (ele devolveu uma página de site). Use o endereço do seu servidor intermediário com o certificado, não o endereço do painel.";
   }
   if (typeof body === "string" && body.trim()) return body.trim().slice(0, 400);
   if (status === 401 || status === 403) {

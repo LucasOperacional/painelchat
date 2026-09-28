@@ -160,21 +160,6 @@ function unwrapNestedProxyParams(target: URL, id: string) {
   }
 }
 
-function originalProxyUrl(value: string | null, id: string, allowedHost: string) {
-  if (!value) return null;
-  try {
-    const ref = new URL(value);
-    if (ref.pathname !== PROXY_PATH || ref.searchParams.get("id") !== id) return null;
-    const inner = ref.searchParams.get("u");
-    if (!inner) return null;
-    const original = new URL(inner);
-    if (!podeProxiar(original.hostname) || !/^https?:$/.test(original.protocol)) return null;
-    return original.toString();
-  } catch {
-    return null;
-  }
-}
-
 function rewriteHtml(html: string, id: string, target: URL) {
   // Remove meta-tags de CSP que bloqueiam a exibição embutida.
   let out = html.replace(
@@ -185,7 +170,7 @@ function rewriteHtml(html: string, id: string, target: URL) {
   out = out.replace(/<base[^>]*>/gi, "");
 
   out = out.replace(
-    /(\s(?:src|href|action|formaction|poster|data-src)\s*=\s*)(["'])([^"']*)\2/gi,
+    /(\s(?:src|href|action|poster|data-src)\s*=\s*)(["'])([^"']*)\2/gi,
     (match, prefix: string, quote: string, value: string) => {
       const raw = value.trim();
       if (!raw || /^(data:|javascript:|mailto:|tel:|blob:|#)/i.test(raw)) return match;
@@ -226,39 +211,79 @@ function rewriteHtml(html: string, id: string, target: URL) {
 
   // Faz chamadas feitas por JavaScript (fetch/XHR) e links externos
   // funcionarem dentro do proxy.
-  const shim = `<script>(function(){var P=${JSON.stringify(PROXY_PATH)},I=${JSON.stringify(id)},B=${JSON.stringify(target.toString())},H=${JSON.stringify(target.hostname)},seen=new WeakSet();
+  const shim = `<script>(function(){var P=${JSON.stringify(PROXY_PATH)},I=${JSON.stringify(id)},B=${JSON.stringify(target.toString())},H=${JSON.stringify(target.hostname)},seen=new WeakSet(),ultimoSubmit=null,ultimoTexto="",ultimoClique=0;
+ function avisa(t,m){try{parent.postMessage({type:t,message:m||""},location.origin);}catch(e){}}
  // Qualquer domínio público passa pelo proxy — o login do governo salta entre
  // domínios. O servidor é quem barra endereços internos; aqui só evitamos
  // reescrever o que claramente não é um site externo.
  function portal(h){h=String(h||"").toLowerCase();if(!h)return false;if(h==="localhost"||h.slice(-10)===".localhost"||h.slice(-6)===".local"||h.slice(-9)===".internal"||h==="::1")return false;var v4=/^(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})$/.exec(h);if(v4){var a=+v4[1],b=+v4[2];if(a===0||a===10||a===127||(a===169&&b===254)||(a===172&&b>=16&&b<=31)||(a===192&&b===168)||(a===100&&b>=64&&b<=127))return false;}return true;}
  function w(u){try{if(typeof u==="string"&&(u===P||u.indexOf(P+"?")===0))return u;var a=new URL(u,B);if(a.origin===location.origin&&a.pathname===P)return a.pathname+a.search+a.hash;if(!portal(a.hostname))return u;return P+"?id="+encodeURIComponent(I)+"&u="+encodeURIComponent(a.toString());}catch(e){return u;}}
- function raw(u){var v=w(u);try{var a=new URL(v,location.origin);if(a.origin===location.origin&&a.pathname===P){a.searchParams.set("raw","1");return a.pathname+a.search+a.hash;}}catch(e){}return v;}
  function interno(u){try{var a=new URL(u,B);return portal(a.hostname)||(a.origin===location.origin&&a.pathname===P&&a.searchParams.get("id")===I);}catch(e){return false;}}
  function nome(h,fallback){try{var p=new URL(h,B).pathname.split("/").pop();return decodeURIComponent(p||fallback||"nota-fiscal.pdf");}catch(e){return fallback||"nota-fiscal.pdf";}}
- function envia(b,n){if(!b||!b.size||seen.has(b))return Promise.resolve();seen.add(b);var fd=new FormData();fd.append("arquivo",b,n||"nota-fiscal.pdf");fd.append("nome",n||"nota-fiscal.pdf");return f.call(window,P+"?id="+encodeURIComponent(I)+"&recebe-arquivo=1&formato=json",{method:"POST",body:fd,credentials:"same-origin"}).then(function(r){if(!r.ok)throw new Error("falha");return r.json();}).then(function(d){if(d&&d.type==="webview-download")parent.postMessage(d,location.origin);});}
+ function envia(b,n){if(!b||!b.size||seen.has(b))return Promise.resolve({ok:1});seen.add(b);var fd=new FormData();fd.append("arquivo",b,n||"nota-fiscal.pdf");fd.append("nome",n||"nota-fiscal.pdf");return f.call(window,P+"?id="+encodeURIComponent(I)+"&recebe-arquivo=1&formato=json",{method:"POST",body:fd,credentials:"same-origin"}).then(function(r){if(!r.ok)throw new Error("falha");return r.json();}).then(function(d){if(d&&d.type==="webview-download"){d.__posted=1;parent.postMessage(d,location.origin);}return d||{ok:1};});}
  function arquivo(r){var t=(r.headers.get("content-type")||"").toLowerCase(),d=(r.headers.get("content-disposition")||"").toLowerCase();return /pdf|xml|zip|octet-stream/.test(t)||/attachment/.test(d);}
- function jsonPdf(v){if(!v||typeof v!=="object")return null;var ks=Object.keys(v);for(var i=0;i<ks.length;i++){var x=v[ks[i]];if(typeof x==="string"&&x.length>40&&x.replace(/^data:application\\/pdf;base64,/i,"").indexOf("JVBERi0")===0)return x;var nested=jsonPdf(x);if(nested)return nested;}return null;}
- function enviaBase64(v){var s=jsonPdf(v);if(!s)return;try{var bin=atob(s.replace(/^data:[^,]+,/i,"")),a=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i);envia(new Blob([a],{type:"application/pdf"}),"nota-fiscal.pdf");}catch(e){}}
- var co=URL.createObjectURL;if(co)URL.createObjectURL=function(b){var u=co.call(URL,b);try{var n=b instanceof File&&b.name?b.name:"nota-fiscal.pdf";if(b instanceof Blob&&(/pdf|xml|zip|octet-stream/i.test(b.type||"")||/\\.(pdf|xml|zip)$/i.test(n)))setTimeout(function(){envia(b,n);},0);}catch(e){}return u;};
+  function cheira(b,n){var t=(b.type||"").toLowerCase();if(/pdf|xml|zip|octet-stream/.test(t)){envia(b,n);return;}if(t&&!/octet-stream/.test(t))return;Promise.resolve(b.slice(0,16).arrayBuffer()).then(function(x){var s=new TextDecoder("latin1").decode(x);if(/^%PDF-|^PK/.test(s)||/^\s*<\?xml/.test(s)||/^\s*<.+\?/i.test(s))envia(b,n);}).catch(function(){});}
+  var co=URL.createObjectURL;if(co)URL.createObjectURL=function(b){var u=co.call(URL,b);try{if(b instanceof Blob&&b.size>0)cheira(b,b instanceof File&&b.name?b.name:"nota-fiscal.pdf");}catch(e){}return u;};
  if(navigator.msSaveBlob)navigator.msSaveBlob=function(b,n){envia(b,n||"nota-fiscal.pdf");return true;};if(navigator.msSaveOrOpenBlob)navigator.msSaveOrOpenBlob=function(b,n){envia(b,n||"nota-fiscal.pdf");return true;};
- var f=window.fetch;if(f)window.fetch=function(i,o){var original=typeof i==="string"?i:(i&&i.url)||"",req=typeof i==="string"?raw(i):i;return f.call(this,req,o).then(function(r){var c=r.clone();if(arquivo(r))c.blob().then(function(b){return envia(b,nome(original,"nota-fiscal.pdf"));}).catch(function(){});else if((r.headers.get("content-type")||"").toLowerCase().indexOf("json")>=0)c.json().then(enviaBase64).catch(function(){});return r;});};
- var x=XMLHttpRequest.prototype.open,s=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.open=function(m,u){this.__wvNome=nome(String(u),"nota-fiscal.pdf");arguments[1]=raw(String(u));return x.apply(this,arguments);};XMLHttpRequest.prototype.send=function(){this.addEventListener("load",function(){try{var t=(this.getResponseHeader("content-type")||"").toLowerCase(),d=(this.getResponseHeader("content-disposition")||"").toLowerCase();if(/json/.test(t)){enviaBase64(typeof this.response==="object"?this.response:JSON.parse(this.responseText));return;}if(!/pdf|xml|zip|octet-stream/.test(t)&&!/attachment/.test(d))return;var b=this.response instanceof Blob?this.response:new Blob([this.response],{type:t||"application/pdf"});envia(b,this.__wvNome);}catch(e){}});return s.apply(this,arguments);};
-  var wo=window.open;window.open=function(u,n,o){if(u==null||u==="")return window;if(typeof u!=="string")return wo.call(window,u,n,o);if(u.indexOf("blob:")===0||u.indexOf("data:")===0){f.call(window,u).then(function(r){return r.blob();}).then(function(b){return envia(b,nome(u,"nota-fiscal.pdf"));}).catch(function(){});return window;}try{var a=new URL(u,B);if(portal(a.hostname)||(a.origin===location.origin&&a.pathname===P)){location.href=w(u);return window;}}catch(e){}return wo.call(window,u,n,o);};
+ var f=window.fetch;if(f)window.fetch=function(i,o){var raw=typeof i==="string"?i:(i&&i.url)||"",req=typeof i==="string"?w(i):i;return f.call(this,req,o).then(function(r){if(arquivo(r)){var c=r.clone();c.blob().then(function(b){return envia(b,nome(raw,"nota-fiscal.pdf"));}).catch(function(){});}return r;});};
+  var x=XMLHttpRequest.prototype.open,s=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.open=function(m,u){this.__wvNome=nome(String(u),"nota-fiscal.pdf");arguments[1]=w(String(u));return x.apply(this,arguments);};XMLHttpRequest.prototype.send=function(){this.addEventListener("load",function(){try{var t=(this.getResponseHeader("content-type")||"").toLowerCase(),d=(this.getResponseHeader("content-disposition")||"").toLowerCase();if(!/pdf|xml|zip|octet-stream/.test(t)&&!/attachment/.test(d))return;var b=this.response instanceof Blob?this.response:new Blob([this.response],{type:t||"application/pdf"});envia(b,this.__wvNome);}catch(e){}});return s.apply(this,arguments);};
+  // Downloads gerados por script criam um <a> fora da página e clicam nele: sem
+  // estar na página, nenhum ouvinte da página vê o clique e o navegador tenta
+  // abrir o endereço original (que o painel não consegue mostrar). Aqui o
+  // arquivo é capturado e o destino é reescrito para passar pelo proxy.
+  var hc=HTMLElement.prototype.click;
+  HTMLElement.prototype.click=function(){
+   try{
+    if(this.tagName==="A"){
+     var h=this.getAttribute("href")||"";
+     if(h.indexOf("blob:")===0||h.indexOf("data:")===0){
+      if(this.hasAttribute("download")){
+       var n=this.getAttribute("download")||nome(h,"arquivo");
+       f.call(window,h).then(function(r){return r.blob();}).then(function(b){return envia(b,n);}).catch(function(){});
+       return;
+      }
+     }else if(!/^(javascript:|mailto:|tel:|#)/i.test(h)){
+      sa.call(this,"target","_self");
+      sa.call(this,"href",w(h));
+     }
+    }
+   }catch(e){}
+   return hc.apply(this,arguments);
+  };
+  function abreDentro(u){try{location.href=w(u);}catch(e){try{location.assign(w(u));}catch(_){}}}
+  function escreveHtml(h){try{document.open();document.write(h);document.close();return true;}catch(e){return false;}}
+  function trataResposta(r,u){var t=(r.headers.get("content-type")||"").toLowerCase();if(t.indexOf("json")>=0)return r.json();if(arquivo(r))return r.blob().then(function(b){return envia(b,nome(u,"nota-fiscal.pdf"));});return r.text().then(function(x){var m=/parent\\.postMessage\\((\\{[\\s\\S]*?\\}),location\\.origin\\)/.exec(x);if(m)return JSON.parse(m[1]);if(/<!doctype|<html|<body|captcha|hcaptcha|recaptcha/i.test(x))return{ok:0,html:x};return null;});}
+  function aguardaCaptcha(){avisa("webview-download-waiting","Valide o captcha aberto no emissor e clique no download novamente.");}
+  function baixa(u){avisa("webview-download-start","Processando o PDF");var d=w(u),sep=d.indexOf("?")<0?"?":"&";d+=sep+"formato=json";f.call(window,d,{credentials:"same-origin",headers:{accept:"application/pdf,application/xml,application/zip,application/octet-stream,text/html,*/*"}}).then(function(r){return trataResposta(r,u);}).then(function(j){if(j&&j.type==="webview-download"&&!j.__posted)parent.postMessage(j,location.origin);else if(j&&j.html){aguardaCaptcha();if(!escreveHtml(reescrevePopupHtml(j.html,u)))abreDentro(u);}else if(!j||!j.ok){aguardaCaptcha();abreDentro(u);}}).catch(function(){avisa("webview-download-error","Não foi possível capturar o PDF automaticamente.");abreDentro(u);});}
+  function texto(el){if(!el)return"";var extra="";try{extra=((el.getAttribute("title")||"")+" "+(el.getAttribute("aria-label")||"")+" "+(el.getAttribute("href")||"")+" "+(el.getAttribute("onclick")||"")+" "+(el.getAttribute("formaction")||""));}catch(e){}return String(el.innerText||el.textContent||el.value||el.name||el.id||el.className||"")+" "+extra;}
+  function sinalDownload(x){return /danfse|download|baixar|pdf|xml|imprimir|visualizar|documento|nota/i.test(String(x||""));}
+  function formularios(){return Array.prototype.slice.call(document.forms||[]);}
+  function encontraForm(el){try{if(el&&el.form)return el.form;if(el&&el.closest){var f0=el.closest("form");if(f0)return f0;}}catch(e){}var fs0=formularios();if(fs0.length===1)return fs0[0];for(var i=0;i<fs0.length;i++){if(sinalDownload([fs0[i].id,fs0[i].name,fs0[i].className,fs0[i].action,texto(fs0[i])].join(" ")))return fs0[i];}return null;}
+  function botaoAtual(form,sub){if(sub)return sub;if(!ultimoSubmit||Date.now()-ultimoClique>7000)return null;try{if(ultimoSubmit.form===form||(ultimoSubmit.closest&&ultimoSubmit.closest("form")===form)||sinalDownload(ultimoTexto))return ultimoSubmit;}catch(e){}return null;}
+  function formBaixa(form,sub,a){sub=botaoAtual(form,sub);var alvo=((sub&&sub.getAttribute&&sub.getAttribute("formtarget"))||form.getAttribute("target")||"").toLowerCase(),tx=[a,form.id,form.name,form.className,texto(form),texto(sub),ultimoTexto].join(" ");return interno(a)&&(alvo&&alvo!=="_self"||sinalDownload(tx));}
+   function enviaDireto(form,sub,a){try{sa.call(form,"target","_self");sa.call(form,"action",w(a));if(sub&&sub.setAttribute){sa.call(sub,"formtarget","_self");if(sub.getAttribute&&sub.getAttribute("formaction"))sa.call(sub,"formaction",w(a));}try{if(sub){sub.formTarget="_self";if(sub.formAction)sub.formAction=w(a);}}catch(_){}form.__wvDireto=1;if(fr&&sub&&sub.form===form){fr.call(form,sub);return;}var h=null;if(sub&&sub.name){h=document.createElement("input");h.type="hidden";h.name=sub.name;h.value=sub.value||"";form.appendChild(h);}fs.call(form);if(h)h.remove();}catch(e){abreDentro(a);}}
+   function enviaForm(form,sub,a){avisa("webview-download-start","Processando o PDF");var metodo=((sub&&sub.getAttribute&&sub.getAttribute("formmethod"))||form.getAttribute("method")||"get").toUpperCase(),enc=((sub&&sub.getAttribute&&sub.getAttribute("formenctype"))||form.getAttribute("enctype")||form.enctype||"application/x-www-form-urlencoded").toLowerCase(),fd=new FormData(form);try{if(sub&&sub.name&&!fd.has(sub.name))fd.append(sub.name,sub.value||"");}catch(e){}var d=w(a),sep=d.indexOf("?")<0?"?":"&";d+=sep+"formato=json";var opt={credentials:"same-origin",headers:{accept:"application/pdf,application/xml,application/zip,application/octet-stream,text/html,*/*"}};if(metodo==="GET"){try{var u=new URL(d,location.origin);fd.forEach(function(v,k){if(typeof v==="string")u.searchParams.append(k,v);});d=u.pathname+u.search+u.hash;}catch(e){}}else{opt.method=metodo;if(enc.indexOf("multipart/form-data")>=0){opt.body=fd;}else{opt.body=new URLSearchParams(fd);}}f.call(window,d,opt).then(function(r){return trataResposta(r,a);}).then(function(j){if(j&&j.type==="webview-download"&&!j.__posted)parent.postMessage(j,location.origin);else if(j&&j.html){aguardaCaptcha();if(!escreveHtml(reescrevePopupHtml(j.html,a)))enviaDireto(form,sub,a);}else if(!j||!j.ok){aguardaCaptcha();enviaDireto(form,sub,a);}}).catch(function(){avisa("webview-download-error","Não foi possível capturar o PDF automaticamente.");enviaDireto(form,sub,a);});}
+  document.addEventListener("click",function(e){var sub=e.target&&e.target.closest&&e.target.closest("button,input,a,[role=button]");if(!sub)return;var tx=texto(sub);if(sinalDownload(tx)){ultimoSubmit=sub;ultimoTexto=tx;ultimoClique=Date.now();var form=encontraForm(sub);if(form&&formBaixa(form,sub,(sub.getAttribute&&sub.getAttribute("formaction"))||form.getAttribute("action")||location.href||B)){e.preventDefault();e.stopImmediatePropagation();enviaDireto(form,sub,(sub.getAttribute&&sub.getAttribute("formaction"))||form.getAttribute("action")||location.href||B);}return;}if(sub.form){var tag=sub.tagName,t=(sub.getAttribute("type")||"").toLowerCase();if((tag==="BUTTON"&&(!t||t==="submit"||t==="button"))||(tag==="INPUT"&&(t==="submit"||t==="image"||t==="button"))){ultimoSubmit=sub;ultimoTexto=tx;ultimoClique=Date.now();}}},true);
+ document.addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[href]");if(!a)return;var h=a.getAttribute("href")||"",t=(a.getAttribute("target")||"").toLowerCase(),o=h;try{var q=new URL(h,location.href);if(q.pathname===P&&q.searchParams.get("u"))o=q.searchParams.get("u");}catch(_){}if(/^(blob:|data:|javascript:|mailto:|tel:|#)/i.test(h)||!interno(o))return;if(t==="_blank"||a.hasAttribute("download")||/download|\\.pdf|\\.xml|danfse/i.test(o)){e.preventDefault();e.stopImmediatePropagation();abreDentro(o);}},true);
+ function reescrevePopupHtml(x,base){return String(x||"").replace(/(\\s(?:src|href|action|poster|data-src)\\s*=\\s*)(["'])([^"']*)\\2/gi,function(m,p,q,v){var r=String(v||"").trim();if(!r||/^(data:|javascript:|mailto:|tel:|blob:|#)/i.test(r))return m;try{var a=new URL(r,base||B);return p+q+w(a.toString())+q;}catch(e){return m;}});}
+ function copiaCampo(real,name,value){var h=document.createElement("input");h.type="hidden";h.name=name;h.value=value==null?"":String(value);real.appendChild(h);}
+ function enviaPopupForm(form,base){try{var action=form.getAttribute("action")||base||B,abs=new URL(action,base||B).toString();if(!interno(abs))return false;var real=document.createElement("form");real.method=(form.getAttribute("method")||"post").toUpperCase();real.enctype=form.getAttribute("enctype")||"application/x-www-form-urlencoded";real.target="_self";real.action=w(abs);real.style.display="none";Array.prototype.forEach.call(form.elements||form.querySelectorAll("input,textarea,select,button"),function(el){var tag=(el.tagName||"").toLowerCase(),typ=(el.getAttribute("type")||"").toLowerCase(),nm=el.getAttribute("name");if(!nm||el.disabled||typ==="file"||typ==="button")return;if((typ==="checkbox"||typ==="radio")&&!el.checked)return;if(tag==="select"&&el.multiple){Array.prototype.forEach.call(el.options||[],function(o){if(o.selected)copiaCampo(real,nm,o.value);});return;}if(tag==="button"&&(typ==="submit"||!typ))return;copiaCampo(real,nm,el.value||el.getAttribute("value")||"");});document.body.appendChild(real);avisa("webview-download-start","Abrindo captcha no emissor");real.__wvDireto=1;setTimeout(function(){try{if(fs)fs.call(real);else real.submit();}catch(e){try{real.submit();}catch(_){abreDentro(abs);}}},20);return true;}catch(e){return false;}}
+ function processaPopupHtml(x,base){try{var html=String(x||"");if(!html.trim())return false;if(/captcha|hcaptcha|recaptcha|g-recaptcha|h-captcha/i.test(html)){aguardaCaptcha();return escreveHtml(reescrevePopupHtml(html,base||B));}var p=new DOMParser().parseFromString(html,"text/html"),form=p.querySelector("form");if(form&&enviaPopupForm(form,base))return true;var meta=p.querySelector('meta[http-equiv="refresh" i]'),c=meta&&meta.getAttribute("content")||"",m=/url\\s*=\\s*([^;]+)/i.exec(c);if(m){var u=new URL(m[1].replace(/^['"]|['"]$/g,""),base||B).toString();if(interno(u)){abreDentro(u);return true;}}var a=p.querySelector('a[href*="danfse" i],a[href$=".pdf" i],a[href$=".xml" i],a[href*="download" i],a[href]');if(a){var h=a.getAttribute("href")||"";try{var au=new URL(h,base||B).toString();if(interno(au)){abreDentro(au);return true;}}catch(_){}}var url=html.match(/https?:[^'\"<>\\s]+/i);if(url&&interno(url[0])){abreDentro(url[0]);return true;}}catch(e){}return false;}
+ function janelaInterna(n){var href="about:blank",buf="",timer=null,box=null;function caixa(){if(!box){box=document.createElement("div");box.style.display="none";document.body.appendChild(box);}return box;}function agenda(){if(timer)clearTimeout(timer);timer=setTimeout(function(){if(buf)processaPopupHtml(buf,href||B);},80);}var loc={assign:function(u){href=String(u||"");abreDentro(href);},replace:function(u){href=String(u||"");abreDentro(href);},reload:function(){},toString:function(){return href;}};try{Object.defineProperty(loc,"href",{get:function(){return href;},set:function(v){href=String(v||"");abreDentro(href);}});}catch(e){}var doc={open:function(){buf="";return doc;},close:function(){if(timer)clearTimeout(timer);if(buf)processaPopupHtml(buf,href||B);},write:function(x){buf+=String(x||"");agenda();},writeln:function(x){buf+=String(x||"")+"\\\\n";agenda();},createElement:function(t){return document.createElement(t);},createTextNode:function(t){return document.createTextNode(t);},querySelector:function(sel){return caixa().querySelector(sel);},querySelectorAll:function(sel){return caixa().querySelectorAll(sel);},getElementById:function(i){return caixa().querySelector("#"+CSS.escape(i));}};try{Object.defineProperty(doc,"body",{get:function(){return{appendChild:function(el){return caixa().appendChild(el);},removeChild:function(el){return caixa().removeChild(el);},set innerHTML(v){buf=String(v||"");agenda();},get innerHTML(){return caixa().innerHTML;}};}});Object.defineProperty(doc,"forms",{get:function(){return caixa().querySelectorAll("form");}});}catch(e){}var win={name:n||"_blank",closed:false,document:doc,focus:function(){return true;},blur:function(){},close:function(){win.closed=true;if(timer)clearTimeout(timer);if(buf)processaPopupHtml(buf,href||B);},postMessage:function(){}};try{Object.defineProperty(win,"location",{get:function(){return loc;},set:function(v){href=String(v||"");abreDentro(href);}});}catch(e){win.location=loc;}return win;}
+ var wo=window.open;window.open=function(u,n,o){if(u==null||u==="")return janelaInterna(n);if(typeof u!=="string")return wo.call(window,u,n,o);if(u.indexOf("blob:")===0||u.indexOf("data:")===0){avisa("webview-download-start","Processando o PDF");f.call(window,u).then(function(r){return r.blob();}).then(function(b){return envia(b,nome(u,"nota-fiscal.pdf"));}).catch(function(){avisa("webview-download-error","Não foi possível capturar o PDF automaticamente.");});return janelaInterna(n);}try{var a=new URL(u,B);if(portal(a.hostname)||(a.origin===location.origin&&a.pathname===P)){var j=janelaInterna(n);abreDentro(u);return j;}}catch(e){}return wo.call(window,u,n,o);};
  function protege(proto,prop){try{var d=Object.getOwnPropertyDescriptor(proto,prop);if(!d||!d.set||!d.get)return;Object.defineProperty(proto,prop,{configurable:d.configurable,enumerable:d.enumerable,get:d.get,set:function(v){return d.set.call(this,typeof v==="string"?w(v):v);}});}catch(e){}}
   protege(HTMLAnchorElement.prototype,"href");protege(HTMLFormElement.prototype,"action");if(window.HTMLButtonElement)protege(HTMLButtonElement.prototype,"formAction");if(window.HTMLInputElement)protege(HTMLInputElement.prototype,"formAction");protege(HTMLIFrameElement.prototype,"src");if(window.HTMLFrameElement)protege(HTMLFrameElement.prototype,"src");protege(HTMLObjectElement.prototype,"data");protege(HTMLEmbedElement.prototype,"src");
  try{var la=Location.prototype.assign,lr=Location.prototype.replace;Location.prototype.assign=function(u){return la.call(this,typeof u==="string"?w(u):u);};Location.prototype.replace=function(u){return lr.call(this,typeof u==="string"?w(u):u);};var ld=Object.getOwnPropertyDescriptor(Location.prototype,"href");if(ld&&ld.get&&ld.set&&ld.configurable)Object.defineProperty(Location.prototype,"href",{configurable:true,enumerable:ld.enumerable,get:ld.get,set:function(v){return ld.set.call(this,typeof v==="string"?w(v):v);}});}catch(e){}
  function protegeAlvo(proto,fonte){try{var d=Object.getOwnPropertyDescriptor(proto,"target");if(!d||!d.set||!d.get)return;Object.defineProperty(proto,"target",{configurable:d.configurable,enumerable:d.enumerable,get:d.get,set:function(v){var u=this.getAttribute(fonte)||"";return d.set.call(this,interno(u)?"_self":v);}});}catch(e){}}
- protegeAlvo(HTMLAnchorElement.prototype,"href");protegeAlvo(HTMLFormElement.prototype,"action");
-  var ac=HTMLAnchorElement.prototype.click;HTMLAnchorElement.prototype.click=function(){var h=this.getAttribute("href")||"",n=this.getAttribute("download")||nome(h,"nota-fiscal.pdf");if(h.indexOf("blob:")===0||h.indexOf("data:")===0){f.call(window,h).then(function(r){return r.blob();}).then(function(b){return envia(b,n);}).catch(function(){});return;}if(interno(h)){sa.call(this,"target","_self");sa.call(this,"href",w(h));}return ac.call(this);};
+  protegeAlvo(HTMLAnchorElement.prototype,"href");protegeAlvo(HTMLFormElement.prototype,"action");try{var bft=Object.getOwnPropertyDescriptor(HTMLButtonElement.prototype,"formTarget");if(bft&&bft.set&&bft.get)Object.defineProperty(HTMLButtonElement.prototype,"formTarget",{configurable:bft.configurable,enumerable:bft.enumerable,get:bft.get,set:function(v){return bft.set.call(this,"_self");}});}catch(e){}try{var ift=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"formTarget");if(ift&&ift.set&&ift.get)Object.defineProperty(HTMLInputElement.prototype,"formTarget",{configurable:ift.configurable,enumerable:ift.enumerable,get:ift.get,set:function(v){return ift.set.call(this,"_self");}});}catch(e){}
   var sa=Element.prototype.setAttribute;Element.prototype.setAttribute=function(n,v){var tag=this.tagName||"",url=(n==="href"&&tag==="A")||(n==="action"&&tag==="FORM")||(n==="formaction"&&(tag==="BUTTON"||tag==="INPUT"))||(n==="src"&&(tag==="IFRAME"||tag==="FRAME"||tag==="EMBED"))||(n==="data"&&tag==="OBJECT");if((n==="target"&&(tag==="A"||tag==="FORM"))||(n==="formtarget"&&(tag==="BUTTON"||tag==="INPUT")))v="_self";return sa.call(this,n,url&&typeof v==="string"?w(v):v);};
-  function ajusta(root){var sel="a[href],form[action],button[formaction],input[formaction],iframe[src],frame[src],object[data],embed[src]",els=[];if(root&&root.matches&&root.matches(sel))els.push(root);if(root&&root.querySelectorAll)els=els.concat(Array.prototype.slice.call(root.querySelectorAll(sel)));els.forEach(function(el){var tag=el.tagName,at=tag==="FORM"?"action":tag==="BUTTON"||tag==="INPUT"?"formaction":tag==="OBJECT"?"data":tag==="A"?"href":"src",v=el.getAttribute(at);if(v&&!/^(blob:|data:|javascript:|mailto:|tel:|#)/i.test(v)){if(tag==="A"||tag==="FORM")sa.call(el,"target","_self");if(tag==="BUTTON"||tag==="INPUT")sa.call(el,"formtarget","_self");var nv=w(v);if(nv!==v)sa.call(el,at,nv);}});}
+  function ajusta(root){var sel="a[href],form[action],button[formaction],input[formaction],iframe[src],frame[src],object[data],embed[src]",els=[];if(root&&root.matches&&root.matches(sel))els.push(root);if(root&&root.querySelectorAll)els=els.concat(Array.prototype.slice.call(root.querySelectorAll(sel)));els.forEach(function(el){var tag=el.tagName,at=tag==="FORM"?"action":tag==="BUTTON"||tag==="INPUT"?"formaction":tag==="OBJECT"?"data":tag==="A"?"href":"src",v=el.getAttribute(at);if(v&&!/^(blob:|data:|javascript:|mailto:|tel:|#)/i.test(v)){if((tag==="A"||tag==="FORM")&&el.getAttribute("target")!=="_self")sa.call(el,"target","_self");if((tag==="BUTTON"||tag==="INPUT")&&el.getAttribute("formtarget")!=="_self")sa.call(el,"formtarget","_self");var nv=w(v);if(nv!==v)sa.call(el,at,nv);}});}
   ajusta(document);new MutationObserver(function(ms){ms.forEach(function(m){if(m.type==="attributes")ajusta(m.target);else Array.prototype.forEach.call(m.addedNodes,ajusta);});}).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:["href","action","formaction","src","data","target","formtarget"]});
- document.addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[href]");if(!a)return;var h=a.getAttribute("href")||"";if(!/^(blob:|data:|javascript:|mailto:|tel:|#)/i.test(h)){if(interno(h))sa.call(a,"target","_self");sa.call(a,"href",w(h));}},true);
-  document.addEventListener("submit",function(e){var form=e.target;if(form&&form.tagName==="FORM"){var sub=e.submitter,override=sub&&sub.getAttribute&&sub.getAttribute("formaction"),a=override||form.getAttribute("action")||B;sa.call(form,"target","_self");if(sub&&sub.setAttribute)sa.call(sub,"formtarget","_self");if(override)sa.call(sub,"formaction",w(override));else sa.call(form,"action",w(a));}},true);
-  var fs=HTMLFormElement.prototype.submit,fr=HTMLFormElement.prototype.requestSubmit;HTMLFormElement.prototype.submit=function(){var a=this.getAttribute("action");if(a){try{var u=new URL(a,B);if(portal(u.hostname))this.setAttribute("target","_self");}catch(_){}this.setAttribute("action",w(a));}return fs.call(this);};if(fr)HTMLFormElement.prototype.requestSubmit=function(b){var a=this.getAttribute("action");if(a){try{var u=new URL(a,B);if(portal(u.hostname))this.setAttribute("target","_self");}catch(_){}this.setAttribute("action",w(a));}return fr.call(this,b);};
+  document.addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[href]");if(!a)return;var h=a.getAttribute("href")||"";if(!/^(blob:|data:|javascript:|mailto:|tel:|#)/i.test(h)){if(interno(h))sa.call(a,"target","_self");sa.call(a,"href",w(h));}},true);
+   document.addEventListener("submit",function(e){var form=e.target;if(form&&form.tagName==="FORM"){if(form.__wvDireto){delete form.__wvDireto;return;}var sub=botaoAtual(form,e.submitter),override=sub&&sub.getAttribute&&sub.getAttribute("formaction"),a=override||form.getAttribute("action")||location.href||B;if(formBaixa(form,sub,a)){e.preventDefault();e.stopImmediatePropagation();enviaDireto(form,sub,a);return;}sa.call(form,"target","_self");if(sub&&sub.setAttribute)sa.call(sub,"formtarget","_self");if(override)sa.call(sub,"formaction",w(override));else sa.call(form,"action",w(a));}},true);
+   var fs=HTMLFormElement.prototype.submit,fr=HTMLFormElement.prototype.requestSubmit;HTMLFormElement.prototype.submit=function(){if(this.__wvDireto){delete this.__wvDireto;return fs.call(this);}var sub=botaoAtual(this,null),a=(sub&&sub.getAttribute&&sub.getAttribute("formaction"))||this.getAttribute("action")||location.href||B;if(formBaixa(this,sub,a)){enviaDireto(this,sub,a);return;}if(a){try{var u=new URL(a,B);if(portal(u.hostname))sa.call(this,"target","_self");}catch(_){}sa.call(this,"action",w(a));}return fs.call(this);};if(fr)HTMLFormElement.prototype.requestSubmit=function(b){if(this.__wvDireto){delete this.__wvDireto;return b?fr.call(this,b):fr.call(this);}var sub=botaoAtual(this,b),a=(sub&&sub.getAttribute&&sub.getAttribute("formaction"))||this.getAttribute("action")||location.href||B;if(formBaixa(this,sub,a)){enviaDireto(this,sub,a);return;}if(a){try{var u=new URL(a,B);if(portal(u.hostname))sa.call(this,"target","_self");}catch(_){}sa.call(this,"action",w(a));}return b?fr.call(this,b):fr.call(this);};
  var hp=history.pushState,hr=history.replaceState;history.pushState=function(s,t,u){return hp.call(this,s,t,typeof u==="string"?w(u):u);};history.replaceState=function(s,t,u){return hr.call(this,s,t,typeof u==="string"?w(u):u);};
  document.addEventListener("click",function(e){var el=e.target&&e.target.closest&&e.target.closest("a[data-wv-externo]");if(el){e.preventDefault();window.open(el.getAttribute("href"),"_blank","noopener");}},true);
-  try{if(navigator.serviceWorker&&navigator.serviceWorker.register)Object.defineProperty(navigator.serviceWorker,"register",{configurable:true,value:function(){return Promise.resolve({scope:location.origin+P,active:null,installing:null,waiting:null,unregister:function(){return Promise.resolve(true);},update:function(){return Promise.resolve();}});}});}catch(e){}
  // Downloads gerados por JavaScript (blob/data) não passam pelo proxy: aqui o
  // arquivo é enviado para a central, que guarda e abre a janela de envio.
   document.addEventListener("click",function(e){
@@ -437,23 +462,7 @@ async function handle(request: Request) {
   if (cookie) forwardHeaders.set("cookie", cookie);
   const reqContentType = request.headers.get("content-type");
   if (reqContentType) forwardHeaders.set("content-type", reqContentType);
-  // Validação do captcha (chamada AJAX do portal) depende destes cabeçalhos.
-  for (const h of [
-    "x-requested-with",
-    "__requestverificationtoken",
-    "requestverificationtoken",
-    "x-csrf-token",
-    "x-xsrf-token",
-  ]) {
-    const v = request.headers.get(h);
-    if (v) forwardHeaders.set(h, v);
-  }
-  // Preserve a página exata que originou a ação. O antiforgery/captcha do
-  // Emissor rejeita o POST quando recebe apenas a raiz como Referer.
-  const referer =
-    originalProxyUrl(request.headers.get("referer"), id, target.hostname) ?? target.toString();
-  forwardHeaders.set("referer", referer);
-  if (request.method !== "GET" && request.method !== "HEAD") forwardHeaders.set("origin", target.origin);
+  if (request.method !== "GET") forwardHeaders.set("referer", target.origin + "/");
 
   let upstream: Response;
   let corpo: BodyInit | null =
@@ -470,47 +479,6 @@ async function handle(request: Request) {
       corpo = form.toString();
     } catch {
       /* mantém o corpo original */
-    }
-  }
-  // Algumas telas enviam o retorno do captcha em JSON. Limpa somente strings
-  // que contêm uma URL deste proxy, preservando tokens e demais campos.
-  if (corpo && reqContentType?.toLowerCase().includes("application/json")) {
-    try {
-      const parsed = JSON.parse(new TextDecoder().decode(corpo as ArrayBuffer)) as unknown;
-      const cleanJson = (value: unknown): unknown => {
-        if (typeof value === "string") return unwrapProxyValue(value, id, target.hostname);
-        if (Array.isArray(value)) return value.map(cleanJson);
-        if (value && typeof value === "object") {
-          return Object.fromEntries(
-            Object.entries(value as Record<string, unknown>).map(([key, value]) => [key, cleanJson(value)]),
-          );
-        }
-        return value;
-      };
-      corpo = JSON.stringify(cleanJson(parsed));
-    } catch {
-      /* mantém o corpo original */
-    }
-  }
-  // O captcha usado durante a emissão pode ser enviado junto de um formulário
-  // multipart. Reconstruir o formulário também gera um boundary válido; manter
-  // o Content-Type antigo após alterar o corpo faria o portal perder os campos.
-  if (corpo && reqContentType?.toLowerCase().includes("multipart/form-data")) {
-    try {
-      const incoming = await new Response(corpo, {
-        headers: { "content-type": reqContentType },
-      }).formData();
-      const clean = new FormData();
-      for (const [key, value] of incoming.entries()) {
-        clean.append(
-          key,
-          typeof value === "string" ? unwrapProxyValue(value, id, target.hostname) : value,
-        );
-      }
-      corpo = clean;
-      forwardHeaders.delete("content-type");
-    } catch {
-      /* mantém o corpo original e o boundary recebido */
     }
   }
   try {
@@ -587,7 +555,6 @@ async function handle(request: Request) {
   // Arquivos baixados (nota em PDF/XML): guarda na central e avisa o painel,
   // que abre a opção de enviar para um contato.
   const disposition = upstream.headers.get("content-disposition") ?? "";
-  if (disposition) headers.set("content-disposition", disposition);
   const contentLength = Number(upstream.headers.get("content-length") ?? "0");
   const targetLooksLikeFile = /\.(pdf|xml|zip)(?:$|[?#])/i.test(finalTarget.toString());
   const shouldInspectBody =
@@ -613,9 +580,6 @@ async function handle(request: Request) {
       magicIsFile);
   if (isDownload) {
     const bytes = inspectedBytes ?? new Uint8Array(await upstream.arrayBuffer());
-    if (params.get("raw") === "1") {
-      return new Response(new Uint8Array(bytes).buffer, { status: upstream.status, headers });
-    }
     let name =
       /filename\*=(?:UTF-8'')?([^;]+)/i.exec(disposition)?.[1] ??
       /filename="?([^";]+)"?/i.exec(disposition)?.[1] ??
@@ -630,7 +594,7 @@ async function handle(request: Request) {
       name = `nota-fiscal.${ext}`;
     }
     const mime = (contentType.split(";")[0] ?? contentType).trim();
-    return await paginaArquivoBaixado(id, data.project_id, name, mime, bytes);
+    return await paginaArquivoBaixado(id, data.project_id, name, mime, bytes, params.get("formato") === "json" ? "json" : "html");
   }
 
   if (contentType.includes("text/html")) {

@@ -29,6 +29,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedDepartamentosRouteImport } from './routes/_authenticated/departamentos'
 import { Route as AuthenticatedDivulgacaoRouteImport } from './routes/_authenticated/divulgacao'
 import { Route as AuthenticatedDivulgazapRouteImport } from './routes/_authenticated/divulgazap'
+import { Route as AuthenticatedDocumentosRouteImport } from './routes/_authenticated/documentos'
 import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
 import { Route as AuthenticatedEstoqueRouteImport } from './routes/_authenticated/estoque'
 import { Route as AuthenticatedFilasRouteImport } from './routes/_authenticated/filas'
@@ -166,6 +167,11 @@ const AuthenticatedDivulgacaoRoute = AuthenticatedDivulgacaoRouteImport.update({
 const AuthenticatedDivulgazapRoute = AuthenticatedDivulgazapRouteImport.update({
   id: '/divulgazap',
   path: '/divulgazap',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDocumentosRoute = AuthenticatedDocumentosRouteImport.update({
+  id: '/documentos',
+  path: '/documentos',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedEquipeRoute = AuthenticatedEquipeRouteImport.update({
@@ -370,6 +376,7 @@ export interface FileRoutesByFullPath {
   '/departamentos': typeof AuthenticatedDepartamentosRoute
   '/divulgacao': typeof AuthenticatedDivulgacaoRoute
   '/divulgazap': typeof AuthenticatedDivulgazapRoute
+  '/documentos': typeof AuthenticatedDocumentosRoute
   '/equipe': typeof AuthenticatedEquipeRoute
   '/estoque': typeof AuthenticatedEstoqueRoute
   '/filas': typeof AuthenticatedFilasRoute
@@ -426,6 +433,7 @@ export interface FileRoutesByTo {
   '/departamentos': typeof AuthenticatedDepartamentosRoute
   '/divulgacao': typeof AuthenticatedDivulgacaoRoute
   '/divulgazap': typeof AuthenticatedDivulgazapRoute
+  '/documentos': typeof AuthenticatedDocumentosRoute
   '/equipe': typeof AuthenticatedEquipeRoute
   '/estoque': typeof AuthenticatedEstoqueRoute
   '/filas': typeof AuthenticatedFilasRoute
@@ -484,6 +492,7 @@ export interface FileRoutesById {
   '/_authenticated/departamentos': typeof AuthenticatedDepartamentosRoute
   '/_authenticated/divulgacao': typeof AuthenticatedDivulgacaoRoute
   '/_authenticated/divulgazap': typeof AuthenticatedDivulgazapRoute
+  '/_authenticated/documentos': typeof AuthenticatedDocumentosRoute
   '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
   '/_authenticated/estoque': typeof AuthenticatedEstoqueRoute
   '/_authenticated/filas': typeof AuthenticatedFilasRoute
@@ -542,6 +551,7 @@ export interface FileRouteTypes {
     | '/departamentos'
     | '/divulgacao'
     | '/divulgazap'
+    | '/documentos'
     | '/equipe'
     | '/estoque'
     | '/filas'
@@ -598,6 +608,7 @@ export interface FileRouteTypes {
     | '/departamentos'
     | '/divulgacao'
     | '/divulgazap'
+    | '/documentos'
     | '/equipe'
     | '/estoque'
     | '/filas'
@@ -655,6 +666,7 @@ export interface FileRouteTypes {
     | '/_authenticated/departamentos'
     | '/_authenticated/divulgacao'
     | '/_authenticated/divulgazap'
+    | '/_authenticated/documentos'
     | '/_authenticated/equipe'
     | '/_authenticated/estoque'
     | '/_authenticated/filas'
@@ -852,6 +864,13 @@ declare module '@tanstack/react-router' {
       path: '/divulgazap'
       fullPath: '/divulgazap'
       preLoaderRoute: typeof AuthenticatedDivulgazapRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/documentos': {
+      id: '/_authenticated/documentos'
+      path: '/documentos'
+      fullPath: '/documentos'
+      preLoaderRoute: typeof AuthenticatedDocumentosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/equipe': {
@@ -1119,6 +1138,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDepartamentosRoute: typeof AuthenticatedDepartamentosRoute
   AuthenticatedDivulgacaoRoute: typeof AuthenticatedDivulgacaoRoute
   AuthenticatedDivulgazapRoute: typeof AuthenticatedDivulgazapRoute
+  AuthenticatedDocumentosRoute: typeof AuthenticatedDocumentosRoute
   AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
   AuthenticatedEstoqueRoute: typeof AuthenticatedEstoqueRoute
   AuthenticatedFilasRoute: typeof AuthenticatedFilasRoute
@@ -1160,6 +1180,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDepartamentosRoute: AuthenticatedDepartamentosRoute,
   AuthenticatedDivulgacaoRoute: AuthenticatedDivulgacaoRoute,
   AuthenticatedDivulgazapRoute: AuthenticatedDivulgazapRoute,
+  AuthenticatedDocumentosRoute: AuthenticatedDocumentosRoute,
   AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,
   AuthenticatedEstoqueRoute: AuthenticatedEstoqueRoute,
   AuthenticatedFilasRoute: AuthenticatedFilasRoute,

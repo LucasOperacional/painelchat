@@ -15,6 +15,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ArrowLeft,
+  ArrowDown,
   Paperclip,
   Smile,
   ContactRound,
@@ -42,7 +43,9 @@ import {
   Landmark,
   KeyRound,
   Pin,
+  BellOff,
 } from "lucide-react";
+import { toggleConversationMuted, useMutedConversations } from "@/lib/muted-contacts";
 import { toast } from "sonner";
 
 
@@ -291,8 +294,17 @@ function AtendimentoPage() {
   const listarCategoriasFn = useServerFn(listarCategoriasAtivas);
   const categoriasEstoque = useQuery({
     queryKey: ["estoque-categorias-ativas"],
-    queryFn: () => listarCategoriasFn({}),
+    queryFn: async () => {
+      try {
+        return await listarCategoriasFn({});
+      } catch (e) {
+        if (/unauthorized|authorization/i.test((e as Error)?.message ?? "")) return null as never;
+        throw e;
+      }
+    },
     staleTime: 60_000,
+    retry: 2,
+    throwOnError: false,
   });
   const estoqueCategoriaId = estoqueCategoria === "nenhum" ? null : estoqueCategoria;
 
@@ -303,8 +315,18 @@ function AtendimentoPage() {
   const produtosLojaFn = useServerFn(produtosDaLoja);
   const lojaProdutos = useQuery({
     queryKey: ["loja-produtos"],
-    queryFn: () => produtosLojaFn({}),
+    queryFn: async () => {
+      try {
+        return await produtosLojaFn({});
+      } catch (e) {
+        // Sessão ainda carregando/renovando: não derruba a tela, tenta de novo depois.
+        if (/unauthorized|authorization/i.test((e as Error)?.message ?? "")) return null as never;
+        throw e;
+      }
+    },
     staleTime: 60_000,
+    retry: 2,
+    throwOnError: false,
   });
   const enviarLojaFn = useServerFn(enviarLoja);
   const enviarLojaMutation = useMutation({
@@ -551,6 +573,7 @@ function AtendimentoPage() {
     queryKey: ["conversations"],
     queryFn: fetchConversations,
     refetchInterval: 10_000,
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
     refetchOnMount: "always",
   });
@@ -682,6 +705,7 @@ function AtendimentoPage() {
 
   const selected = (conversations.data ?? []).find((c) => c.id === selectedId) ?? null;
   const unreadMap = useUnreadMap();
+  const mutedIds = useMutedConversations();
 
   // Abrir a conversa marca as mensagens dela como lidas.
   useEffect(() => {
@@ -698,6 +722,7 @@ function AtendimentoPage() {
     // A Evolution pode entregar várias mensagens em sequência; esta conferência
     // curta recupera qualquer evento perdido sem esperar minutos.
     refetchInterval: 10_000,
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
     refetchOnMount: "always",
     placeholderData: (prev: any) => prev,
@@ -708,6 +733,14 @@ function AtendimentoPage() {
   // tela quando você já está perto do fim; se estiver lendo mensagens antigas,
   // a posição é mantida.
   const chatScrollRef = useRef<HTMLDivElement>(null);
+  // Mostra a seta "ir para a última mensagem" quando você está lendo
+  // mensagens antigas, longe do fim do chat.
+  const [longeDoFim, setLongeDoFim] = useState(false);
+  const atualizarSeta = () => {
+    const el = chatScrollRef.current;
+    if (!el) return;
+    setLongeDoFim(el.scrollHeight - el.scrollTop - el.clientHeight > 400);
+  };
   useEffect(() => {
     const el = chatScrollRef.current;
     if (!el) return;
@@ -716,6 +749,9 @@ function AtendimentoPage() {
     const pertoDoFim = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
     if (ultima?.direction === "outbound" || pertoDoFim) {
       el.scrollTop = el.scrollHeight;
+      setLongeDoFim(false);
+    } else {
+      atualizarSeta();
     }
   }, [messages.data, selectedId]);
 
@@ -905,7 +941,14 @@ function AtendimentoPage() {
           "Este contato está sem conexão. Transfira a conversa para uma conexão para poder mandar mensagens.",
         );
       }
-      return sendFn({ data: payload });
+      const result: any = await sendFn({ data: payload });
+      if (result?.blocked) {
+        throw new Error(
+          result.deliveryError ??
+            "Este contato está sem conexão. Transfira a conversa para uma conexão para poder mandar mensagens.",
+        );
+      }
+      return result;
     },
     onMutate: (payload) => {
       const conv = (conversations.data ?? []).find((c) => c.id === payload.conversationId);
@@ -952,11 +995,12 @@ function AtendimentoPage() {
         });
       }
     },
-    onError: (e: Error, _payload, context) => {
+    onError: (e: Error, payload, context) => {
       if (context?.previous) {
         queryClient.setQueryData(["messages", context.conversationId], context.previous);
       }
-      if (e.message.startsWith("Este contato está sem conexão")) {
+      if (e.message.startsWith("Este contato está sem conexão") || e.message.startsWith("O aparelho desta conversa")) {
+        if (payload?.body) setDraft(payload.body);
         toast.error("Contato sem conexão", { description: e.message, duration: 8000 });
         return;
       }
@@ -1350,6 +1394,22 @@ function AtendimentoPage() {
                       >
                         {c.pinned_at ? <Pin className="size-3.5 fill-current" /> : <Pin className="size-3.5" />}
                       </span>
+                      <span
+                        role="button"
+                        aria-label={mutedIds.includes(c.id) ? "Ativar avisos do contato" : "Silenciar contato"}
+                        title={mutedIds.includes(c.id) ? "Ativar avisos" : "Silenciar contato"}
+                        className={cn(
+                          "rounded-md p-1 transition-colors hover:bg-accent",
+                          mutedIds.includes(c.id) ? "text-primary" : "text-muted-foreground/60",
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const m = toggleConversationMuted(c.id);
+                          toast.success(m ? "Contato silenciado" : "Avisos do contato ativados");
+                        }}
+                      >
+                        <BellOff className="size-3.5" />
+                      </span>
                       {timeAgo(c.last_message_at)}
                       {(unreadMap[c.id] ?? 0) > 0 && (
                         <span className="flex min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-4 text-destructive-foreground">
@@ -1590,9 +1650,11 @@ function AtendimentoPage() {
               </div>
             </header>
 
+            <div className="relative min-h-0 flex-1">
             <div
               ref={chatScrollRef}
-              className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-muted/40 bg-repeat bg-center p-3 sm:space-y-4 sm:p-5"
+              onScroll={atualizarSeta}
+              className="h-full space-y-3 overflow-y-auto bg-muted/40 bg-repeat bg-center p-3 sm:space-y-4 sm:p-5"
               style={{
                 backgroundColor: chatBackground,
                 backgroundImage: project?.chatBackgroundUrl
@@ -1848,9 +1910,28 @@ function AtendimentoPage() {
                       </>
                     )}
                   </div>
-                );
-              })}
+              );
+            })}
             </div>
+
+            {longeDoFim && (
+              <button
+                type="button"
+                aria-label="Ir para a última mensagem"
+                title="Ir para a última mensagem"
+                className="absolute bottom-4 right-4 z-10 flex size-10 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-lg transition hover:bg-muted"
+                onClick={() => {
+                  const el = chatScrollRef.current;
+                  if (!el) return;
+                  el.scrollTop = el.scrollHeight;
+                  setLongeDoFim(false);
+                }}
+              >
+                <ArrowDown className="size-5" />
+              </button>
+            )}
+            </div>
+
 
             {pending.length > 0 && (
               <div className="flex flex-wrap gap-2 border-t border-border px-3 pt-3">

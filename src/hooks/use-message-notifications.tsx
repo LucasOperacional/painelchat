@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { markAllRead, markConversationUnread, isConversationOpen, useUnreadTotal } from "@/lib/unread-store";
 import { bindAudioUnlock, playNotificationSound } from "@/lib/notification-sound";
+import { isConversationMuted } from "@/lib/muted-contacts";
 
 const MUTE_KEY = "central-notif-muted";
 
@@ -119,6 +120,8 @@ export function useMessageNotifications() {
           // Grupos: recebemos e gravamos a mensagem, mas sem aviso nenhum
           // (sem som, sem toast, sem contador de não lidas).
           if (isGroup) return;
+          // Contato silenciado: a mensagem chega no chat, mas sem aviso.
+          if (isConversationMuted(row.conversation_id)) return;
 
           const alreadyOpen = isConversationOpen(row.conversation_id);
           markConversationUnread(row.conversation_id);

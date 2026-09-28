@@ -6,6 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 
 /** Sincronização de segurança: mesmo sem tempo real, tudo atualiza neste intervalo. */
 const FULL_SYNC_INTERVAL_MS = 90 * 1000;
+/** Recarga garantida: busca de novo todas as listas neste intervalo, sem exceção. */
+const RECARGA_GARANTIDA_MS = 2 * 60 * 1000;
 /** Se o canal ficar mudo por este tempo, reconectamos do zero. */
 const CANAL_MUDO_MS = 60 * 1000;
 
@@ -238,6 +240,48 @@ export function useCentralSync() {
       if (Date.now() - ultimoSinal > CANAL_MUDO_MS) reconectar();
     }, FULL_SYNC_INTERVAL_MS);
 
+    // Regra dos 2 minutos: de tempos em tempos, busca tudo de novo direto na
+    // fonte, mesmo que o tempo real diga que está tudo em dia. Assim nenhuma
+    // mensagem recebida fica de fora do painel por ficar presa num pedido antigo.
+    const recargaGarantida = window.setInterval(() => {
+      if (!navigator.onLine) return;
+      sinal();
+      void queryClient.refetchQueries({
+        predicate: (q) =>
+          CENTRAL_QUERY_KEYS.includes(q.queryKey[0] as (typeof CENTRAL_QUERY_KEYS)[number]),
+      });
+    }, RECARGA_GARANTIDA_MS);
+
+    // Vigia: se a lista de conversas parar de atualizar (pedido travado ou
+    // sessão presa), força nova busca; se continuar travada, recarrega a página
+    // sozinho — o mesmo que apertar F5, sem o atendente precisar fazer.
+    let tentativasTravado = 0;
+    const vigia = window.setInterval(() => {
+      if (document.visibilityState !== "visible" || !navigator.onLine) return;
+      const estado = queryClient.getQueryState(["conversations"]);
+      if (!estado || estado.dataUpdatedAt === 0) return;
+      const parado = Date.now() - estado.dataUpdatedAt;
+      if (parado < 45_000) {
+        tentativasTravado = 0;
+        return;
+      }
+      tentativasTravado += 1;
+      console.warn("[sync] lista parada há", Math.round(parado / 1000), "s — tentativa", tentativasTravado);
+      if (tentativasTravado >= 3) {
+        const ultimo = Number(sessionStorage.getItem("sync-reload-at") ?? 0);
+        if (Date.now() - ultimo > 120_000) {
+          sessionStorage.setItem("sync-reload-at", String(Date.now()));
+          window.location.reload();
+          return;
+        }
+      }
+      void queryClient.cancelQueries({ queryKey: ["conversations"] });
+      void queryClient.cancelQueries({ queryKey: ["messages"] });
+      void queryClient.refetchQueries({ queryKey: ["conversations"], type: "active" });
+      void queryClient.refetchQueries({ queryKey: ["messages"], type: "active" });
+      reconectar();
+    }, 20_000);
+
     const acordar = () => {
       fullSync();
       if (Date.now() - ultimoSinal > CANAL_MUDO_MS) reconectar();
@@ -258,6 +302,8 @@ export function useCentralSync() {
       if (reconectando !== null) window.clearTimeout(reconectando);
       if (agrupando !== null) window.clearTimeout(agrupando);
       window.clearInterval(timer);
+      window.clearInterval(vigia);
+      window.clearInterval(recargaGarantida);
       window.removeEventListener("online", acordar);
       window.removeEventListener("focus", acordar);
       document.removeEventListener("visibilitychange", onVisible);

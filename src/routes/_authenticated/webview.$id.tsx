@@ -1,12 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
-import { ArrowLeft, Download, ExternalLink, FileText, Loader2, RefreshCw, Send } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, Download, ExternalLink, FileText, Loader2, RefreshCw, Send, Upload } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   listWebviewDocuments,
   listWebviews,
+  uploadWebviewDocument,
   type WebviewDocument,
   type WebviewSite,
 } from "@/lib/webviews.functions";
@@ -40,6 +42,61 @@ function WebviewFramePage() {
   const fetchDocuments = useServerFn(listWebviewDocuments);
   const [reloadKey, setReloadKey] = useState(0);
   const [downloaded, setDownloaded] = useState<DownloadedFile | null>(null);
+  const [processingDownload, setProcessingDownload] = useState(false);
+  const quadro = useRef<HTMLIFrameElement>(null);
+  const saidas = useRef(0);
+  const arquivo = useRef<HTMLInputElement>(null);
+  const [enviando, setEnviando] = useState(false);
+  const uploadDoc = useServerFn(uploadWebviewDocument);
+
+  async function anexarArquivo(f: File | undefined) {
+    if (!f) return;
+    if (f.size > 20 * 1024 * 1024) {
+      toast.error("Arquivo maior que 20 MB.");
+      return;
+    }
+    setEnviando(true);
+    try {
+      const buf = new Uint8Array(await f.arrayBuffer());
+      let bin = "";
+      for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+      const r = await uploadDoc({
+        data: { webviewId: id, name: f.name, mimeType: f.type || "application/pdf", base64: btoa(bin) },
+      });
+      toast.success("Documento salvo.");
+      setDownloaded(r);
+      void documents.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível salvar o arquivo.");
+    } finally {
+      setEnviando(false);
+      if (arquivo.current) arquivo.current.value = "";
+    }
+  }
+
+  /**
+   * Se o site escapar do proxy (o navegador mostra "conexão recusada" e a tela
+   * fica travada), voltamos automaticamente para a página dentro do painel.
+   */
+  function verificarSaida() {
+    const janela = quadro.current?.contentWindow;
+    if (!janela) return;
+    let url = "";
+    let ilegivel = false;
+    try {
+      url = janela.location.href;
+    } catch {
+      ilegivel = true; // página de fora do painel: o navegador bloqueia a leitura
+    }
+    if (!ilegivel) {
+      if (!url || url === "about:blank" || url.includes("/api/public/webview-proxy")) return;
+    }
+    if (saidas.current >= 2) return;
+    saidas.current += 1;
+    toast.warning("O site tentou abrir fora do painel. Voltamos para ele.");
+    setReloadKey((k) => k + 1);
+  }
+
   const documents = useQuery({
     queryKey: ["webview-documents", id],
     queryFn: () => fetchDocuments({ data: { webviewId: id } }),
@@ -48,8 +105,23 @@ function WebviewFramePage() {
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
       if (e.origin !== window.location.origin) return;
-      const d = e.data as { type?: string; url?: string; name?: string; mimeType?: string };
+      const d = e.data as { type?: string; url?: string; name?: string; mimeType?: string; message?: string };
+      if (d?.type === "webview-download-start") {
+        setProcessingDownload(true);
+        return;
+      }
+      if (d?.type === "webview-download-waiting") {
+        setProcessingDownload(false);
+        toast.info(d.message ?? "Valide o captcha aberto no emissor e clique no download novamente.");
+        return;
+      }
+      if (d?.type === "webview-download-error") {
+        setProcessingDownload(false);
+        toast.error(d.message ?? "Não foi possível capturar o PDF automaticamente.");
+        return;
+      }
       if (d?.type === "webview-download" && d.url && d.name) {
+        setProcessingDownload(false);
         setDownloaded({ url: d.url, name: d.name, mimeType: d.mimeType ?? "application/pdf" });
         void documents.refetch();
       }
@@ -57,6 +129,15 @@ function WebviewFramePage() {
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
   }, [documents.refetch]);
+
+  useEffect(() => {
+    if (!processingDownload) return;
+    const timer = window.setTimeout(() => {
+      setProcessingDownload(false);
+      toast.info("Valide o captcha aberto no emissor e clique no download novamente.");
+    }, 35_000);
+    return () => window.clearTimeout(timer);
+  }, [processingDownload]);
 
   const sites = useQuery({ queryKey: ["webviews"], queryFn: () => fetchSites() });
   const site = (sites.data ?? []).find((s: WebviewSite) => s.id === id);
@@ -97,14 +178,26 @@ function WebviewFramePage() {
           </Button>
           <Button asChild size="sm" variant="outline">
             <a href={site.url} target="_blank" rel="noreferrer">
-              <ExternalLink className="size-4" /> Nova aba
+              <ExternalLink className="size-4" /> Site oficial (captcha)
             </a>
+          </Button>
+          <input
+            ref={arquivo}
+            type="file"
+            accept="application/pdf,.pdf,.xml,text/xml,application/xml"
+            className="hidden"
+            onChange={(e) => void anexarArquivo(e.target.files?.[0])}
+          />
+          <Button size="sm" onClick={() => arquivo.current?.click()} disabled={enviando}>
+            {enviando ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />} Salvar PDF baixado
           </Button>
         </div>
       </div>
       <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_320px]">
         <iframe
           key={reloadKey}
+          ref={quadro}
+          onLoad={verificarSaida}
           src={site.use_proxy ? `/api/public/webview-proxy?id=${site.id}` : site.url}
           title={site.title}
           className="h-full min-h-[55vh] w-full bg-background"
@@ -113,8 +206,13 @@ function WebviewFramePage() {
         />
         <Card className="m-3 min-h-0 overflow-hidden lg:ml-0">
           <CardHeader className="border-b py-3">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <FileText className="size-4" /> Documentos salvos
+            <CardTitle className="flex items-center justify-between gap-2 text-sm">
+              <span className="flex items-center gap-2"><FileText className="size-4" /> Documentos salvos</span>
+              {processingDownload ? (
+                <span className="flex items-center gap-1 text-xs font-normal text-muted-foreground">
+                  <Loader2 className="size-3 animate-spin" /> Processando PDF
+                </span>
+              ) : null}
             </CardTitle>
           </CardHeader>
           <CardContent className="max-h-64 overflow-y-auto p-0 lg:max-h-none lg:h-[calc(100%-49px)]">

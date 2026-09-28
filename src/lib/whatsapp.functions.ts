@@ -1068,7 +1068,13 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
       conversation.id,
       conversation.whatsapp_config_id ?? null,
     );
-    const config = await (await import("@/lib/evolution.server")).ensureConversationDevice(data.conversationId, configIdDaConversa);
+    let config: Awaited<ReturnType<typeof import("@/lib/evolution.server")["ensureConversationDevice"]>>;
+    try {
+      config = await (await import("@/lib/evolution.server")).ensureConversationDevice(data.conversationId, configIdDaConversa);
+    } catch (e) {
+      // Aparelho removido/sem conexão: devolve aviso em vez de derrubar a tela.
+      return { sent: false, deliveryError: (e as Error).message, blocked: true as const };
+    }
     const { loadEvolutionApiKey } = await import("@/lib/evolution.server");
 
     const canSend =
