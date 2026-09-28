@@ -1544,6 +1544,57 @@ export type Database = {
           },
         ]
       }
+      mensagens_saida: {
+        Row: {
+          config_id: string | null
+          conversation_id: string | null
+          created_at: string
+          destino: string
+          erro: string | null
+          external_id: string | null
+          id: string
+          message_id: string | null
+          payload: Json
+          processado_em: string | null
+          sender_id: string | null
+          status: string
+          tentativas: number
+          tipo: string
+        }
+        Insert: {
+          config_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          destino?: string
+          erro?: string | null
+          external_id?: string | null
+          id?: string
+          message_id?: string | null
+          payload?: Json
+          processado_em?: string | null
+          sender_id?: string | null
+          status?: string
+          tentativas?: number
+          tipo?: string
+        }
+        Update: {
+          config_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          destino?: string
+          erro?: string | null
+          external_id?: string | null
+          id?: string
+          message_id?: string | null
+          payload?: Json
+          processado_em?: string | null
+          sender_id?: string | null
+          status?: string
+          tentativas?: number
+          tipo?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           body: string
@@ -2929,6 +2980,9 @@ export type Database = {
       }
       webhook_eventos: {
         Row: {
+          content_type: string | null
+          corpo_bruto: string | null
+          corpo_path: string | null
           created_at: string
           erro: string | null
           evento: string
@@ -2943,6 +2997,9 @@ export type Database = {
           url: string
         }
         Insert: {
+          content_type?: string | null
+          corpo_bruto?: string | null
+          corpo_path?: string | null
           created_at?: string
           erro?: string | null
           evento?: string
@@ -2957,6 +3014,9 @@ export type Database = {
           url?: string
         }
         Update: {
+          content_type?: string | null
+          corpo_bruto?: string | null
+          corpo_path?: string | null
           created_at?: string
           erro?: string | null
           evento?: string
