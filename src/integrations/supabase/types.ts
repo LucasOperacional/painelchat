@@ -1614,78 +1614,6 @@ export type Database = {
           },
         ]
       }
-      mensagens_saida: {
-        Row: {
-          config_id: string | null
-          conversation_id: string | null
-          created_at: string
-          destino: string
-          erro: string | null
-          external_id: string | null
-          id: string
-          message_id: string | null
-          payload: Json
-          processado_em: string | null
-          project_id: string | null
-          proxima_tentativa_em: string | null
-          sender_id: string | null
-          status: string
-          tentativas: number
-          tipo: string
-        }
-        Insert: {
-          config_id?: string | null
-          conversation_id?: string | null
-          created_at?: string
-          destino: string
-          erro?: string | null
-          external_id?: string | null
-          id?: string
-          message_id?: string | null
-          payload?: Json
-          processado_em?: string | null
-          project_id?: string | null
-          proxima_tentativa_em?: string | null
-          sender_id?: string | null
-          status?: string
-          tentativas?: number
-          tipo?: string
-        }
-        Update: {
-          config_id?: string | null
-          conversation_id?: string | null
-          created_at?: string
-          destino?: string
-          erro?: string | null
-          external_id?: string | null
-          id?: string
-          message_id?: string | null
-          payload?: Json
-          processado_em?: string | null
-          project_id?: string | null
-          proxima_tentativa_em?: string | null
-          sender_id?: string | null
-          status?: string
-          tentativas?: number
-          tipo?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "mensagens_saida_conversation_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: false
-            referencedRelation: "conversations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "mensagens_saida_message_id_fkey"
-            columns: ["message_id"]
-            isOneToOne: false
-            referencedRelation: "messages"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       misticpay_secrets: {
         Row: {
           auth_mode: string
@@ -3001,9 +2929,6 @@ export type Database = {
       }
       webhook_eventos: {
         Row: {
-          content_type: string | null
-          corpo_bruto: string | null
-          corpo_path: string | null
           created_at: string
           erro: string | null
           evento: string
@@ -3012,16 +2937,12 @@ export type Database = {
           id: string
           payload: Json
           processado_em: string | null
-          proxima_tentativa_em: string | null
           status: string
           tentativas: number
           token: string
           url: string
         }
         Insert: {
-          content_type?: string | null
-          corpo_bruto?: string | null
-          corpo_path?: string | null
           created_at?: string
           erro?: string | null
           evento?: string
@@ -3030,16 +2951,12 @@ export type Database = {
           id?: string
           payload?: Json
           processado_em?: string | null
-          proxima_tentativa_em?: string | null
           status?: string
           tentativas?: number
           token?: string
           url?: string
         }
         Update: {
-          content_type?: string | null
-          corpo_bruto?: string | null
-          corpo_path?: string | null
           created_at?: string
           erro?: string | null
           evento?: string
@@ -3048,7 +2965,6 @@ export type Database = {
           id?: string
           payload?: Json
           processado_em?: string | null
-          proxima_tentativa_em?: string | null
           status?: string
           tentativas?: number
           token?: string
