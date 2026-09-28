@@ -40,7 +40,7 @@ export const Route = createFileRoute("/_authenticated/ia")({
   component: AiPage,
 });
 
-const GEMINI_MODELS = ["gemini-3.6-flash", "gemini-3.6-pro", "gemini-3.1-flash-lite"];
+const GEMINI_MODELS = ["gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.1-pro-preview"];
 
 function AiPage() {
   const { isAdmin } = useMe();
@@ -73,7 +73,7 @@ function AiPage() {
     const c = status.data?.config;
     if (!c) return;
     setProvider(c.provider === "manus" ? "manus" : "gemini");
-    setModel(c.model || "gemini-3.6-flash");
+    setModel(c.model && GEMINI_MODELS.includes(c.model) ? c.model : "gemini-3.6-flash");
     setAgentProfile(
       c.manusAgentProfile === "standard" || c.manusAgentProfile === "max"
         ? c.manusAgentProfile
