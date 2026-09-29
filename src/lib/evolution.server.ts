@@ -1782,6 +1782,11 @@ export async function saveProviderApiKey(input: {
   memoClear("key:");
   memoClear("provider:");
   memoClear("token:");
+  // `loadProviderApiToken` guarda a chave sob `apikey:` por 5 minutos. Sem
+  // limpar aqui, salvar uma chave nova deixava o valor ANTIGO (ou o vazio que
+  // bloqueia o envio) valendo por até 5 minutos: o atendente salvava o token,
+  // tentava enviar e continuava recebendo "falta cadastrar o token".
+  memoClear("apikey:");
 }
 
 /** Guarda a API Key global da Evolution Go (preserva o token da instância). */

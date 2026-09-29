@@ -974,7 +974,15 @@ export async function processarWebhookEvolution(request: Request): Promise<Respo
 
     // Sessões antigas de outro provedor (ex.: WuzAPI) apontando para o
     // endereço de um aparelho WAHA não podem gravar mensagens nele.
-    if (payload.sourceProvider && (config.provider ?? "evolution") !== payload.sourceProvider) {
+    // A comparação precisa ser normalizada: o provedor gravado no aparelho pode
+    // ter espaço ou letra maiúscula ("WAHA", " waha"), e a comparação crua
+    // descartava TODO evento daquele aparelho como se fosse de outra API — a
+    // mensagem chegava, era recusada aqui e nunca aparecia no chat.
+    const provedorDoAparelho = (config.provider ?? "evolution").trim().toLowerCase();
+    if (payload.sourceProvider && provedorDoAparelho !== payload.sourceProvider) {
+      console.warn(
+        `[webhook] evento de ${payload.sourceProvider} recusado: aparelho ${config.id} está como "${config.provider ?? "evolution"}"`,
+      );
       return Response.json({ received: true, ignored: "provedor-diferente-do-aparelho" });
     }
 

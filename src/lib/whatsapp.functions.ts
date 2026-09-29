@@ -1195,13 +1195,23 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
       }
 
     } else {
+      // Mensagem por integração e por campo que falta. A versão anterior dizia
+      // sempre "token da Evolution" e "confira o endereço e o ID da instância",
+      // mesmo num aparelho WAHA ou WuzAPI sem sessão — o que apontava o
+      // atendente para o campo errado e escondia a causa real do bloqueio.
+      const prov = normalizeProvider(config?.provider);
+      const nome = providerName(prov);
       deliveryError = !config
         ? "Cadastre um dispositivo de WhatsApp em Administração → Dispositivos."
-        : !(await loadEvolutionApiKey(config.id))
-          ? "Falta cadastrar o token (ID de acesso) da Evolution em Administração → API de conexão."
-          : "Confira o endereço da API e o ID da instância do dispositivo.";
+        : !config.base_url
+          ? `Falta o endereço do servidor ${nome} em Administração → API de conexão.`
+          : !config.instance_id
+            ? `Este aparelho ainda não tem ${prov === "waha" ? "sessão" : "instância"} na ${nome}. Abra Administração → Dispositivos e leia o QR Code.`
+            : !(await loadEvolutionApiKey(config.id))
+              ? `Falta cadastrar ${prov === "waha" ? "a chave da API da WAHA" : prov === "wuzapi" ? "o token de administrador da WuzAPI" : "a API Key global da Evolution Go"} em Administração → API de conexão.`
+              : "O contato desta conversa está sem número de WhatsApp válido.";
       console.error(
-        `[envio] bloqueado conversa=${data.conversationId} dispositivo=${config?.id ?? "-"} motivo=${deliveryError}`,
+        `[envio] bloqueado conversa=${data.conversationId} dispositivo=${config?.id ?? "-"} provedor=${prov} motivo=${deliveryError}`,
       );
     }
 
