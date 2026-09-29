@@ -10,6 +10,14 @@ const FULL_SYNC_INTERVAL_MS = 90 * 1000;
 const RECARGA_GARANTIDA_MS = 2 * 60 * 1000;
 /** Se o canal ficar mudo por este tempo, reconectamos do zero. */
 const CANAL_MUDO_MS = 60 * 1000;
+/**
+ * Espera antes de reconectar. Dobra a cada falha seguida (1s, 2s, 4s… até 30s) e
+ * volta ao início quando o canal sobe. Antes era fixo em 2s: quando o servidor
+ * recusava a conexão — token expirado, por exemplo — a tela ficava tentando de
+ * dois em dois segundos para sempre, atrapalhando a própria recuperação.
+ */
+const BACKOFF_INICIAL_MS = 1_000;
+const BACKOFF_MAXIMO_MS = 30_000;
 
 const CENTRAL_QUERY_KEYS = [
   "conversations",
@@ -62,6 +70,18 @@ export function useCentralSync() {
     let ativo = true;
     let ultimoSinal = Date.now();
     let reconectando: number | null = null;
+    let espera = BACKOFF_INICIAL_MS;
+
+    /**
+     * Busca de novo, direto no banco, tudo que a central mostra. É a rede que
+     * pega qualquer mensagem gravada enquanto o tempo real estava fora do ar.
+     */
+    const recarregarTudo = () => {
+      void queryClient.refetchQueries({
+        predicate: (q) =>
+          CENTRAL_QUERY_KEYS.includes(q.queryKey[0] as (typeof CENTRAL_QUERY_KEYS)[number]),
+      });
+    };
 
     // Agrupa várias atualizações seguidas numa única recarga, para não
     // sobrecarregar o banco a cada mensagem que chega.
@@ -88,22 +108,27 @@ export function useCentralSync() {
       ultimoSinal = Date.now();
     };
 
-    const aplicarMensagem = (payload: {
-      eventType: string;
-      new: unknown;
-      old: unknown;
-    }) => {
+    const aplicarMensagem = (payload: { eventType: string; new: unknown; old: unknown }) => {
       const fresh = payload.new as RealtimeMessage | undefined;
       const removed = payload.old as RealtimeMessage | undefined;
       const conversationId = fresh?.conversation_id ?? removed?.conversation_id;
+      // Em DELETE o Postgres manda só a chave antiga; o registro novo vem vazio.
+      const apagada = payload.eventType === "DELETE";
+      const alvoId = apagada ? (removed?.id ?? fresh?.id) : fresh?.id;
 
-      if (conversationId && fresh?.id) {
+      if (conversationId && alvoId) {
+        // Se a conversa ainda não está em cache não há o que remendar, mas a
+        // mensagem NÃO pode simplesmente ser esquecida: manda buscar essa
+        // conversa. Antes o evento era descartado aqui e a mensagem só aparecia
+        // na próxima conferência, segundos depois — ou nunca, se ela falhasse.
+        let aplicou = false;
         queryClient.setQueryData<RealtimeMessage[]>(["messages", conversationId], (current) => {
           if (!current) return current;
-          if (payload.eventType === "DELETE") {
-            return current.filter((message) => message.id !== fresh.id);
+          aplicou = true;
+          if (apagada) {
+            return current.filter((message) => message.id !== alvoId);
           }
-          const existingIndex = current.findIndex((message) => message.id === fresh.id);
+          const existingIndex = current.findIndex((message) => message.id === alvoId);
           if (existingIndex >= 0) {
             const next = [...current];
             next[existingIndex] = { ...next[existingIndex], ...fresh };
@@ -111,37 +136,47 @@ export function useCentralSync() {
           }
           // Chegou a mensagem real do atendente: tira a prévia que estava na tela.
           const semPrevia =
-            fresh.direction === "outbound"
+            fresh!.direction === "outbound"
               ? current.filter((message) => !ehPrevia(message.id))
-              : current.filter((message) => !(ehPrevia(message.id) && message.body === fresh.body));
-          return [...semPrevia, fresh];
+              : current.filter(
+                  (message) => !(ehPrevia(message.id) && message.body === fresh!.body),
+                );
+          // Duas mensagens podem chegar quase juntas e fora de ordem: a lista é
+          // reordenada pela hora para o chat nunca mostrar uma antes da outra.
+          return [...semPrevia, fresh!].sort((a, b) =>
+            (a.created_at ?? "").localeCompare(b.created_at ?? ""),
+          );
         });
+        if (!aplicou) invalidate("messages");
       } else {
         invalidate("messages");
       }
 
       // A lista lateral já mostra a última mensagem e sobe a conversa na hora,
       // sem esperar a próxima recarga.
-      if (conversationId && fresh?.id && payload.eventType !== "DELETE") {
+      if (conversationId && fresh?.id && !apagada) {
         const quando = fresh.created_at ?? new Date().toISOString();
-        queryClient.setQueriesData<ConversationRow[]>({ queryKey: ["conversations"] }, (current) => {
-          if (!Array.isArray(current)) return current;
-          const index = current.findIndex((conv) => conv.id === conversationId);
-          if (index < 0) return current;
-          const atual = current[index]!;
-          const atualizada: ConversationRow = {
-            ...atual,
-            last_message_at: quando,
-            last_message: {
-              id: fresh.id!,
-              body: fresh.body ?? "",
-              direction: fresh.direction ?? "inbound",
-              created_at: quando,
-            },
-          };
-          const resto = current.filter((_, i) => i !== index);
-          return [atualizada, ...resto];
-        });
+        queryClient.setQueriesData<ConversationRow[]>(
+          { queryKey: ["conversations"] },
+          (current) => {
+            if (!Array.isArray(current)) return current;
+            const index = current.findIndex((conv) => conv.id === conversationId);
+            if (index < 0) return current;
+            const atual = current[index]!;
+            const atualizada: ConversationRow = {
+              ...atual,
+              last_message_at: quando,
+              last_message: {
+                id: fresh.id!,
+                body: fresh.body ?? "",
+                direction: fresh.direction ?? "inbound",
+                created_at: quando,
+              },
+            };
+            const resto = current.filter((_, i) => i !== index);
+            return [atualizada, ...resto];
+          },
+        );
       }
 
       invalidate("conversations");
@@ -204,7 +239,12 @@ export function useCentralSync() {
       channel = chat.subscribe((status) => {
         if (status === "SUBSCRIBED") {
           sinal();
+          // Entre a queda e a volta do canal outras mensagens podem ter sido
+          // gravadas sem ninguém escutando. Buscar tudo agora é o que garante
+          // que esse intervalo cego não deixe nenhuma mensagem de fora.
+          espera = BACKOFF_INICIAL_MS;
           fullSync();
+          recarregarTudo();
           return;
         }
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
@@ -214,11 +254,19 @@ export function useCentralSync() {
       });
       canalCadastros = cadastros.subscribe((status) => {
         if (status === "SUBSCRIBED") sinal();
+        // Os cadastros também precisam voltar: sem isto, uma queda só neste
+        // canal deixava contatos, filas e equipe congelados até recarregar a
+        // página, porque nada aqui pedia reconexão.
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          reconectar();
+        }
       });
     };
 
     const reconectar = () => {
       if (!ativo || reconectando !== null) return;
+      const atraso = espera;
+      espera = Math.min(espera * 2, BACKOFF_MAXIMO_MS);
       reconectando = window.setTimeout(() => {
         reconectando = null;
         const antigo = channel;
@@ -229,7 +277,7 @@ export function useCentralSync() {
         if (antigoCadastros) void supabase.removeChannel(antigoCadastros);
         ultimoSinal = Date.now();
         conectar();
-      }, 2_000);
+      }, atraso);
     };
 
     conectar();
@@ -245,11 +293,10 @@ export function useCentralSync() {
     // mensagem recebida fica de fora do painel por ficar presa num pedido antigo.
     const recargaGarantida = window.setInterval(() => {
       if (!navigator.onLine) return;
-      sinal();
-      void queryClient.refetchQueries({
-        predicate: (q) =>
-          CENTRAL_QUERY_KEYS.includes(q.queryKey[0] as (typeof CENTRAL_QUERY_KEYS)[number]),
-      });
+      // Marcar sinal aqui escondia um canal morto: o relógio do "canal mudo"
+      // era zerado pela própria recarga, então a reconexão nunca acontecia e a
+      // tela passava a depender só desta busca de 2 em 2 minutos.
+      recarregarTudo();
     }, RECARGA_GARANTIDA_MS);
 
     // Vigia: se a lista de conversas parar de atualizar (pedido travado ou
@@ -266,7 +313,12 @@ export function useCentralSync() {
         return;
       }
       tentativasTravado += 1;
-      console.warn("[sync] lista parada há", Math.round(parado / 1000), "s — tentativa", tentativasTravado);
+      console.warn(
+        "[sync] lista parada há",
+        Math.round(parado / 1000),
+        "s — tentativa",
+        tentativasTravado,
+      );
       if (tentativasTravado >= 3) {
         const ultimo = Number(sessionStorage.getItem("sync-reload-at") ?? 0);
         if (Date.now() - ultimo > 120_000) {
