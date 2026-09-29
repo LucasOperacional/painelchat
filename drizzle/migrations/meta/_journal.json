@@ -645,6 +645,13 @@
       "when": 1790341627263,
       "tag": "0091_tighten_payment_texts_domains_stickers",
       "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1790593244885,
+      "tag": "0092_mensagens_saida_e_corpo_bruto",
+      "breakpoints": true
     }
   ]
 }

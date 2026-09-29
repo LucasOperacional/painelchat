@@ -47,6 +47,7 @@ const GEMINI_MODELS = [
   { id: "gemini-3.7-flash", nome: "Gemini 3.7 Flash" },
   { id: "gemini-3.6-flash", nome: "Gemini 3.6 Flash" },
   { id: "gemini-3.1-pro-preview", nome: "Gemini 3.1 Pro (prévia)" },
+  { id: "gemini-3.5-flash-lite", nome: "Gemini 3.5 Flash-Lite" },
   { id: "gemini-3.1-flash-lite", nome: "Gemini 3.1 Flash-Lite (mais rápido)" },
 ];
 const MODELO_GEMINI_PADRAO = "gemini-3.8-flash";

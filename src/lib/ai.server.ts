@@ -99,23 +99,35 @@ export async function geminiGenerate(input: {
       "Token do Google Gemini não configurado. Cole a chave em Inteligência artificial.",
     );
   }
-  const model = (input.model || MODELO_GEMINI_PADRAO).trim();
+  // Modelos antigos (ex.: gemini-2.5-*) foram desligados pelo Google para novas
+  // contas: quem tiver essa escolha salva é levado para o modelo atual.
+  const pedido = (input.model || MODELO_GEMINI_PADRAO).trim();
+  const model = /^gemini-(1|2)\./.test(pedido) ? MODELO_GEMINI_PADRAO : pedido;
 
   // Gerar texto é idempotente para o nosso uso (nada é cobrado nem enviado ao
   // cliente sem revisão), então vale repetir quando o serviço oscila.
-  const response = await fetchResiliente(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: input.systemPrompt }] },
-        contents: [{ role: "user", parts: [{ text: input.prompt }] }],
-        generationConfig: { temperature: 0.6, maxOutputTokens: 600 },
-      }),
-    },
-    { label: "a IA do Gemini", timeoutMs: GEMINI_TIMEOUT_MS },
-  );
+  const chamar = (m: string) =>
+    fetchResiliente(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: input.systemPrompt }] },
+          contents: [{ role: "user", parts: [{ text: input.prompt }] }],
+          generationConfig: { temperature: 0.6, maxOutputTokens: 4096 },
+        }),
+      },
+      { label: "a IA do Gemini", timeoutMs: GEMINI_TIMEOUT_MS },
+    );
+
+  // Modelo inexistente ou indisponível para a chave: tenta o padrão antes de
+  // desistir, para o atendente não ficar sem resposta por causa da escolha.
+  let response = await chamar(model);
+  if (response.status === 404 && model !== MODELO_GEMINI_PADRAO) {
+    console.warn(`[ia] modelo "${model}" indisponível; usando ${MODELO_GEMINI_PADRAO}.`);
+    response = await chamar(MODELO_GEMINI_PADRAO);
+  }
 
   const payload = (await response.json().catch(() => null)) as {
     error?: { message?: string };
@@ -222,7 +234,7 @@ export async function manusGenerate(input: {
   let lastAssistant = "";
 
   while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 3000));
+    await new Promise((r) => setTimeout(r, 2000));
 
     const page = await manusRequest<{
       messages?: {
@@ -230,6 +242,9 @@ export async function manusGenerate(input: {
         status?: string;
         content?: unknown;
         text?: string;
+        assistant_message?: { content?: unknown };
+        status_update?: { agent_status?: string };
+        error_message?: { content?: unknown; message?: string };
       }[];
     }>("/v2/task.listMessages", {
       method: "GET",
@@ -239,23 +254,27 @@ export async function manusGenerate(input: {
     const messages = page.messages ?? [];
     for (const event of messages) {
       if (event.type === "assistant_message") {
+        const raw = event.assistant_message?.content ?? event.content ?? event.text;
         const text =
-          typeof event.content === "string"
-            ? event.content
-            : Array.isArray(event.content)
-              ? (event.content as { text?: string }[]).map((p) => p.text ?? "").join("")
-              : (event.text ?? "");
+          typeof raw === "string"
+            ? raw
+            : Array.isArray(raw)
+              ? (raw as { text?: string }[]).map((p) => p.text ?? "").join("")
+              : "";
         if (text.trim()) lastAssistant = text.trim();
       }
       if (event.type === "error_message") {
-        throw new Error(
-          typeof event.content === "string" ? event.content : "O Manus retornou um erro.",
-        );
+        const raw = event.error_message?.content ?? event.error_message?.message ?? event.content;
+        throw new Error(typeof raw === "string" ? raw : "O Manus retornou um erro.");
       }
     }
 
     const finished = messages.some(
-      (e) => e.type === "status_update" && (e.status === "stopped" || e.status === "error"),
+      (e) => {
+        if (e.type !== "status_update") return false;
+        const st = e.status_update?.agent_status ?? e.status;
+        return st === "stopped" || st === "error";
+      },
     );
     if (finished && lastAssistant) return lastAssistant;
   }
