@@ -51,7 +51,6 @@ const TEMPO_MAX_EVENTO_MS = 8_000;
 const TEMPO_MAX_CONEXOES_MS = 15_000;
 const TEMPO_MAX_WEBHOOK_MS = 12_000;
 
-
 /** Executa uma tarefa com tempo máximo; devolve o valor de reserva se estourar. */
 async function comLimiteDeTempo<T>(tarefa: Promise<T>, ms: number, reserva: T): Promise<T> {
   let alarme: ReturnType<typeof setTimeout> | undefined;
@@ -64,8 +63,6 @@ async function comLimiteDeTempo<T>(tarefa: Promise<T>, ms: number, reserva: T): 
     if (alarme) clearTimeout(alarme);
   }
 }
-
-
 
 async function admin() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -131,9 +128,7 @@ export async function registrarTrafego(
       .maybeSingle();
     const linha = atual as Record<string, unknown> | null;
 
-    const bloqueadoAte = linha?.["bloqueado_ate"]
-      ? new Date(String(linha["bloqueado_ate"]))
-      : null;
+    const bloqueadoAte = linha?.["bloqueado_ate"] ? new Date(String(linha["bloqueado_ate"])) : null;
     if (bloqueadoAte && bloqueadoAte > agora) {
       await db
         .from("sentinela_trafego")
@@ -171,7 +166,11 @@ export async function registrarTrafego(
       patch["total_bloqueios"] = Number(linha?.["total_bloqueios"] ?? 0) + 1;
     }
 
-    if (linha) await db.from("sentinela_trafego").update(patch as never).eq("ip", ip);
+    if (linha)
+      await db
+        .from("sentinela_trafego")
+        .update(patch as never)
+        .eq("ip", ip);
     else await db.from("sentinela_trafego").insert(patch as never);
 
     if (deveBloquear || deveAvisar) {
@@ -260,7 +259,9 @@ export async function guardarWebhook(
       // mesmo IP. Bloquear esse IP antes de salvar o corpo causava perda
       // definitiva durante rajadas. O token da conexão continua sendo validado
       // pelo processador; aqui só registramos o excesso sem barrar mensagens.
-      console.warn(`[sentinela] rajada de webhook permitida para preservar mensagens: ${trafego.motivo}`);
+      console.warn(
+        `[sentinela] rajada de webhook permitida para preservar mensagens: ${trafego.motivo}`,
+      );
     }
   }
 
@@ -278,7 +279,11 @@ export async function guardarWebhook(
   // A WuzAPI envia formulário (jsonData + arquivo). Sem esta leitura o evento
   // não entrava no diário e não podia ser reprocessado — mensagens se perdiam.
   const tipoConteudo = request.headers.get("content-type") ?? "";
-  if (!payload && corpo && /multipart\/form-data|application\/x-www-form-urlencoded/i.test(tipoConteudo)) {
+  if (
+    !payload &&
+    corpo &&
+    /multipart\/form-data|application\/x-www-form-urlencoded/i.test(tipoConteudo)
+  ) {
     try {
       const form = await new Request(request.url, {
         method: "POST",
@@ -381,7 +386,6 @@ export async function guardarWebhook(
     console.error("[sentinela] evento com falha:", detalhe);
     return new Response(detalhe, { status: 500 });
   }
-
 }
 
 async function marcarEvento(
@@ -414,9 +418,11 @@ async function reprocessarEvento(linha: Record<string, unknown>): Promise<boolea
     .select("payload, corpo_bruto, corpo_path")
     .eq("id", String(linha["id"]))
     .maybeSingle();
-  const registro = guardado as
-    | { payload?: unknown; corpo_bruto?: string | null; corpo_path?: string | null }
-    | null;
+  const registro = guardado as {
+    payload?: unknown;
+    corpo_bruto?: string | null;
+    corpo_path?: string | null;
+  } | null;
   if (registro?.corpo_bruto) {
     corpoOriginal = registro.corpo_bruto;
   } else if (registro?.corpo_path) {
@@ -473,11 +479,20 @@ async function reprocessarEvento(linha: Record<string, unknown>): Promise<boolea
     const ok = resposta.status < 400 && !aguardaAparelho;
     // Token recusado (401/403) nunca vai funcionar numa nova tentativa: encerra a fila.
     const definitivo = resposta.status === 401 || resposta.status === 403;
+    // Esperar o aparelho ser identificado NÃO é tentativa falhada: a mensagem
+    // chegou e está íntegra, só falta a sessão subir. Contando como tentativa,
+    // ela estourava o limite em 5 ciclos e ficava presa para sempre — inclusive
+    // depois de o aparelho voltar, porque a fila só olha `tentativas < 5`.
+    const contador = definitivo
+      ? MAX_TENTATIVAS_EVENTO
+      : aguardaAparelho
+        ? tentativas - 1
+        : tentativas;
     await db
       .from("webhook_eventos")
       .update({
         status: ok ? "ok" : "erro",
-        tentativas: definitivo ? 5 : tentativas,
+        tentativas: contador,
         http_status: resposta.status,
         erro: ok ? null : aguardaAparelho ? "aparelho-desconhecido" : `HTTP ${resposta.status}`,
         processado_em: new Date().toISOString(),
@@ -656,7 +671,6 @@ export async function executarCicloSentinela(
       detalhes: [] as Awaited<ReturnType<typeof verificarConexoes>>["detalhes"],
     });
 
-
     verificacoes += resultado.verificados;
     corrigidos += resultado.religados;
     for (const detalhe of resultado.detalhes) {
@@ -692,9 +706,7 @@ export async function executarCicloSentinela(
 
   /* 1.5 Eventos que ficaram só na memória porque o banco estava fora. */
   try {
-    const { drenarReserva, tamanhoDaReserva } = await import(
-      "@/lib/mensagens-durabilidade.server"
-    );
+    const { drenarReserva, tamanhoDaReserva } = await import("@/lib/mensagens-durabilidade.server");
     const aguardando = tamanhoDaReserva();
     if (aguardando > 0) {
       const salvos = await drenarReserva();
@@ -851,7 +863,6 @@ export async function executarCicloSentinela(
   if (cfg.auto_limpar_duplicadas) {
     verificacoes += 1;
   }
-
 
   /* 5. Silêncio das integrações: conexão on-line sem receber nada há muito tempo. */
   try {
@@ -1040,21 +1051,21 @@ async function resumirComIA(
     const resposta = await fetchComPrazo(
       "https://ai.gateway.lovable.dev/v1/responses",
       {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Lovable-API-Key": chave,
-        "X-Lovable-AIG-SDK": "fetch",
-      },
-      body: JSON.stringify({
-        model: "openai/gpt-6-astra",
-        stream: true,
-        store: false,
-        reasoning: { effort: "low", summary: "auto" },
-        instructions:
-          "Você é a IA Sentinela de uma central de atendimento no WhatsApp. Responda em português do Brasil, em no máximo 4 linhas curtas, linguagem simples, dizendo o que está acontecendo, o que já foi corrigido sozinho e o que a pessoa precisa fazer. Não use termos técnicos.",
-        input: `${base}\n\nOcorrências do ciclo:\n${lista}`,
-      }),
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Lovable-API-Key": chave,
+          "X-Lovable-AIG-SDK": "fetch",
+        },
+        body: JSON.stringify({
+          model: "openai/gpt-6-astra",
+          stream: true,
+          store: false,
+          reasoning: { effort: "low", summary: "auto" },
+          instructions:
+            "Você é a IA Sentinela de uma central de atendimento no WhatsApp. Responda em português do Brasil, em no máximo 4 linhas curtas, linguagem simples, dizendo o que está acontecendo, o que já foi corrigido sozinho e o que a pessoa precisa fazer. Não use termos técnicos.",
+          input: `${base}\n\nOcorrências do ciclo:\n${lista}`,
+        }),
       },
       { label: "a IA do resumo", timeoutMs: 20_000 },
     );

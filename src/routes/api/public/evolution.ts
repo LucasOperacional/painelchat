@@ -179,7 +179,8 @@ function contactMessageBody(message: Record<string, unknown>): string | null {
 
   const cards = entries.flatMap((contact) => {
     const vcard = textField(contact, "vcard", "Vcard");
-    const name = textField(contact, "displayName", "fullName", "name") || vcardValue(vcard, "FN") || "Contato";
+    const name =
+      textField(contact, "displayName", "fullName", "name") || vcardValue(vcard, "FN") || "Contato";
     const phone = textField(contact, "phone", "phoneNumber", "number") || vcardValue(vcard, "TEL");
     const normalizedPhone = phone.replace(/^tel:/i, "").replace(/[^\d+]/g, "");
     return normalizedPhone ? [`👤 Contato: ${name}\n📞 ${normalizedPhone}`] : [];
@@ -205,11 +206,12 @@ function unwrapMessage(
     "viewOnceMessageV2Extension",
     "documentWithCaptionMessage",
   );
-  const dentro = envelope ? (field<Record<string, unknown>>(envelope, "message") ?? envelope) : null;
+  const dentro = envelope
+    ? (field<Record<string, unknown>>(envelope, "message") ?? envelope)
+    : null;
   if (dentro && typeof dentro === "object") return unwrapMessage(dentro, profundidade + 1);
   return message;
 }
-
 
 /** Texto exibido na central para cada tipo de mensagem documentado. */
 function extractText(message: Record<string, unknown> | undefined): string {
@@ -257,7 +259,11 @@ function extractText(message: Record<string, unknown> | undefined): string {
 
   if (field(message, "audioMessage")) return "[áudio recebido]";
   if (field(message, "stickerMessage")) return "🖼 Figurinha";
-  const location = field<Record<string, unknown>>(message, "locationMessage", "liveLocationMessage");
+  const location = field<Record<string, unknown>>(
+    message,
+    "locationMessage",
+    "liveLocationMessage",
+  );
   if (location) {
     const lat = Number(field<unknown>(location, "degreesLatitude", "degrees_latitude"));
     const lng = Number(field<unknown>(location, "degreesLongitude", "degrees_longitude"));
@@ -277,7 +283,8 @@ function extractText(message: Record<string, unknown> | undefined): string {
   const contacts = contactMessageBody(message);
   if (contacts) return contacts;
   if (field(message, "contactMessage", "contactsArrayMessage")) return "[contato recebido]";
-  if (message["pollCreationMessage"] || message["pollCreationMessageV3"]) return "[enquete recebida]";
+  if (message["pollCreationMessage"] || message["pollCreationMessageV3"])
+    return "[enquete recebida]";
   if (message["pollUpdateMessage"] || message["pollVoteMessage"]) return "[voto em enquete]";
   if (message["reactionMessage"]) {
     const reaction = message["reactionMessage"] as { text?: string };
@@ -337,11 +344,13 @@ function extractRevoke(message: Record<string, unknown> | undefined): string | n
   return typeof alvo === "string" && alvo.trim() ? alvo.trim() : null;
 }
 
-function editTargetFromInfo(info: EvolutionWebhook["data"] extends infer Data
-  ? Data extends { Info?: infer Info }
-    ? Info
-    : never
-  : never): string | null {
+function editTargetFromInfo(
+  info: EvolutionWebhook["data"] extends infer Data
+    ? Data extends { Info?: infer Info }
+      ? Info
+      : never
+    : never,
+): string | null {
   if (!info) return null;
   const metadataTarget = info.MsgMetaInfo
     ? field<unknown>(info.MsgMetaInfo, "TargetID", "TargetId", "target_id")
@@ -399,7 +408,9 @@ function collectPollVotes(value: unknown, depth = 0): string[] {
 }
 
 /** Converte o voto da enquete no texto da opção escolhida, comparando o sha256 das opções do menu. */
-async function resolvePollVote(message: Record<string, unknown> | undefined): Promise<string | null> {
+async function resolvePollVote(
+  message: Record<string, unknown> | undefined,
+): Promise<string | null> {
   const poll = message?.["pollUpdateMessage"] ?? message?.["pollVoteMessage"];
   if (!poll) return null;
   const votes = collectPollVotes(poll);
@@ -482,7 +493,10 @@ const EVENT_ALIAS: Record<string, string> = {
 function normalizeEventName(raw: string): string {
   const direto = EVENT_ALIAS[raw];
   if (direto) return direto;
-  const chave = raw.trim().replace(/[.\-\s]+/g, "_").toUpperCase();
+  const chave = raw
+    .trim()
+    .replace(/[.\-\s]+/g, "_")
+    .toUpperCase();
   return EVENT_ALIAS[chave] ?? raw;
 }
 
@@ -548,7 +562,8 @@ function fromWuzapi(raw: Record<string, any>): EvolutionWebhook {
   // chats no formato @lid (id interno, sem telefone) viravam números fantasmas
   // e a mensagem ficava perdida fora da conversa certa.
   const contact = (raw["contact"] ?? {}) as Record<string, any>;
-  const jidLimpo = (valor: unknown) => (typeof valor === "string" && valor.includes("@") ? valor : "");
+  const jidLimpo = (valor: unknown) =>
+    typeof valor === "string" && valor.includes("@") ? valor : "";
   const senderJid = jidLimpo(contact["sender_jid"]);
   const chatJid = jidLimpo(contact["chat_jid"]);
   const info = (inner["Info"] ?? undefined) as Record<string, any> | undefined;
@@ -558,7 +573,12 @@ function fromWuzapi(raw: Record<string, any>): EvolutionWebhook {
     const propria = novoInfo["IsFromMe"] === true;
     // Mensagem enviada pelo celular: sender_jid é o NOSSO número e não serve
     // para achar a conversa — quem manda na identificação é o chat_jid.
-    if (senderJid && !propria && !atual("SenderAlt") && !atual("Sender").includes("@s.whatsapp.net")) {
+    if (
+      senderJid &&
+      !propria &&
+      !atual("SenderAlt") &&
+      !atual("Sender").includes("@s.whatsapp.net")
+    ) {
       novoInfo["SenderAlt"] = senderJid;
     }
     if (chatJid && propria && !atual("RecipientAlt")) {
@@ -576,12 +596,14 @@ function fromWuzapi(raw: Record<string, any>): EvolutionWebhook {
 
   const message = inner["Message"] as Record<string, unknown> | undefined;
   if (message && typeof message === "object") {
-    const base64 = field<unknown>(raw, "base64", "fileBase64", "data") ??
+    const base64 =
+      field<unknown>(raw, "base64", "fileBase64", "data") ??
       field<unknown>(inner, "base64", "fileBase64", "data");
-    const mimeType = field<unknown>(raw, "mimeType", "mimetype", "contentType") ??
+    const mimeType =
+      field<unknown>(raw, "mimeType", "mimetype", "contentType") ??
       field<unknown>(inner, "mimeType", "mimetype", "contentType");
-    const fileName = field<unknown>(raw, "fileName", "filename") ??
-      field<unknown>(inner, "fileName", "filename");
+    const fileName =
+      field<unknown>(raw, "fileName", "filename") ?? field<unknown>(inner, "fileName", "filename");
     const url =
       (raw["s3"] as { url?: string } | undefined)?.url ??
       (inner["s3"] as { url?: string } | undefined)?.url ??
@@ -705,10 +727,13 @@ async function fromWaha(raw: Record<string, any>): Promise<EvolutionWebhook> {
     IsFromMe: fromMe,
     IsGroup: isGroup,
     ID: String(payload["id"] ?? infoBruto["ID"] ?? ""),
-    Timestamp:
-      payload["timestamp"] ?? interno["timestamp"] ?? infoBruto["Timestamp"] ?? null,
+    Timestamp: payload["timestamp"] ?? interno["timestamp"] ?? infoBruto["Timestamp"] ?? null,
     PushName:
-      payload["notifyName"] ?? interno["notifyName"] ?? interno["pushName"] ?? infoBruto["PushName"] ?? null,
+      payload["notifyName"] ??
+      interno["notifyName"] ??
+      interno["pushName"] ??
+      infoBruto["PushName"] ??
+      null,
     ...(isGroup && participante ? { Participant: participante } : {}),
     ...(senderAlt ? { SenderAlt: senderAlt } : {}),
   };
@@ -722,7 +747,6 @@ async function fromWaha(raw: Record<string, any>): Promise<EvolutionWebhook> {
   } else if (recipientAlt) {
     info["RecipientAlt"] = recipientAlt;
   }
-
 
   const texto = String(payload["body"] ?? payload["after"]?.["body"] ?? "");
   const midia = (payload["media"] ?? null) as Record<string, any> | null;
@@ -742,9 +766,10 @@ async function fromWaha(raw: Record<string, any>): Promise<EvolutionWebhook> {
     const fileName = String(midia["filename"] ?? interno["filename"] ?? "");
     const comum = { url, mediaUrl: url, mimetype, ...(texto ? { caption: texto } : {}) };
     if (/^image\//i.test(mimetype)) {
-      mensagem = interno["isSticker"] === true
-        ? { stickerMessage: { url, mediaUrl: url, mimetype: mimetype || "image/webp" } }
-        : { imageMessage: comum };
+      mensagem =
+        interno["isSticker"] === true
+          ? { stickerMessage: { url, mediaUrl: url, mimetype: mimetype || "image/webp" } }
+          : { imageMessage: comum };
     } else if (/^video\//i.test(mimetype)) {
       mensagem = { videoMessage: comum };
     } else if (/^audio\//i.test(mimetype)) {
@@ -763,7 +788,6 @@ async function fromWaha(raw: Record<string, any>): Promise<EvolutionWebhook> {
     ...base,
   } as EvolutionWebhook;
 }
-
 
 /**
  * Lê o corpo do webhook. A Evolution Go envia JSON puro; a WuzAPI pode enviar
@@ -811,7 +835,10 @@ async function readWebhookBody(request: Request): Promise<EvolutionWebhook> {
     ("Info" in (raw["event"] as Record<string, unknown>) ||
       "Message" in (raw["event"] as Record<string, unknown>) ||
       "contact" in raw);
-  if (raw && ((typeof raw["type"] === "string" && typeof raw["event"] !== "string") || pareceWuzapi)) {
+  if (
+    raw &&
+    ((typeof raw["type"] === "string" && typeof raw["event"] !== "string") || pareceWuzapi)
+  ) {
     return fromWuzapi(raw);
   }
   // Envelope Baileys: { event, data: { key: { remoteJid, fromMe }, message } }.
@@ -831,998 +858,999 @@ async function readWebhookBody(request: Request): Promise<EvolutionWebhook> {
  * reprocessar um evento guardado sem depender da rede.
  */
 export async function processarWebhookEvolution(request: Request): Promise<Response> {
-      {
+  {
+    const token =
+      new URL(request.url).searchParams.get("token") ?? request.headers.get("x-webhook-token");
+    if (!token) return new Response("Unauthorized", { status: 401 });
 
-        const token =
-          new URL(request.url).searchParams.get("token") ?? request.headers.get("x-webhook-token");
-        if (!token) return new Response("Unauthorized", { status: 401 });
+    let payload: EvolutionWebhook;
+    try {
+      payload = await readWebhookBody(request);
+    } catch {
+      return new Response("Bad Request", { status: 400 });
+    }
 
-        let payload: EvolutionWebhook;
-        try {
-          payload = await readWebhookBody(request);
-        } catch {
-          return new Response("Bad Request", { status: 400 });
-        }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const eventoBruto = String(payload.event ?? "");
+    const event = normalizeEventName(eventoBruto);
+    const instanceRef = payload.instanceId ?? null;
+    console.log(`[webhook] recebido evento=${event} instancia=${instanceRef ?? "-"}`);
 
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const eventoBruto = String(payload.event ?? "");
-        const event = normalizeEventName(eventoBruto);
-        const instanceRef = payload.instanceId ?? null;
-        console.log(`[webhook] recebido evento=${event} instancia=${instanceRef ?? "-"}`);
+    // O token da URL identifica o dispositivo desta central.
+    const COLUNAS_CONFIG =
+      "id, default_queue_id, status, last_event, phone, provider, instance_id, instance_name, base_url, project_id";
+    const { data: byToken } = await supabaseAdmin
+      .from("whatsapp_config")
+      .select(COLUNAS_CONFIG)
+      .eq("webhook_token", token)
+      .maybeSingle();
 
+    type ConfigWebhook = {
+      id: string;
+      default_queue_id: string | null;
+      status: string | null;
+      last_event: string | null;
+      phone: string | null;
+      provider: string | null;
+      instance_id?: string | null;
+      instance_name?: string | null;
+      base_url?: string | null;
+    };
+    let config = byToken as ConfigWebhook | null;
 
-        // O token da URL identifica o dispositivo desta central.
-        const COLUNAS_CONFIG =
-          "id, default_queue_id, status, last_event, phone, provider, instance_id, instance_name, base_url, project_id";
-        const { data: byToken } = await supabaseAdmin
-          .from("whatsapp_config")
-          .select(COLUNAS_CONFIG)
-          .eq("webhook_token", token)
-          .maybeSingle();
+    if (!config) {
+      // Token antigo (aparelho recriado ou webhook desatualizado no servidor).
+      // Nenhuma mensagem pode ser perdida: identificamos o aparelho pelos
+      // dados do próprio evento antes de recusar.
+      const { data: todos } = await supabaseAdmin.from("whatsapp_config").select(COLUNAS_CONFIG);
+      const lista = (todos ?? []) as unknown as ConfigWebhook[];
+      const nomeInstancia = (payload.instanceName ?? "").trim().toLowerCase();
+      // O campo `token` da WuzAPI identifica o usuário/sessão dela e é
+      // normalizado como instanceId. Por isso, a presença de instanceId não
+      // pode ser usada para concluir que o evento veio da Evolution Go.
+      const provedorProvavel =
+        payload.sourceProvider ??
+        (payload.instanceId || payload.instanceName ? "evolution" : "wuzapi");
+      const doProvedor = lista.filter(
+        (item) => (item.provider ?? "evolution") === provedorProvavel,
+      );
 
-        type ConfigWebhook = {
-          id: string;
-          default_queue_id: string | null;
-          status: string | null;
-          last_event: string | null;
-          phone: string | null;
-          provider: string | null;
-          instance_id?: string | null;
-          instance_name?: string | null;
-          base_url?: string | null;
-        };
-        let config = byToken as ConfigWebhook | null;
+      config =
+        (instanceRef
+          ? lista.find((item) => String(item.instance_id ?? "") === String(instanceRef))
+          : null) ??
+        (nomeInstancia
+          ? doProvedor.find(
+              (item) => (item.instance_name ?? "").trim().toLowerCase() === nomeInstancia,
+            )
+          : null) ??
+        (doProvedor.length === 1 ? doProvedor[0] : null) ??
+        (lista.length === 1 ? lista[0] : null) ??
+        null;
 
-        if (!config) {
-          // Token antigo (aparelho recriado ou webhook desatualizado no servidor).
-          // Nenhuma mensagem pode ser perdida: identificamos o aparelho pelos
-          // dados do próprio evento antes de recusar.
-          const { data: todos } = await supabaseAdmin
-            .from("whatsapp_config")
-            .select(COLUNAS_CONFIG);
-          const lista = (todos ?? []) as unknown as ConfigWebhook[];
-          const nomeInstancia = (payload.instanceName ?? "").trim().toLowerCase();
-          // O campo `token` da WuzAPI identifica o usuário/sessão dela e é
-          // normalizado como instanceId. Por isso, a presença de instanceId não
-          // pode ser usada para concluir que o evento veio da Evolution Go.
-          const provedorProvavel =
-            payload.sourceProvider ?? (payload.instanceId || payload.instanceName ? "evolution" : "wuzapi");
-          const doProvedor = lista.filter(
-            (item) => (item.provider ?? "evolution") === provedorProvavel,
-          );
-
-          config =
-            (instanceRef
-              ? lista.find((item) => String(item.instance_id ?? "") === String(instanceRef))
-              : null) ??
-            (nomeInstancia
-              ? doProvedor.find(
-                  (item) => (item.instance_name ?? "").trim().toLowerCase() === nomeInstancia,
-                )
-              : null) ??
-            (doProvedor.length === 1 ? doProvedor[0] : null) ??
-            (lista.length === 1 ? lista[0] : null) ??
-            null;
-
-          // A WuzAPI pode recriar a sessão e continuar entregando pelo endereço
-          // antigo por alguns minutos. Confirmamos o token da sessão no próprio
-          // servidor e ligamos pelo número do WhatsApp (aceitando com/sem o 9).
-          // Isso preserva as mensagens sem alterar a conexão fixa da conversa.
-          if (!config && payload.sourceProvider === "wuzapi" && instanceRef) {
-            const { evolutionListInstances } = await import("@/lib/evolution.server");
-            const consultados = new Set<string>();
-            for (const candidato of doProvedor) {
-              const baseUrl = (candidato.base_url ?? "").trim();
-              if (!baseUrl || consultados.has(baseUrl)) continue;
-              consultados.add(baseUrl);
-              try {
-                const sessoes = await evolutionListInstances({
-                  baseUrl,
-                  configId: candidato.id,
-                  provider: "wuzapi",
-                });
-                const sessao = sessoes.find(
-                  (item) =>
-                    nestedStringByKeys(item, new Set(["token", "usertoken", "clienttoken"])) ===
-                    instanceRef,
-                );
-                if (!sessao) continue;
-                const telefone = nestedStringByKeys(
-                  sessao,
-                  new Set(["jid", "phone", "phonenumber", "number", "wid"]),
-                );
-                config = doProvedor.find(
-                  (item) => item.base_url === baseUrl && sameBrazilianPhone(item.phone, telefone),
-                ) ?? null;
-                if (config) break;
-              } catch {
-                // A mensagem fica no diário e será tentada novamente pela Sentinela.
-              }
-            }
-          }
-
-          if (!config) return Response.json({ received: true, ignored: "aparelho-desconhecido" });
-          console.warn(
-            `[webhook] token desatualizado; evento atribuído ao aparelho ${config.id} (${config.provider ?? "evolution"}) por ${instanceRef ? "instanceId" : nomeInstancia ? "instanceName" : "provedor"}`,
-          );
-        }
-
-        // Sessões antigas de outro provedor (ex.: WuzAPI) apontando para o
-        // endereço de um aparelho WAHA não podem gravar mensagens nele.
-        if (
-          payload.sourceProvider &&
-          (config.provider ?? "evolution") !== payload.sourceProvider
-        ) {
-          return Response.json({ received: true, ignored: "provedor-diferente-do-aparelho" });
-        }
-
-
-        const now = new Date().toISOString();
-        const wasConnected = config.status === "connected";
-        const touch = (patch: Record<string, unknown>) =>
-          supabaseAdmin
-            .from("whatsapp_config")
-            .update({ last_event: event, updated_at: now, ...patch })
-            .eq("id", config!.id);
-
-        switch (event) {
-          case "QRCode": {
-            const qr = payload.data?.Qrcode ?? payload.data?.qrcode ?? null;
-            await touch({ status: "connecting", ...(qr ? { last_qr: qr } : {}) });
-            // QR na tela: garante que os eventos desta central já estão firmados.
-            void (await import("@/lib/evolution.server")).ensureEvolutionWebhook(config.id, {
-              requestUrl: request.url,
-            });
-            return Response.json({ received: true });
-          }
-          case "PairSuccess": {
-            const jid = payload.data?.jid ?? "";
-            await touch({
-              status: "connected",
-              last_qr: null,
-              ...(jid ? { phone: jidToPhone(jid) } : {}),
-            });
-            // Número pareado: reconfigura o webhook com todos os eventos.
-            await (await import("@/lib/evolution.server")).ensureEvolutionWebhook(config.id, {
-              requestUrl: request.url,
-              force: true,
-            });
-            try {
-              const { validarConexaoAposParear } = await import("@/lib/connection-test.server");
-              await validarConexaoAposParear(config.id);
-            } catch {
-              /* o teste é apenas uma verificação extra */
-            }
-            return Response.json({ received: true });
-          }
-          case "Connected": {
-            // O processo da instância reconectou ao servidor. Se o número já
-            // estava pareado, isso NÃO significa perder a sessão do WhatsApp.
-            // Na WuzAPI este evento também chega apenas ao abrir a sessão para
-            // gerar o QR; somente PairSuccess ou LoggedIn confirma pareamento.
-            await touch(
-              config.provider === "wuzapi"
-                ? { status: "connecting" }
-                : wasConnected
-                  ? { status: "connected", last_qr: null }
-                  : { status: "connecting" },
-            );
-            await (await import("@/lib/evolution.server")).ensureEvolutionWebhook(config.id, {
-              requestUrl: request.url,
-            });
-            return Response.json({ received: true });
-          }
-          case "LoggedOut": {
-            // Saída real da sessão: o número precisa parear de novo.
-            await touch({ status: "disconnected", last_qr: null });
-            const { limparTesteConexao } = await import("@/lib/connection-test.server");
-            await limparTesteConexao(config.id);
-            return Response.json({ received: true });
-          }
-          case "Disconnected": {
-            // Quedas momentâneas de rede da Evolution Go disparam Disconnected
-            // seguido de reconexão. Só derrubamos na segunda ocorrência seguida.
-            if (wasConnected && config.last_event !== "Disconnected") {
-              await touch({ status: "connected" });
-            } else {
-              await touch({ status: "disconnected", last_qr: null });
-            }
-            // Depois de uma queda o aparelho costuma voltar sem a assinatura do
-            // webhook: reassinamos na hora para não ficar sem receber mensagens.
-            try {
-              await (await import("@/lib/evolution.server")).ensureEvolutionWebhook(config.id, {
-                requestUrl: request.url,
-                force: true,
-              });
-            } catch {
-              /* a verificação automática tenta de novo no próximo ciclo */
-            }
-            return Response.json({ received: true });
-          }
-
-          case "OfflineSyncCompleted": {
-            await touch({ status: "connected", last_qr: null });
-            return Response.json({ received: true });
-          }
-          case "HistorySync": {
-            // O WhatsApp envia o histórico do celular logo após o pareamento:
-            // conversas normais e grupos entram na central com a data original.
-            await touch({ status: "connected", last_qr: null });
-            try {
-              const { importarHistorySync } = await import("@/lib/historico.server");
-              const resumo = await importarHistorySync(payload.data, config.id);
-              console.log(
-                `[webhook] HistorySync device=${config.id} conversas=${resumo.conversas} mensagens=${resumo.mensagens}`,
-              );
-            } catch (error) {
-              console.error("[webhook] falha ao importar histórico", error);
-            }
-            return Response.json({ received: true });
-          }
-          // Mensagens enviadas pelo próprio celular chegam como SendMessage em
-          // algumas versões da Evolution Go: são sincronizadas na conversa.
-          case "Message":
-          case "SendMessage":
-            break;
-          default:
-            // Receipt, Presence, Call*, Group*, Newsletter*, Label*
-            return Response.json({ received: true });
-        }
-
-        const info = payload.data?.Info;
-        const message = payload.data?.Message;
-        if (!info) return Response.json({ received: true });
-        // Mensagens enviadas pela própria conta conectada NÃO disparam chatbot,
-        // IA ou respostas (proteção total contra loop), mas são sempre gravadas
-        // no histórico da conversa. Única exceção de comando: texto curto e
-        // exato do administrador no "chat consigo mesmo".
-        // Mensagem apagada ("apagar para todos"): marca a original como
-        // apagada, tanto quando o contato apaga como quando você apaga no
-        // celular. Nunca dispara chatbot, IA ou resposta automática.
-        const revokedId = extractRevoke(message as Record<string, unknown> | undefined);
-        if (revokedId) {
-          const { data: alvoApagado } = await supabaseAdmin
-            .from("messages")
-            .select("id")
-            .eq("external_id", revokedId)
-            .limit(1)
-            .maybeSingle();
-          if (alvoApagado) {
-            await supabaseAdmin
-              .from("messages")
-              .update({ deleted_at: new Date().toISOString() })
-              .eq("id", alvoApagado.id);
-            return Response.json({ received: true, deleted: true });
-          }
-          return Response.json({ received: true, ignored: "revoke-sem-original" });
-        }
-
-        const fromMe = !!info.IsFromMe || event === "SendMessage";
-        if (fromMe) {
-          const textoProprio = extractText(message).trim();
-          const { ehComandoEstrito, ehEcoAutomatico, ehAdminRemoto, processarComandoAdmin } =
-            await import("@/lib/remote-admin.server");
-          const chatProprio = String(info.Chat ?? info.Sender ?? "");
-          const grupoProprio = !!info.IsGroup || chatProprio.includes("@g.us");
-          const recordFromMe = info as Record<string, unknown>;
-          const candidatosProprios = [
-            chatProprio,
-            String(info.SenderAlt ?? ""),
-            String(recordFromMe["RecipientAlt"] ?? recordFromMe["ReceiverAlt"] ?? ""),
-            String(info.Sender ?? ""),
-          ]
-            .filter((jid) => jid && !jid.includes("@lid"))
-            .map(jidToPhone)
-            .filter(Boolean);
-          let adminProprio = "";
-          if (
-            !grupoProprio &&
-            textoProprio &&
-            !ehEcoAutomatico(textoProprio) &&
-            ehComandoEstrito(textoProprio)
-          ) {
-            for (const cand of candidatosProprios) {
-              if (await ehAdminRemoto(cand)) {
-                adminProprio = cand;
-                break;
-              }
-            }
-          }
-          if (adminProprio) {
-            console.log(
-              `[webhook] comando do proprio aparelho aceito: de=${adminProprio} texto=${textoProprio.slice(0, 30)}`,
-            );
-            let tratado = false;
-            try {
-              tratado = await processarComandoAdmin({
-                phoneDigits: adminProprio,
-                body: textoProprio,
-                configId: config.id,
-                requestUrl: request.url,
-                fromMe: true,
-              });
-            } catch (error) {
-              console.error("[webhook] falha no comando admin:", (error as Error).message);
-            }
-            return Response.json({ received: true, admin: true, tratado });
-          }
-          console.log(
-            `[webhook] fromMe registrado no historico: evento=${event} device=${config.id} id=${info.ID ?? "-"} len=${textoProprio.length}`,
-          );
-        }
-
-        // Chegou mensagem externa: a sessão está viva. Desfaz qualquer queda falsa.
-        if (!wasConnected) {
-          await supabaseAdmin
-            .from("whatsapp_config")
-            .update({ status: "connected", last_qr: null, updated_at: now })
-            .eq("id", config.id);
-        }
-
-        const chatRaw = String(info.Chat ?? info.Sender ?? "");
-        const isGroup = !!info.IsGroup || chatRaw.includes("@g.us");
-
-        // Stories (status@broadcast) e canais (@newsletter) não são conversas de
-        // atendimento: ficam guardados à parte para visualização na tela
-        // "Stories e canais".
-        if (/@(broadcast|newsletter)$/i.test(chatRaw.trim())) {
-          const ehCanal = /@newsletter$/i.test(chatRaw.trim());
-          const envelopeMidia = unwrapMessage(message);
-          const textoOriginal = extractText(message).slice(0, 4000);
-          const mediaUrlBruta = [message, envelopeMidia].reduce<string>((achado, alvo) => {
-            if (achado || !alvo) return achado;
-            const valor = field<unknown>(alvo, "mediaUrl", "mediaURL", "url", "URL", "file_url");
-            return typeof valor === "string" && valor ? valor : "";
-          }, "");
-          const mediaUrl = (() => {
-            if (!mediaUrlBruta) return "";
-            try {
-              const alvo = new URL(mediaUrlBruta);
-              if (!/^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/i.test(alvo.hostname)) return mediaUrlBruta;
-              const base = String((config as { base_url?: string }).base_url ?? "");
-              if (!base) return mediaUrlBruta;
-              const publico = new URL(base);
-              alvo.protocol = publico.protocol;
-              alvo.hostname = publico.hostname;
-              alvo.port = publico.port;
-              return alvo.toString();
-            } catch {
-              return mediaUrlBruta;
-            }
-          })();
-          const isEncryptedStoryUrl = (value: string | null) => {
-            if (!value) return false;
-            if (/\.enc(?:\?|$)/i.test(value)) return true;
-            try {
-              return /(?:^|\.)mmg\.whatsapp\.net$/i.test(new URL(value).hostname);
-            } catch {
-              return /mmg\.whatsapp\.net/i.test(value);
-            }
-          };
-          const isInternalStoryUrl = (value: string | null) => {
-            if (!value) return false;
-            try {
-              const host = new URL(value).hostname;
-              return /^(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|\[?::1\]?|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)$/i.test(
-                host,
-              );
-            } catch {
-              return false;
-            }
-          };
-          const eventoBase64 = [message, envelopeMidia].reduce<string | null>((achado, alvo) => {
-            if (achado || !alvo) return achado;
-            const valor = field<unknown>(alvo, "base64", "fileBase64", "data");
-            return mediaBase64Valido(valor);
-          }, null);
-          const obterBase64Story = async (
-            kind: "image" | "sticker" | "video" | "audio" | "document",
-            media: Record<string, unknown> | undefined,
-          ): Promise<string | null> => {
-            if (eventoBase64) return eventoBase64;
-            const urlDaMidia = media ? textField(media, "url", "URL", "mediaUrl", "mediaURL") : "";
-            const temChave = !!media && !!textField(media, "mediaKey", "media_key");
-            const precisaConector =
-              temChave && (isEncryptedStoryUrl(urlDaMidia || null) || isInternalStoryUrl(mediaUrl));
-            if (
-              !precisaConector &&
-              mediaUrl &&
-              !isEncryptedStoryUrl(mediaUrl) &&
-              !isInternalStoryUrl(mediaUrl)
-            ) {
-              return null;
-            }
-            const { downloadInboundMedia } = await import("@/lib/evolution.server");
-            const mediaParaDownload = mediaUrl && media && !textField(media, "url", "URL", "mediaUrl", "mediaURL")
-              ? { ...media, url: mediaUrl }
-              : media;
-            const baixado = await downloadInboundMedia({
-              configId: config!.id,
-              kind,
-              media: mediaParaDownload,
-            });
-            if (!baixado) console.warn(`[stories] não consegui baixar a mídia (${kind})`);
-            return baixado?.base64 ?? null;
-          };
-          const midiaStory = <T,>(nome: string) =>
-            (envelopeMidia ? field<T>(envelopeMidia, nome) : undefined) ?? undefined;
-          const storageKey =
-            jidToPhone(chatRaw) ||
-            jidToPhone(String(info.Participant ?? info.SenderAlt ?? info.Sender ?? "")) ||
-            "stories";
-          const sticker = midiaStory<Record<string, unknown>>("stickerMessage");
-          const image = midiaStory<Record<string, unknown>>("imageMessage");
-          const video = midiaStory<Record<string, unknown>>("videoMessage");
-          const audio = midiaStory<Record<string, unknown>>("audioMessage");
-          const documento = midiaStory<Record<string, unknown>>("documentMessage");
-          let texto = textoOriginal;
-          let urlMidia = mediaUrl;
-          let tipoMidia = "nenhum";
-
-          if (sticker || image) {
-            const visual = sticker ?? image;
-            const base64 = await obterBase64Story(sticker ? "sticker" : "image", visual);
-            const { storeInboundImage } = await import("@/lib/media.server");
-            const stored = await storeInboundImage({
-              phoneDigits: storageKey,
-              mimeType: textField(visual, "mimetype", "mimeType", "contentType") || (sticker ? "image/webp" : "image/jpeg"),
-              base64,
-              url: mediaUrl || textField(visual, "url", "URL") || null,
-              folder: sticker ? "stories/figurinhas" : "stories/imagens",
-            });
-            urlMidia = stored ?? mediaUrl;
-            tipoMidia = sticker ? "figurinha" : "imagem";
-            texto = textField(image, "caption") || textoOriginal;
-          } else if (video) {
-            const base64 = await obterBase64Story("video", video);
-            const { storeInboundVideo } = await import("@/lib/media.server");
-            const stored = await storeInboundVideo({
-              phoneDigits: storageKey,
-              mimeType: textField(video, "mimetype", "mimeType", "contentType") || "video/mp4",
-              base64,
-              url: mediaUrl || textField(video, "url", "URL") || null,
-            });
-            urlMidia = stored ?? mediaUrl;
-            tipoMidia = "video";
-            texto = textField(video, "caption") || textoOriginal;
-          } else if (audio) {
-            const base64 = await obterBase64Story("audio", audio);
-            const { storeInboundAudio } = await import("@/lib/audio.server");
-            const stored = await storeInboundAudio({
-              phoneDigits: storageKey,
-              mimeType: textField(audio, "mimetype", "mimeType", "contentType") || "audio/ogg",
-              base64,
-              url: mediaUrl || textField(audio, "url", "URL") || null,
-            });
-            urlMidia = stored?.url ?? mediaUrl;
-            tipoMidia = "audio";
-            if (stored?.transcript) texto = `🗣 Transcrição: ${stored.transcript}`;
-          } else if (documento) {
-            const base64 = await obterBase64Story("document", documento);
-            const { storeInboundDocument } = await import("@/lib/media.server");
-            const stored = await storeInboundDocument({
-              phoneDigits: storageKey,
-              fileName: textField(documento, "fileName", "filename") || null,
-              mimeType: textField(documento, "mimetype", "mimeType", "contentType") || null,
-              base64,
-              url: mediaUrl || textField(documento, "url", "URL") || null,
-            });
-            urlMidia = stored?.url ?? mediaUrl;
-            tipoMidia = "documento";
-            texto = stored?.name || textoOriginal;
-          } else if (!texto || isUnsupportedText(texto)) {
-            const chaves = Object.keys((envelopeMidia ?? message ?? {}) as Record<string, unknown>)
-              .filter((chave) => !/^messageContextInfo$/i.test(chave))
-              .join(", ");
-            tipoMidia = "nao_suportada";
-            texto = chaves ? `Mensagem não suportada recebida (${chaves})` : "Mensagem não suportada recebida";
-          }
+      // A WuzAPI pode recriar a sessão e continuar entregando pelo endereço
+      // antigo por alguns minutos. Confirmamos o token da sessão no próprio
+      // servidor e ligamos pelo número do WhatsApp (aceitando com/sem o 9).
+      // Isso preserva as mensagens sem alterar a conexão fixa da conversa.
+      if (!config && payload.sourceProvider === "wuzapi" && instanceRef) {
+        const { evolutionListInstances } = await import("@/lib/evolution.server");
+        const consultados = new Set<string>();
+        for (const candidato of doProvedor) {
+          const baseUrl = (candidato.base_url ?? "").trim();
+          if (!baseUrl || consultados.has(baseUrl)) continue;
+          consultados.add(baseUrl);
           try {
-            await supabaseAdmin.from("stories_recebidos").insert({
-                project_id: (config as { project_id?: string | null }).project_id ?? null,
-                config_id: config.id,
-                tipo: ehCanal ? "canal" : "status",
-                chat_jid: chatRaw.trim(),
-                autor_jid: String(info.Participant ?? info.SenderAlt ?? info.Sender ?? ""),
-                autor_nome: String(info.PushName ?? ""),
-                texto: texto.slice(0, 4000),
-                midia_url: urlMidia,
-                midia_tipo: tipoMidia,
-              wa_id: String(info.ID ?? ""),
+            const sessoes = await evolutionListInstances({
+              baseUrl,
+              configId: candidato.id,
+              provider: "wuzapi",
             });
-          } catch (erro) {
-            console.warn("[webhook] falha ao guardar story", erro);
-          }
-          return Response.json({ received: true, stored: ehCanal ? "canal" : "status" });
-        }
-
-        // Conversa individual: o WhatsApp novo entrega o chat como @lid (um id
-        // interno, sem telefone). O número real pode vir em SenderAlt,
-        // RecipientAlt (respostas feitas no celular) ou Sender.
-        const record0 = info as Record<string, unknown>;
-        const recipientAlt = String(record0["RecipientAlt"] ?? record0["ReceiverAlt"] ?? "");
-        const isBrPhone = (d: string) => /^55\d{10,11}$/.test(d);
-        // Quando a mensagem é nossa (respondida no celular), o campo Sender é o
-        // nosso próprio número — nunca serve para identificar a conversa.
-        // Mensagem enviada pelo celular: o outro lado está no chat/RecipientAlt.
-        // Sender e SenderAlt são o nosso próprio número nesses eventos.
-        const rawCandidates = fromMe
-          ? [recipientAlt, chatRaw]
-          : [chatRaw, String(info.SenderAlt ?? ""), recipientAlt, String(info.Sender ?? "")];
-        const directCandidates = rawCandidates
-          .filter((jid) => jid && !jid.includes("@lid"))
-          .map(jidToPhone);
-        // Guarda o id interno (@lid) do outro lado da conversa para reconhecer
-        // a mesma pessoa quando o celular não manda o telefone.
-        const lidJid =
-          [chatRaw, String(info.SenderAlt ?? ""), recipientAlt, String(info.Sender ?? "")].find(
-            (jid) => jid.includes("@lid"),
-          ) ?? "";
-        let phoneDigits = isGroup
-          ? jidToPhone(chatRaw)
-          : (directCandidates.find(isBrPhone) ?? directCandidates.find(Boolean) ?? "");
-
-        // Sem telefone no evento: procura o contato já conhecido por esse @lid.
-        // O mesmo id interno pode ter sido gravado por engano em mais de um
-        // contato, então usa o mais recente em vez de falhar a busca.
-        if (!phoneDigits && !isGroup && lidJid) {
-          const { data: byLid } = await supabaseAdmin
-            .from("contacts")
-            .select("phone, updated_at")
-            .eq("lid", lidJid)
-            .order("updated_at", { ascending: false })
-            .limit(1);
-          const achado = (byLid as Array<{ phone?: string }> | null)?.[0];
-          phoneDigits = (achado?.phone ?? "").trim();
-        }
-
-
-        // Alguns eventos novos chegam apenas com @lid, sem SenderAlt. O LID é
-        // estável e permite preservar a conversa até o número real aparecer.
-        if (!phoneDigits && !isGroup && lidJid) phoneDigits = jidToPhone(lidJid);
-
-        console.log(
-          `[webhook] ${event} device=${config.id} grupo=${isGroup} fromMe=${fromMe} chat=${chatRaw} sender=${info.Sender ?? ""} senderAlt=${info.SenderAlt ?? ""} recipientAlt=${recipientAlt} lid=${lidJid} telefone=${phoneDigits}`,
-        );
-
-        if (!phoneDigits) {
-          console.warn("[webhook] descartada: sem telefone identificável", chatRaw);
-          return Response.json({ received: true, ignored: "sem-telefone" });
-        }
-
-        const memorizarLid = async () => {
-          // Memoriza o @lid no contato para os próximos eventos do celular.
-          // Um mesmo id interno não pode ficar em dois contatos: isso misturava
-          // pessoas diferentes na mesma conversa.
-          if (isGroup || !lidJid) return;
-          const { data: jaUsado } = await supabaseAdmin
-            .from("contacts")
-            .select("phone")
-            .eq("lid", lidJid)
-            .limit(1);
-          const donoAtual = (jaUsado as Array<{ phone?: string }> | null)?.[0]?.phone ?? "";
-          if (donoAtual && donoAtual !== phoneDigits) return;
-          await supabaseAdmin
-            .from("contacts")
-            .update({ lid: lidJid })
-            .eq("phone", phoneDigits)
-            .is("lid", null);
-        };
-
-
-        // Configuração da central: ignorar mensagens de grupos.
-        if (isGroup) {
-          const { shouldIgnoreGroups } = await import("@/lib/inbound.server");
-          if (await shouldIgnoreGroups()) {
-            return Response.json({ received: true, ignored: "groups-disabled" });
-          }
-        }
-
-        // Grupos: o número de quem escreveu vem do remetente, nunca do ID do grupo.
-        const participantRaw = String(info.Participant ?? info.Sender ?? info.SenderAlt ?? "");
-        const participantDigits = participantRaw.includes("@lid")
-          ? jidToPhone(String(info.SenderAlt ?? ""))
-          : jidToPhone(participantRaw);
-        const participantPhone =
-          isGroup &&
-          participantDigits &&
-          participantDigits !== phoneDigits &&
-          participantDigits.length <= 13
-            ? participantDigits
-            : null;
-
-        const record = info as Record<string, unknown>;
-        const groupJid = isGroup ? `${phoneDigits}@g.us` : null;
-        if (isGroup && !jidToPhone(chatRaw)) {
-          console.warn("[webhook] grupo recebido sem identificador válido", chatRaw);
-          return Response.json({ received: true, ignored: "group-no-id" });
-        }
-        // Só aceita o assunto exato do grupo. Identificadores como
-        // "120363294220420735" são descartados: o nome real é buscado na
-        // Evolution Go (/group/list e /group/info) ao gravar o contato.
-        const groupName = isGroup
-          ? (exactGroupName(record["GroupName"]) ??
-            exactGroupName(record["GroupSubject"]) ??
-            exactGroupName(record["ChatName"]))
-          : null;
-
-        // Suporta tanto versões que entregam o texto em editedMessage quanto a
-        // 0.7, que marca Info.Edit="1" e referencia o ID original no envelope.
-        const edit = extractEdit(message);
-        const encryptedTargetId = encryptedEditTarget(message);
-        const editCode = String(info.Edit ?? "").trim();
-        const isEditEvent = payload.data?.IsEdit === true || editCode === "1";
-        const editedText = edit?.text ?? (isEditEvent ? extractText(message) : "");
-        const editedTargetId =
-          edit?.targetId ??
-          editTargetFromInfo(info) ??
-          encryptedTargetId ??
-          (payload.data?.IsEdit === true ? (info.ID ?? null) : null);
-        if (editedTargetId && editedText && !isUnsupportedText(editedText)) {
-          const { data: original } = await supabaseAdmin
-            .from("messages")
-            .select("id")
-            .eq("external_id", editedTargetId)
-            .limit(1)
-            .maybeSingle();
-          if (original) {
-            await supabaseAdmin
-              .from("messages")
-              .update({ body: editedText, edited_at: new Date().toISOString() })
-              .eq("id", original.id);
-            return Response.json({ received: true, edited: true });
-          }
-        }
-
-        // A versão 0.7 da Evolution Go não descriptografa o novo texto da
-        // edição. Não grava o envelope como uma mensagem nova nem substitui a
-        // original por um aviso incorreto; versões corrigidas passam acima.
-        if (isEditEvent || encryptedTargetId) {
-          console.warn("[evolution] edição recebida sem texto descriptografado", {
-            targetId: editedTargetId,
-            eventId: info.ID ?? null,
-          });
-          return Response.json({ received: true, ignored: "encrypted-edit" });
-        }
-
-        let body = edit ? edit.text : extractText(message);
-
-        // Voto em enquete: vira o texto da opção escolhida para acionar o menu.
-        if (body === "[voto em enquete]" || body === "[mensagem não suportada]") {
-          const voted = await resolvePollVote(message);
-          if (voted) body = voted;
-          else {
-            console.log(
-              "[evolution] mensagem não reconhecida:",
-              JSON.stringify(message ?? {}).slice(0, 3000),
+            const sessao = sessoes.find(
+              (item) =>
+                nestedStringByKeys(item, new Set(["token", "usertoken", "clienttoken"])) ===
+                instanceRef,
             );
-          }
-        }
-
-        // Mídia recebida: a Evolution Go manda base64 (WEBHOOK_FILES=true) ou
-        // uma URL aberta. A WuzAPI só manda o arquivo criptografado (.enc), que
-        // precisa ser baixado pelo servidor da própria conexão.
-        // A mídia pode vir embrulhada (mensagem temporária, visualização única,
-        // documento com legenda): aqui o envelope é aberto antes de procurar.
-        const conteudoMidia = unwrapMessage(message);
-        const eventoBase64 = [message, conteudoMidia].reduce<string | null>((achado, alvo) => {
-          if (achado || !alvo) return achado;
-          const valor = field<unknown>(alvo, "base64", "fileBase64", "data");
-          return mediaBase64Valido(valor);
-        }, null);
-        const mediaUrlBruta = [message, conteudoMidia].reduce<string | null>((achado, alvo) => {
-          if (achado || !alvo) return achado;
-          const valor = field<unknown>(alvo, "mediaUrl", "mediaURL", "url", "URL");
-          return typeof valor === "string" && valor ? valor : null;
-        }, null);
-        // A WuzAPI informa o arquivo com o endereço interno dela (localhost).
-        // Troca pelo endereço público da conexão para o download funcionar.
-        const mediaUrl = (() => {
-          if (!mediaUrlBruta) return null;
-          try {
-            const alvo = new URL(mediaUrlBruta);
-            if (!/^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/i.test(alvo.hostname)) return mediaUrlBruta;
-            const base = String((config as { base_url?: string }).base_url ?? "");
-            if (!base) return mediaUrlBruta;
-            const publico = new URL(base);
-            alvo.protocol = publico.protocol;
-            alvo.hostname = publico.hostname;
-            alvo.port = publico.port;
-            return alvo.toString();
+            if (!sessao) continue;
+            const telefone = nestedStringByKeys(
+              sessao,
+              new Set(["jid", "phone", "phonenumber", "number", "wid"]),
+            );
+            config =
+              doProvedor.find(
+                (item) => item.base_url === baseUrl && sameBrazilianPhone(item.phone, telefone),
+              ) ?? null;
+            if (config) break;
           } catch {
-            return mediaUrlBruta;
-          }
-        })();
-
-        // URLs S3/MinIO da WuzAPI já apontam para o arquivo descriptografado.
-        // Somente referências do WhatsApp (mmg.whatsapp.net ou arquivo .enc)
-        // precisam passar por /chat/download*.
-        const isEncryptedMediaUrl = (value: string | null) => {
-          if (!value) return false;
-          if (/\.enc(?:\?|$)/i.test(value)) return true;
-          try {
-            return /(?:^|\.)mmg\.whatsapp\.net$/i.test(new URL(value).hostname);
-          } catch {
-            return /mmg\.whatsapp\.net/i.test(value);
-          }
-        };
-        // Endereço interno do servidor da WuzAPI (localhost/IP privado): ninguém
-        // de fora consegue baixar, então o arquivo precisa vir pelo conector.
-        const isInternalMediaUrl = (value: string | null) => {
-          if (!value) return false;
-          try {
-            const host = new URL(value).hostname;
-            return /^(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|\[?::1\]?|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)$/i.test(
-              host,
-            );
-          } catch {
-            return false;
-          }
-        };
-        const obterBase64 = async (
-          kind: "image" | "sticker" | "video" | "audio" | "document",
-          media: Record<string, unknown> | undefined,
-        ): Promise<string | null> => {
-          if (eventoBase64) return eventoBase64;
-          // A WuzAPI avisa um endereço interno do arquivo (/files/...), que não
-          // pode ser baixado de fora. Quando a própria mídia traz a referência do
-          // WhatsApp com a chave, o download tem de passar pelo conector — senão
-          // áudios e vídeos chegavam como "arquivo indisponível".
-          const urlDaMidia = media ? textField(media, "url", "URL", "mediaUrl", "mediaURL") : "";
-          const temChave = !!media && !!textField(media, "mediaKey", "media_key");
-          const precisaConector =
-            String((config as { provider?: string }).provider ?? "").toLowerCase() === "waha" ||
-            (temChave && (isEncryptedMediaUrl(urlDaMidia || null) || isInternalMediaUrl(mediaUrl)));
-          if (
-            !precisaConector &&
-            mediaUrl &&
-            !isEncryptedMediaUrl(mediaUrl) &&
-            !isInternalMediaUrl(mediaUrl)
-          )
-            return null;
-          const { downloadInboundMedia } = await import("@/lib/evolution.server");
-          // Alguns webhooks colocam a URL criptografada no envelope da mensagem,
-          // separada da mediaKey que fica dentro de imageMessage/videoMessage.
-          // Reunimos os dois campos antes de pedir a descriptografia ao conector.
-          const mediaParaDownload = mediaUrl && media && !textField(media, "url", "URL", "mediaUrl", "mediaURL")
-            ? { ...media, url: mediaUrl }
-            : media;
-          const baixado = await downloadInboundMedia({
-            configId: config!.id,
-            kind,
-            media: mediaParaDownload,
-          });
-          if (!baixado) {
-            console.warn(`[evolution] não consegui baixar a mídia (${kind})`);
-          }
-          return baixado?.base64 ?? null;
-        };
-        const midia = <T>(nome: string) =>
-          (conteudoMidia ? field<T>(conteudoMidia, nome) : undefined) ?? undefined;
-
-        // Áudio: guarda o arquivo para ouvir na central e tenta transcrever.
-        const audio = midia<Record<string, unknown>>("audioMessage");
-        if (audio) {
-          const base64 = await obterBase64("audio", audio);
-          const { storeInboundAudio, audioMessageBody } = await import("@/lib/audio.server");
-          const stored = await storeInboundAudio({
-            phoneDigits,
-            mimeType: textField(audio, "mimetype", "mimeType", "contentType") || null,
-            base64,
-            url: mediaUrl ?? textField(audio, "url", "URL") ?? null,
-          });
-          body = stored ? audioMessageBody(stored) : failedMediaBody("audio");
-        }
-
-        // Figurinhas e imagens: guarda o arquivo para aparecer na conversa.
-        const sticker = midia<Record<string, unknown>>("stickerMessage");
-        const image = midia<Record<string, unknown>>("imageMessage");
-        const visual = sticker ?? image;
-        if (visual) {
-          const base64 = await obterBase64(
-            sticker ? "sticker" : "image",
-            visual,
-          );
-          const { storeInboundImage, stickerMessageBody, imageMessageBody } = await import(
-            "@/lib/media.server"
-          );
-          const storedUrl = await storeInboundImage({
-            phoneDigits,
-            mimeType: textField(visual, "mimetype", "mimeType", "contentType") || (sticker ? "image/webp" : "image/jpeg"),
-            base64,
-            url: mediaUrl ?? textField(visual, "url", "URL") ?? null,
-            folder: sticker ? "figurinhas" : "imagens",
-          });
-          if (storedUrl) {
-            body = sticker
-              ? stickerMessageBody(storedUrl)
-              : imageMessageBody(storedUrl, textField(image, "caption") || null);
-          } else body = failedMediaBody(sticker ? "sticker" : "image");
-        }
-
-
-
-        // Vídeos: guarda o arquivo para assistir direto na conversa.
-        const video = midia<Record<string, unknown>>("videoMessage");
-        if (video) {
-          const base64 = await obterBase64("video", video);
-          const { storeInboundVideo, videoMessageBody } = await import("@/lib/media.server");
-          const storedUrl = await storeInboundVideo({
-            phoneDigits,
-            mimeType: textField(video, "mimetype", "mimeType", "contentType") || "video/mp4",
-            base64,
-            url: mediaUrl ?? textField(video, "url", "URL") ?? null,
-          });
-          body = storedUrl
-            ? videoMessageBody(storedUrl, textField(video, "caption") || null)
-            : failedMediaBody("video");
-        }
-
-        // Documentos e PDFs: guarda o arquivo e mostra um cartão para abrir ou baixar.
-        const document = midia<{
-          url?: string;
-          mimetype?: string;
-          fileName?: string;
-          caption?: string;
-        }>("documentMessage");
-
-        if (document) {
-          const base64 = await obterBase64("document", document as Record<string, unknown>);
-          const { storeInboundDocument, documentMessageBody } = await import("@/lib/media.server");
-          const storedDocument = await storeInboundDocument({
-            phoneDigits,
-            fileName: document.fileName ?? null,
-            mimeType: document.mimetype ?? null,
-            base64,
-            url: mediaUrl ?? document.url ?? null,
-          });
-          if (storedDocument) {
-            body = documentMessageBody(
-              storedDocument.name,
-              storedDocument.url,
-              document.caption ?? null,
-            );
-          } else body = failedMediaBody("document");
-        }
-
-        // Nada legível no evento: registra o motivo para rastreio e encerra.
-        if (!body || isUnsupportedText(body)) {
-          console.warn(
-            `[webhook] conteudo nao legivel: evento=${event} device=${config.id} id=${info.ID ?? "-"} telefone=${phoneDigits}`,
-          );
-          return Response.json({ received: true, ignored: "unsupported" });
-        }
-
-        // Controle remoto: só mensagens externas do número autorizado disparam
-        // o menu. Mensagens do próprio aparelho nunca viram comando aqui.
-        const {
-          processarComandoAdmin,
-          sistemaAtivo,
-          ehAdminRemoto,
-          ehEcoAutomatico,
-        } = await import("@/lib/remote-admin.server");
-        // Eco de resposta automática: segue como mensagem nossa, nunca como comando.
-        const ecoAutomatico = ehEcoAutomatico(body);
-        if (ecoAutomatico) {
-          console.log(`[webhook] eco automatico (nao vira comando): ${body.slice(0, 40)}`);
-        }
-        const adminCandidates = [
-          phoneDigits,
-          jidToPhone(String(info.Sender ?? "")),
-          jidToPhone(String(info.SenderAlt ?? "")),
-          jidToPhone(recipientAlt),
-          jidToPhone(chatRaw),
-        ].filter(Boolean);
-        let comandoPhone = "";
-        if (!fromMe) {
-          for (const cand of adminCandidates) {
-            try {
-              if (await ehAdminRemoto(cand)) {
-                comandoPhone = cand;
-                break;
-              }
-            } catch (error) {
-              console.error("[webhook] falha ao checar admin:", (error as Error).message);
-            }
+            // A mensagem fica no diário e será tentada novamente pela Sentinela.
           }
         }
-        if (!isGroup && comandoPhone && !ecoAutomatico) {
-          console.log(
-            `[webhook] comando admin de=${comandoPhone} fromMe=${fromMe} texto=${body.slice(0, 60)}`,
-          );
-          try {
-            const tratado = await processarComandoAdmin({
-              phoneDigits: comandoPhone,
-              body,
-              configId: config.id,
-              requestUrl: request.url,
-            });
-            if (tratado) return Response.json({ received: true, admin: true });
-          } catch (error) {
-            // Uma falha do controle remoto nunca impede o registro da mensagem.
-            console.error("[webhook] falha no comando admin:", (error as Error).message);
-          }
-        } else if (!isGroup && comandoPhone) {
-          console.log(
-            `[webhook] mensagem do admin ignorada como comando (eco=${ecoAutomatico} fromMe=${fromMe} len=${body.length})`,
-          );
-        } else if (!isGroup) {
-          console.log(
-            `[webhook] mensagem comum (nao-admin): telefone=${phoneDigits} fromMe=${fromMe}`,
-          );
-        }
+      }
 
-        // Sistema desligado ou em manutenção: a mensagem continua sendo gravada
-        // no histórico (perda zero), apenas sem saudação, chatbot ou IA.
-        let ativo = true;
-        try {
-          ativo = await sistemaAtivo();
-        } catch (error) {
-          console.error("[webhook] falha ao ler estado do sistema:", (error as Error).message);
-        }
-        // Mensagens do próprio aparelho e mensagens com o sistema pausado entram
-        // apenas no histórico, sem automações.
-        const semAutomacoes = fromMe || !ativo;
+      if (!config) return Response.json({ received: true, ignored: "aparelho-desconhecido" });
+      console.warn(
+        `[webhook] token desatualizado; evento atribuído ao aparelho ${config.id} (${config.provider ?? "evolution"}) por ${instanceRef ? "instanceId" : nomeInstancia ? "instanceName" : "provedor"}`,
+      );
+    }
 
-        // Fluxo único de entrada: contato, conversa, saudação, chatbot e IA.
-        const { recordInboundMessage } = await import("@/lib/inbound.server");
-        const { withRetry } = await import("@/lib/retry.server");
-        const timestampRaw = (info as Record<string, unknown>)["Timestamp"];
-        const timestampNumber = Number(timestampRaw);
-        const timestampDate = Number.isFinite(timestampNumber) && timestampNumber > 0
-          ? new Date(timestampNumber < 10_000_000_000 ? timestampNumber * 1000 : timestampNumber)
-          : typeof timestampRaw === "string"
-            ? new Date(timestampRaw)
-            : null;
-        const occurredAt = timestampDate && Number.isFinite(timestampDate.getTime())
-          ? timestampDate.toISOString()
-          : null;
-        try {
-          // Regra: nenhuma mensagem recebida se perde por falha passageira —
-          // tenta novamente e, se ainda falhar, devolve erro para o provedor
-          // reenviar o evento (a duplicidade é barrada pelo identificador).
-          await withRetry("registrar mensagem recebida", () =>
-            recordInboundMessage({
-              phoneDigits,
-              name: isGroup ? groupName : fromMe ? null : (info.PushName ?? null),
-              body,
-              externalId: info.ID ?? null,
-              configId: config.id,
-              isGroup,
-              chatJid: groupJid,
-              participantName: isGroup && !fromMe ? (info.PushName ?? null) : null,
-              participantPhone: isGroup && !fromMe ? participantPhone : null,
-              fromMe,
-              skipAutomations: semAutomacoes,
-              occurredAt,
-              mentionsMe:
-                isGroup && !fromMe
-                  ? mentionsOwnNumber(message, body, (config as { phone?: string }).phone ?? "")
-                  : false,
-            }),
-          );
-        } catch (error) {
-          console.error("[evolution] falha ao registrar mensagem:", (error as Error).message);
-          try {
-            const { registrarOcorrencia } = await import("@/lib/monitor.server");
-            await registrarOcorrencia({
-              tipo: "Mensagem perdida",
-              mensagem: `Uma mensagem recebida não pôde ser registrada: ${(error as Error).message}`,
-              severidade: "erro",
-              deviceId: config.id,
-              deviceLabel: (config as { label?: string }).label ?? "",
-              provider: (config as { provider?: string }).provider ?? "",
-            });
-          } catch {
-            /* o aviso é complementar */
-          }
-          return new Response((error as Error).message, { status: 500 });
-        }
+    // Sessões antigas de outro provedor (ex.: WuzAPI) apontando para o
+    // endereço de um aparelho WAHA não podem gravar mensagens nele.
+    if (payload.sourceProvider && (config.provider ?? "evolution") !== payload.sourceProvider) {
+      return Response.json({ received: true, ignored: "provedor-diferente-do-aparelho" });
+    }
 
-        await memorizarLid().catch(() => undefined);
+    const now = new Date().toISOString();
+    const wasConnected = config.status === "connected";
+    const touch = (patch: Record<string, unknown>) =>
+      supabaseAdmin
+        .from("whatsapp_config")
+        .update({ last_event: event, updated_at: now, ...patch })
+        .eq("id", config!.id);
 
+    switch (event) {
+      case "QRCode": {
+        const qr = payload.data?.Qrcode ?? payload.data?.qrcode ?? null;
+        await touch({ status: "connecting", ...(qr ? { last_qr: qr } : {}) });
+        // QR na tela: garante que os eventos desta central já estão firmados.
+        void (await import("@/lib/evolution.server")).ensureEvolutionWebhook(config.id, {
+          requestUrl: request.url,
+        });
         return Response.json({ received: true });
       }
+      case "PairSuccess": {
+        const jid = payload.data?.jid ?? "";
+        await touch({
+          status: "connected",
+          last_qr: null,
+          ...(jid ? { phone: jidToPhone(jid) } : {}),
+        });
+        // Número pareado: reconfigura o webhook com todos os eventos.
+        await (
+          await import("@/lib/evolution.server")
+        ).ensureEvolutionWebhook(config.id, {
+          requestUrl: request.url,
+          force: true,
+        });
+        try {
+          const { validarConexaoAposParear } = await import("@/lib/connection-test.server");
+          await validarConexaoAposParear(config.id);
+        } catch {
+          /* o teste é apenas uma verificação extra */
+        }
+        return Response.json({ received: true });
+      }
+      case "Connected": {
+        // O processo da instância reconectou ao servidor. Se o número já
+        // estava pareado, isso NÃO significa perder a sessão do WhatsApp.
+        // Na WuzAPI este evento também chega apenas ao abrir a sessão para
+        // gerar o QR; somente PairSuccess ou LoggedIn confirma pareamento.
+        await touch(
+          config.provider === "wuzapi"
+            ? { status: "connecting" }
+            : wasConnected
+              ? { status: "connected", last_qr: null }
+              : { status: "connecting" },
+        );
+        await (
+          await import("@/lib/evolution.server")
+        ).ensureEvolutionWebhook(config.id, {
+          requestUrl: request.url,
+        });
+        return Response.json({ received: true });
+      }
+      case "LoggedOut": {
+        // Saída real da sessão: o número precisa parear de novo.
+        await touch({ status: "disconnected", last_qr: null });
+        const { limparTesteConexao } = await import("@/lib/connection-test.server");
+        await limparTesteConexao(config.id);
+        return Response.json({ received: true });
+      }
+      case "Disconnected": {
+        // Quedas momentâneas de rede da Evolution Go disparam Disconnected
+        // seguido de reconexão. Só derrubamos na segunda ocorrência seguida.
+        if (wasConnected && config.last_event !== "Disconnected") {
+          await touch({ status: "connected" });
+        } else {
+          await touch({ status: "disconnected", last_qr: null });
+        }
+        // Depois de uma queda o aparelho costuma voltar sem a assinatura do
+        // webhook: reassinamos na hora para não ficar sem receber mensagens.
+        try {
+          await (
+            await import("@/lib/evolution.server")
+          ).ensureEvolutionWebhook(config.id, {
+            requestUrl: request.url,
+            force: true,
+          });
+        } catch {
+          /* a verificação automática tenta de novo no próximo ciclo */
+        }
+        return Response.json({ received: true });
+      }
+
+      case "OfflineSyncCompleted": {
+        await touch({ status: "connected", last_qr: null });
+        return Response.json({ received: true });
+      }
+      case "HistorySync": {
+        // O WhatsApp envia o histórico do celular logo após o pareamento:
+        // conversas normais e grupos entram na central com a data original.
+        await touch({ status: "connected", last_qr: null });
+        try {
+          const { importarHistorySync } = await import("@/lib/historico.server");
+          const resumo = await importarHistorySync(payload.data, config.id);
+          console.log(
+            `[webhook] HistorySync device=${config.id} conversas=${resumo.conversas} mensagens=${resumo.mensagens}`,
+          );
+        } catch (error) {
+          console.error("[webhook] falha ao importar histórico", error);
+        }
+        return Response.json({ received: true });
+      }
+      // Mensagens enviadas pelo próprio celular chegam como SendMessage em
+      // algumas versões da Evolution Go: são sincronizadas na conversa.
+      case "Message":
+      case "SendMessage":
+        break;
+      default:
+        // Receipt, Presence, Call*, Group*, Newsletter*, Label*
+        return Response.json({ received: true });
+    }
+
+    const info = payload.data?.Info;
+    const message = payload.data?.Message;
+    if (!info) return Response.json({ received: true });
+    // Mensagens enviadas pela própria conta conectada NÃO disparam chatbot,
+    // IA ou respostas (proteção total contra loop), mas são sempre gravadas
+    // no histórico da conversa. Única exceção de comando: texto curto e
+    // exato do administrador no "chat consigo mesmo".
+    // Mensagem apagada ("apagar para todos"): marca a original como
+    // apagada, tanto quando o contato apaga como quando você apaga no
+    // celular. Nunca dispara chatbot, IA ou resposta automática.
+    const revokedId = extractRevoke(message as Record<string, unknown> | undefined);
+    if (revokedId) {
+      const { data: alvoApagado } = await supabaseAdmin
+        .from("messages")
+        .select("id")
+        .eq("external_id", revokedId)
+        .limit(1)
+        .maybeSingle();
+      if (alvoApagado) {
+        await supabaseAdmin
+          .from("messages")
+          .update({ deleted_at: new Date().toISOString() })
+          .eq("id", alvoApagado.id);
+        return Response.json({ received: true, deleted: true });
+      }
+      return Response.json({ received: true, ignored: "revoke-sem-original" });
+    }
+
+    const fromMe = !!info.IsFromMe || event === "SendMessage";
+    if (fromMe) {
+      const textoProprio = extractText(message).trim();
+      const { ehComandoEstrito, ehEcoAutomatico, ehAdminRemoto, processarComandoAdmin } =
+        await import("@/lib/remote-admin.server");
+      const chatProprio = String(info.Chat ?? info.Sender ?? "");
+      const grupoProprio = !!info.IsGroup || chatProprio.includes("@g.us");
+      const recordFromMe = info as Record<string, unknown>;
+      const candidatosProprios = [
+        chatProprio,
+        String(info.SenderAlt ?? ""),
+        String(recordFromMe["RecipientAlt"] ?? recordFromMe["ReceiverAlt"] ?? ""),
+        String(info.Sender ?? ""),
+      ]
+        .filter((jid) => jid && !jid.includes("@lid"))
+        .map(jidToPhone)
+        .filter(Boolean);
+      let adminProprio = "";
+      if (
+        !grupoProprio &&
+        textoProprio &&
+        !ehEcoAutomatico(textoProprio) &&
+        ehComandoEstrito(textoProprio)
+      ) {
+        for (const cand of candidatosProprios) {
+          if (await ehAdminRemoto(cand)) {
+            adminProprio = cand;
+            break;
+          }
+        }
+      }
+      if (adminProprio) {
+        console.log(
+          `[webhook] comando do proprio aparelho aceito: de=${adminProprio} texto=${textoProprio.slice(0, 30)}`,
+        );
+        let tratado = false;
+        try {
+          tratado = await processarComandoAdmin({
+            phoneDigits: adminProprio,
+            body: textoProprio,
+            configId: config.id,
+            requestUrl: request.url,
+            fromMe: true,
+          });
+        } catch (error) {
+          console.error("[webhook] falha no comando admin:", (error as Error).message);
+        }
+        return Response.json({ received: true, admin: true, tratado });
+      }
+      console.log(
+        `[webhook] fromMe registrado no historico: evento=${event} device=${config.id} id=${info.ID ?? "-"} len=${textoProprio.length}`,
+      );
+    }
+
+    // Chegou mensagem externa: a sessão está viva. Desfaz qualquer queda falsa.
+    if (!wasConnected) {
+      await supabaseAdmin
+        .from("whatsapp_config")
+        .update({ status: "connected", last_qr: null, updated_at: now })
+        .eq("id", config.id);
+    }
+
+    const chatRaw = String(info.Chat ?? info.Sender ?? "");
+    const isGroup = !!info.IsGroup || chatRaw.includes("@g.us");
+
+    // Stories (status@broadcast) e canais (@newsletter) não são conversas de
+    // atendimento: ficam guardados à parte para visualização na tela
+    // "Stories e canais".
+    if (/@(broadcast|newsletter)$/i.test(chatRaw.trim())) {
+      const ehCanal = /@newsletter$/i.test(chatRaw.trim());
+      const envelopeMidia = unwrapMessage(message);
+      const textoOriginal = extractText(message).slice(0, 4000);
+      const mediaUrlBruta = [message, envelopeMidia].reduce<string>((achado, alvo) => {
+        if (achado || !alvo) return achado;
+        const valor = field<unknown>(alvo, "mediaUrl", "mediaURL", "url", "URL", "file_url");
+        return typeof valor === "string" && valor ? valor : "";
+      }, "");
+      const mediaUrl = (() => {
+        if (!mediaUrlBruta) return "";
+        try {
+          const alvo = new URL(mediaUrlBruta);
+          if (!/^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/i.test(alvo.hostname))
+            return mediaUrlBruta;
+          const base = String((config as { base_url?: string }).base_url ?? "");
+          if (!base) return mediaUrlBruta;
+          const publico = new URL(base);
+          alvo.protocol = publico.protocol;
+          alvo.hostname = publico.hostname;
+          alvo.port = publico.port;
+          return alvo.toString();
+        } catch {
+          return mediaUrlBruta;
+        }
+      })();
+      const isEncryptedStoryUrl = (value: string | null) => {
+        if (!value) return false;
+        if (/\.enc(?:\?|$)/i.test(value)) return true;
+        try {
+          return /(?:^|\.)mmg\.whatsapp\.net$/i.test(new URL(value).hostname);
+        } catch {
+          return /mmg\.whatsapp\.net/i.test(value);
+        }
+      };
+      const isInternalStoryUrl = (value: string | null) => {
+        if (!value) return false;
+        try {
+          const host = new URL(value).hostname;
+          return /^(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|\[?::1\]?|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)$/i.test(
+            host,
+          );
+        } catch {
+          return false;
+        }
+      };
+      const eventoBase64 = [message, envelopeMidia].reduce<string | null>((achado, alvo) => {
+        if (achado || !alvo) return achado;
+        const valor = field<unknown>(alvo, "base64", "fileBase64", "data");
+        return mediaBase64Valido(valor);
+      }, null);
+      const obterBase64Story = async (
+        kind: "image" | "sticker" | "video" | "audio" | "document",
+        media: Record<string, unknown> | undefined,
+      ): Promise<string | null> => {
+        if (eventoBase64) return eventoBase64;
+        const urlDaMidia = media ? textField(media, "url", "URL", "mediaUrl", "mediaURL") : "";
+        const temChave = !!media && !!textField(media, "mediaKey", "media_key");
+        const precisaConector =
+          temChave && (isEncryptedStoryUrl(urlDaMidia || null) || isInternalStoryUrl(mediaUrl));
+        if (
+          !precisaConector &&
+          mediaUrl &&
+          !isEncryptedStoryUrl(mediaUrl) &&
+          !isInternalStoryUrl(mediaUrl)
+        ) {
+          return null;
+        }
+        const { downloadInboundMedia } = await import("@/lib/evolution.server");
+        const mediaParaDownload =
+          mediaUrl && media && !textField(media, "url", "URL", "mediaUrl", "mediaURL")
+            ? { ...media, url: mediaUrl }
+            : media;
+        const baixado = await downloadInboundMedia({
+          configId: config!.id,
+          kind,
+          media: mediaParaDownload,
+        });
+        if (!baixado) console.warn(`[stories] não consegui baixar a mídia (${kind})`);
+        return baixado?.base64 ?? null;
+      };
+      const midiaStory = <T>(nome: string) =>
+        (envelopeMidia ? field<T>(envelopeMidia, nome) : undefined) ?? undefined;
+      const storageKey =
+        jidToPhone(chatRaw) ||
+        jidToPhone(String(info.Participant ?? info.SenderAlt ?? info.Sender ?? "")) ||
+        "stories";
+      const sticker = midiaStory<Record<string, unknown>>("stickerMessage");
+      const image = midiaStory<Record<string, unknown>>("imageMessage");
+      const video = midiaStory<Record<string, unknown>>("videoMessage");
+      const audio = midiaStory<Record<string, unknown>>("audioMessage");
+      const documento = midiaStory<Record<string, unknown>>("documentMessage");
+      let texto = textoOriginal;
+      let urlMidia = mediaUrl;
+      let tipoMidia = "nenhum";
+
+      if (sticker || image) {
+        const visual = sticker ?? image;
+        const base64 = await obterBase64Story(sticker ? "sticker" : "image", visual);
+        const { storeInboundImage } = await import("@/lib/media.server");
+        const stored = await storeInboundImage({
+          phoneDigits: storageKey,
+          mimeType:
+            textField(visual, "mimetype", "mimeType", "contentType") ||
+            (sticker ? "image/webp" : "image/jpeg"),
+          base64,
+          url: mediaUrl || textField(visual, "url", "URL") || null,
+          folder: sticker ? "stories/figurinhas" : "stories/imagens",
+        });
+        urlMidia = stored ?? mediaUrl;
+        tipoMidia = sticker ? "figurinha" : "imagem";
+        texto = textField(image, "caption") || textoOriginal;
+      } else if (video) {
+        const base64 = await obterBase64Story("video", video);
+        const { storeInboundVideo } = await import("@/lib/media.server");
+        const stored = await storeInboundVideo({
+          phoneDigits: storageKey,
+          mimeType: textField(video, "mimetype", "mimeType", "contentType") || "video/mp4",
+          base64,
+          url: mediaUrl || textField(video, "url", "URL") || null,
+        });
+        urlMidia = stored ?? mediaUrl;
+        tipoMidia = "video";
+        texto = textField(video, "caption") || textoOriginal;
+      } else if (audio) {
+        const base64 = await obterBase64Story("audio", audio);
+        const { storeInboundAudio } = await import("@/lib/audio.server");
+        const stored = await storeInboundAudio({
+          phoneDigits: storageKey,
+          mimeType: textField(audio, "mimetype", "mimeType", "contentType") || "audio/ogg",
+          base64,
+          url: mediaUrl || textField(audio, "url", "URL") || null,
+        });
+        urlMidia = stored?.url ?? mediaUrl;
+        tipoMidia = "audio";
+        if (stored?.transcript) texto = `🗣 Transcrição: ${stored.transcript}`;
+      } else if (documento) {
+        const base64 = await obterBase64Story("document", documento);
+        const { storeInboundDocument } = await import("@/lib/media.server");
+        const stored = await storeInboundDocument({
+          phoneDigits: storageKey,
+          fileName: textField(documento, "fileName", "filename") || null,
+          mimeType: textField(documento, "mimetype", "mimeType", "contentType") || null,
+          base64,
+          url: mediaUrl || textField(documento, "url", "URL") || null,
+        });
+        urlMidia = stored?.url ?? mediaUrl;
+        tipoMidia = "documento";
+        texto = stored?.name || textoOriginal;
+      } else if (!texto || isUnsupportedText(texto)) {
+        const chaves = Object.keys((envelopeMidia ?? message ?? {}) as Record<string, unknown>)
+          .filter((chave) => !/^messageContextInfo$/i.test(chave))
+          .join(", ");
+        tipoMidia = "nao_suportada";
+        texto = chaves
+          ? `Mensagem não suportada recebida (${chaves})`
+          : "Mensagem não suportada recebida";
+      }
+      try {
+        await supabaseAdmin.from("stories_recebidos").insert({
+          project_id: (config as { project_id?: string | null }).project_id ?? null,
+          config_id: config.id,
+          tipo: ehCanal ? "canal" : "status",
+          chat_jid: chatRaw.trim(),
+          autor_jid: String(info.Participant ?? info.SenderAlt ?? info.Sender ?? ""),
+          autor_nome: String(info.PushName ?? ""),
+          texto: texto.slice(0, 4000),
+          midia_url: urlMidia,
+          midia_tipo: tipoMidia,
+          wa_id: String(info.ID ?? ""),
+        });
+      } catch (erro) {
+        console.warn("[webhook] falha ao guardar story", erro);
+      }
+      return Response.json({ received: true, stored: ehCanal ? "canal" : "status" });
+    }
+
+    // Conversa individual: o WhatsApp novo entrega o chat como @lid (um id
+    // interno, sem telefone). O número real pode vir em SenderAlt,
+    // RecipientAlt (respostas feitas no celular) ou Sender.
+    const record0 = info as Record<string, unknown>;
+    const recipientAlt = String(record0["RecipientAlt"] ?? record0["ReceiverAlt"] ?? "");
+    const isBrPhone = (d: string) => /^55\d{10,11}$/.test(d);
+    // Quando a mensagem é nossa (respondida no celular), o campo Sender é o
+    // nosso próprio número — nunca serve para identificar a conversa.
+    // Mensagem enviada pelo celular: o outro lado está no chat/RecipientAlt.
+    // Sender e SenderAlt são o nosso próprio número nesses eventos.
+    const rawCandidates = fromMe
+      ? [recipientAlt, chatRaw]
+      : [chatRaw, String(info.SenderAlt ?? ""), recipientAlt, String(info.Sender ?? "")];
+    const directCandidates = rawCandidates
+      .filter((jid) => jid && !jid.includes("@lid"))
+      .map(jidToPhone);
+    // Guarda o id interno (@lid) do outro lado da conversa para reconhecer
+    // a mesma pessoa quando o celular não manda o telefone.
+    const lidJid =
+      [chatRaw, String(info.SenderAlt ?? ""), recipientAlt, String(info.Sender ?? "")].find((jid) =>
+        jid.includes("@lid"),
+      ) ?? "";
+    let phoneDigits = isGroup
+      ? jidToPhone(chatRaw)
+      : (directCandidates.find(isBrPhone) ?? directCandidates.find(Boolean) ?? "");
+
+    // Sem telefone no evento: procura o contato já conhecido por esse @lid.
+    // O mesmo id interno pode ter sido gravado por engano em mais de um
+    // contato, então usa o mais recente em vez de falhar a busca.
+    if (!phoneDigits && !isGroup && lidJid) {
+      const { data: byLid } = await supabaseAdmin
+        .from("contacts")
+        .select("phone, updated_at")
+        .eq("lid", lidJid)
+        .order("updated_at", { ascending: false })
+        .limit(1);
+      const achado = (byLid as Array<{ phone?: string }> | null)?.[0];
+      phoneDigits = (achado?.phone ?? "").trim();
+    }
+
+    // Alguns eventos novos chegam apenas com @lid, sem SenderAlt. O LID é
+    // estável e permite preservar a conversa até o número real aparecer.
+    if (!phoneDigits && !isGroup && lidJid) phoneDigits = jidToPhone(lidJid);
+
+    console.log(
+      `[webhook] ${event} device=${config.id} grupo=${isGroup} fromMe=${fromMe} chat=${chatRaw} sender=${info.Sender ?? ""} senderAlt=${info.SenderAlt ?? ""} recipientAlt=${recipientAlt} lid=${lidJid} telefone=${phoneDigits}`,
+    );
+
+    if (!phoneDigits) {
+      console.warn("[webhook] descartada: sem telefone identificável", chatRaw);
+      return Response.json({ received: true, ignored: "sem-telefone" });
+    }
+
+    const memorizarLid = async () => {
+      // Memoriza o @lid no contato para os próximos eventos do celular.
+      // Um mesmo id interno não pode ficar em dois contatos: isso misturava
+      // pessoas diferentes na mesma conversa.
+      if (isGroup || !lidJid) return;
+      const { data: jaUsado } = await supabaseAdmin
+        .from("contacts")
+        .select("phone")
+        .eq("lid", lidJid)
+        .limit(1);
+      const donoAtual = (jaUsado as Array<{ phone?: string }> | null)?.[0]?.phone ?? "";
+      if (donoAtual && donoAtual !== phoneDigits) return;
+      await supabaseAdmin
+        .from("contacts")
+        .update({ lid: lidJid })
+        .eq("phone", phoneDigits)
+        .is("lid", null);
+    };
+
+    // Configuração da central: ignorar mensagens de grupos.
+    if (isGroup) {
+      const { shouldIgnoreGroups } = await import("@/lib/inbound.server");
+      if (await shouldIgnoreGroups()) {
+        return Response.json({ received: true, ignored: "groups-disabled" });
+      }
+    }
+
+    // Grupos: o número de quem escreveu vem do remetente, nunca do ID do grupo.
+    const participantRaw = String(info.Participant ?? info.Sender ?? info.SenderAlt ?? "");
+    const participantDigits = participantRaw.includes("@lid")
+      ? jidToPhone(String(info.SenderAlt ?? ""))
+      : jidToPhone(participantRaw);
+    const participantPhone =
+      isGroup &&
+      participantDigits &&
+      participantDigits !== phoneDigits &&
+      participantDigits.length <= 13
+        ? participantDigits
+        : null;
+
+    const record = info as Record<string, unknown>;
+    const groupJid = isGroup ? `${phoneDigits}@g.us` : null;
+    if (isGroup && !jidToPhone(chatRaw)) {
+      console.warn("[webhook] grupo recebido sem identificador válido", chatRaw);
+      return Response.json({ received: true, ignored: "group-no-id" });
+    }
+    // Só aceita o assunto exato do grupo. Identificadores como
+    // "120363294220420735" são descartados: o nome real é buscado na
+    // Evolution Go (/group/list e /group/info) ao gravar o contato.
+    const groupName = isGroup
+      ? (exactGroupName(record["GroupName"]) ??
+        exactGroupName(record["GroupSubject"]) ??
+        exactGroupName(record["ChatName"]))
+      : null;
+
+    // Suporta tanto versões que entregam o texto em editedMessage quanto a
+    // 0.7, que marca Info.Edit="1" e referencia o ID original no envelope.
+    const edit = extractEdit(message);
+    const encryptedTargetId = encryptedEditTarget(message);
+    const editCode = String(info.Edit ?? "").trim();
+    const isEditEvent = payload.data?.IsEdit === true || editCode === "1";
+    const editedText = edit?.text ?? (isEditEvent ? extractText(message) : "");
+    const editedTargetId =
+      edit?.targetId ??
+      editTargetFromInfo(info) ??
+      encryptedTargetId ??
+      (payload.data?.IsEdit === true ? (info.ID ?? null) : null);
+    if (editedTargetId && editedText && !isUnsupportedText(editedText)) {
+      const { data: original } = await supabaseAdmin
+        .from("messages")
+        .select("id")
+        .eq("external_id", editedTargetId)
+        .limit(1)
+        .maybeSingle();
+      if (original) {
+        await supabaseAdmin
+          .from("messages")
+          .update({ body: editedText, edited_at: new Date().toISOString() })
+          .eq("id", original.id);
+        return Response.json({ received: true, edited: true });
+      }
+    }
+
+    // A versão 0.7 da Evolution Go não descriptografa o novo texto da
+    // edição. Não grava o envelope como uma mensagem nova nem substitui a
+    // original por um aviso incorreto; versões corrigidas passam acima.
+    if (isEditEvent || encryptedTargetId) {
+      console.warn("[evolution] edição recebida sem texto descriptografado", {
+        targetId: editedTargetId,
+        eventId: info.ID ?? null,
+      });
+      return Response.json({ received: true, ignored: "encrypted-edit" });
+    }
+
+    let body = edit ? edit.text : extractText(message);
+
+    // Voto em enquete: vira o texto da opção escolhida para acionar o menu.
+    if (body === "[voto em enquete]" || body === "[mensagem não suportada]") {
+      const voted = await resolvePollVote(message);
+      if (voted) body = voted;
+      else {
+        console.log(
+          "[evolution] mensagem não reconhecida:",
+          JSON.stringify(message ?? {}).slice(0, 3000),
+        );
+      }
+    }
+
+    // Mídia recebida: a Evolution Go manda base64 (WEBHOOK_FILES=true) ou
+    // uma URL aberta. A WuzAPI só manda o arquivo criptografado (.enc), que
+    // precisa ser baixado pelo servidor da própria conexão.
+    // A mídia pode vir embrulhada (mensagem temporária, visualização única,
+    // documento com legenda): aqui o envelope é aberto antes de procurar.
+    const conteudoMidia = unwrapMessage(message);
+    const eventoBase64 = [message, conteudoMidia].reduce<string | null>((achado, alvo) => {
+      if (achado || !alvo) return achado;
+      const valor = field<unknown>(alvo, "base64", "fileBase64", "data");
+      return mediaBase64Valido(valor);
+    }, null);
+    const mediaUrlBruta = [message, conteudoMidia].reduce<string | null>((achado, alvo) => {
+      if (achado || !alvo) return achado;
+      const valor = field<unknown>(alvo, "mediaUrl", "mediaURL", "url", "URL");
+      return typeof valor === "string" && valor ? valor : null;
+    }, null);
+    // A WuzAPI informa o arquivo com o endereço interno dela (localhost).
+    // Troca pelo endereço público da conexão para o download funcionar.
+    const mediaUrl = (() => {
+      if (!mediaUrlBruta) return null;
+      try {
+        const alvo = new URL(mediaUrlBruta);
+        if (!/^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/i.test(alvo.hostname))
+          return mediaUrlBruta;
+        const base = String((config as { base_url?: string }).base_url ?? "");
+        if (!base) return mediaUrlBruta;
+        const publico = new URL(base);
+        alvo.protocol = publico.protocol;
+        alvo.hostname = publico.hostname;
+        alvo.port = publico.port;
+        return alvo.toString();
+      } catch {
+        return mediaUrlBruta;
+      }
+    })();
+
+    // URLs S3/MinIO da WuzAPI já apontam para o arquivo descriptografado.
+    // Somente referências do WhatsApp (mmg.whatsapp.net ou arquivo .enc)
+    // precisam passar por /chat/download*.
+    const isEncryptedMediaUrl = (value: string | null) => {
+      if (!value) return false;
+      if (/\.enc(?:\?|$)/i.test(value)) return true;
+      try {
+        return /(?:^|\.)mmg\.whatsapp\.net$/i.test(new URL(value).hostname);
+      } catch {
+        return /mmg\.whatsapp\.net/i.test(value);
+      }
+    };
+    // Endereço interno do servidor da WuzAPI (localhost/IP privado): ninguém
+    // de fora consegue baixar, então o arquivo precisa vir pelo conector.
+    const isInternalMediaUrl = (value: string | null) => {
+      if (!value) return false;
+      try {
+        const host = new URL(value).hostname;
+        return /^(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|\[?::1\]?|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)$/i.test(
+          host,
+        );
+      } catch {
+        return false;
+      }
+    };
+    const obterBase64 = async (
+      kind: "image" | "sticker" | "video" | "audio" | "document",
+      media: Record<string, unknown> | undefined,
+    ): Promise<string | null> => {
+      if (eventoBase64) return eventoBase64;
+      // A WuzAPI avisa um endereço interno do arquivo (/files/...), que não
+      // pode ser baixado de fora. Quando a própria mídia traz a referência do
+      // WhatsApp com a chave, o download tem de passar pelo conector — senão
+      // áudios e vídeos chegavam como "arquivo indisponível".
+      const urlDaMidia = media ? textField(media, "url", "URL", "mediaUrl", "mediaURL") : "";
+      const temChave = !!media && !!textField(media, "mediaKey", "media_key");
+      const precisaConector =
+        String((config as { provider?: string }).provider ?? "").toLowerCase() === "waha" ||
+        (temChave && (isEncryptedMediaUrl(urlDaMidia || null) || isInternalMediaUrl(mediaUrl)));
+      if (
+        !precisaConector &&
+        mediaUrl &&
+        !isEncryptedMediaUrl(mediaUrl) &&
+        !isInternalMediaUrl(mediaUrl)
+      )
+        return null;
+      const { downloadInboundMedia } = await import("@/lib/evolution.server");
+      // Alguns webhooks colocam a URL criptografada no envelope da mensagem,
+      // separada da mediaKey que fica dentro de imageMessage/videoMessage.
+      // Reunimos os dois campos antes de pedir a descriptografia ao conector.
+      const mediaParaDownload =
+        mediaUrl && media && !textField(media, "url", "URL", "mediaUrl", "mediaURL")
+          ? { ...media, url: mediaUrl }
+          : media;
+      const baixado = await downloadInboundMedia({
+        configId: config!.id,
+        kind,
+        media: mediaParaDownload,
+      });
+      if (!baixado) {
+        console.warn(`[evolution] não consegui baixar a mídia (${kind})`);
+      }
+      return baixado?.base64 ?? null;
+    };
+    const midia = <T>(nome: string) =>
+      (conteudoMidia ? field<T>(conteudoMidia, nome) : undefined) ?? undefined;
+
+    // Áudio: guarda o arquivo para ouvir na central e tenta transcrever.
+    const audio = midia<Record<string, unknown>>("audioMessage");
+    if (audio) {
+      const base64 = await obterBase64("audio", audio);
+      const { storeInboundAudio, audioMessageBody } = await import("@/lib/audio.server");
+      const stored = await storeInboundAudio({
+        phoneDigits,
+        mimeType: textField(audio, "mimetype", "mimeType", "contentType") || null,
+        base64,
+        url: mediaUrl ?? textField(audio, "url", "URL") ?? null,
+      });
+      body = stored ? audioMessageBody(stored) : failedMediaBody("audio");
+    }
+
+    // Figurinhas e imagens: guarda o arquivo para aparecer na conversa.
+    const sticker = midia<Record<string, unknown>>("stickerMessage");
+    const image = midia<Record<string, unknown>>("imageMessage");
+    const visual = sticker ?? image;
+    if (visual) {
+      const base64 = await obterBase64(sticker ? "sticker" : "image", visual);
+      const { storeInboundImage, stickerMessageBody, imageMessageBody } =
+        await import("@/lib/media.server");
+      const storedUrl = await storeInboundImage({
+        phoneDigits,
+        mimeType:
+          textField(visual, "mimetype", "mimeType", "contentType") ||
+          (sticker ? "image/webp" : "image/jpeg"),
+        base64,
+        url: mediaUrl ?? textField(visual, "url", "URL") ?? null,
+        folder: sticker ? "figurinhas" : "imagens",
+      });
+      if (storedUrl) {
+        body = sticker
+          ? stickerMessageBody(storedUrl)
+          : imageMessageBody(storedUrl, textField(image, "caption") || null);
+      } else body = failedMediaBody(sticker ? "sticker" : "image");
+    }
+
+    // Vídeos: guarda o arquivo para assistir direto na conversa.
+    const video = midia<Record<string, unknown>>("videoMessage");
+    if (video) {
+      const base64 = await obterBase64("video", video);
+      const { storeInboundVideo, videoMessageBody } = await import("@/lib/media.server");
+      const storedUrl = await storeInboundVideo({
+        phoneDigits,
+        mimeType: textField(video, "mimetype", "mimeType", "contentType") || "video/mp4",
+        base64,
+        url: mediaUrl ?? textField(video, "url", "URL") ?? null,
+      });
+      body = storedUrl
+        ? videoMessageBody(storedUrl, textField(video, "caption") || null)
+        : failedMediaBody("video");
+    }
+
+    // Documentos e PDFs: guarda o arquivo e mostra um cartão para abrir ou baixar.
+    const document = midia<{
+      url?: string;
+      mimetype?: string;
+      fileName?: string;
+      caption?: string;
+    }>("documentMessage");
+
+    if (document) {
+      const base64 = await obterBase64("document", document as Record<string, unknown>);
+      const { storeInboundDocument, documentMessageBody } = await import("@/lib/media.server");
+      const storedDocument = await storeInboundDocument({
+        phoneDigits,
+        fileName: document.fileName ?? null,
+        mimeType: document.mimetype ?? null,
+        base64,
+        url: mediaUrl ?? document.url ?? null,
+      });
+      if (storedDocument) {
+        body = documentMessageBody(
+          storedDocument.name,
+          storedDocument.url,
+          document.caption ?? null,
+        );
+      } else body = failedMediaBody("document");
+    }
+
+    // Nada legível no evento. A mensagem EXISTE no WhatsApp do cliente, então
+    // descartá-la deixava o atendente sem saber que alguém falou com ele.
+    // Entra como aviso na conversa: é melhor um "não foi possível exibir" do
+    // que um silêncio. O evento original fica no diário para reprocessar.
+    if (!body || isUnsupportedText(body)) {
+      console.warn(
+        `[webhook] conteudo nao legivel: evento=${event} device=${config.id} id=${info.ID ?? "-"} telefone=${phoneDigits}`,
+      );
+      body = "⚠️ Mensagem recebida que a central não conseguiu exibir. Confira no WhatsApp.";
+    }
+
+    // Controle remoto: só mensagens externas do número autorizado disparam
+    // o menu. Mensagens do próprio aparelho nunca viram comando aqui.
+    const { processarComandoAdmin, sistemaAtivo, ehAdminRemoto, ehEcoAutomatico } =
+      await import("@/lib/remote-admin.server");
+    // Eco de resposta automática: segue como mensagem nossa, nunca como comando.
+    const ecoAutomatico = ehEcoAutomatico(body);
+    if (ecoAutomatico) {
+      console.log(`[webhook] eco automatico (nao vira comando): ${body.slice(0, 40)}`);
+    }
+    const adminCandidates = [
+      phoneDigits,
+      jidToPhone(String(info.Sender ?? "")),
+      jidToPhone(String(info.SenderAlt ?? "")),
+      jidToPhone(recipientAlt),
+      jidToPhone(chatRaw),
+    ].filter(Boolean);
+    let comandoPhone = "";
+    if (!fromMe) {
+      for (const cand of adminCandidates) {
+        try {
+          if (await ehAdminRemoto(cand)) {
+            comandoPhone = cand;
+            break;
+          }
+        } catch (error) {
+          console.error("[webhook] falha ao checar admin:", (error as Error).message);
+        }
+      }
+    }
+    if (!isGroup && comandoPhone && !ecoAutomatico) {
+      console.log(
+        `[webhook] comando admin de=${comandoPhone} fromMe=${fromMe} texto=${body.slice(0, 60)}`,
+      );
+      try {
+        const tratado = await processarComandoAdmin({
+          phoneDigits: comandoPhone,
+          body,
+          configId: config.id,
+          requestUrl: request.url,
+        });
+        if (tratado) return Response.json({ received: true, admin: true });
+      } catch (error) {
+        // Uma falha do controle remoto nunca impede o registro da mensagem.
+        console.error("[webhook] falha no comando admin:", (error as Error).message);
+      }
+    } else if (!isGroup && comandoPhone) {
+      console.log(
+        `[webhook] mensagem do admin ignorada como comando (eco=${ecoAutomatico} fromMe=${fromMe} len=${body.length})`,
+      );
+    } else if (!isGroup) {
+      console.log(`[webhook] mensagem comum (nao-admin): telefone=${phoneDigits} fromMe=${fromMe}`);
+    }
+
+    // Sistema desligado ou em manutenção: a mensagem continua sendo gravada
+    // no histórico (perda zero), apenas sem saudação, chatbot ou IA.
+    let ativo = true;
+    try {
+      ativo = await sistemaAtivo();
+    } catch (error) {
+      console.error("[webhook] falha ao ler estado do sistema:", (error as Error).message);
+    }
+    // Mensagens do próprio aparelho e mensagens com o sistema pausado entram
+    // apenas no histórico, sem automações.
+    const semAutomacoes = fromMe || !ativo;
+
+    // Fluxo único de entrada: contato, conversa, saudação, chatbot e IA.
+    const { recordInboundMessage } = await import("@/lib/inbound.server");
+    const { withRetry } = await import("@/lib/retry.server");
+    const timestampRaw = (info as Record<string, unknown>)["Timestamp"];
+    const timestampNumber = Number(timestampRaw);
+    const timestampDate =
+      Number.isFinite(timestampNumber) && timestampNumber > 0
+        ? new Date(timestampNumber < 10_000_000_000 ? timestampNumber * 1000 : timestampNumber)
+        : typeof timestampRaw === "string"
+          ? new Date(timestampRaw)
+          : null;
+    const occurredAt =
+      timestampDate && Number.isFinite(timestampDate.getTime())
+        ? timestampDate.toISOString()
+        : null;
+    try {
+      // Regra: nenhuma mensagem recebida se perde por falha passageira —
+      // tenta novamente e, se ainda falhar, devolve erro para o provedor
+      // reenviar o evento (a duplicidade é barrada pelo identificador).
+      await withRetry("registrar mensagem recebida", () =>
+        recordInboundMessage({
+          phoneDigits,
+          name: isGroup ? groupName : fromMe ? null : (info.PushName ?? null),
+          body,
+          externalId: info.ID ?? null,
+          configId: config.id,
+          isGroup,
+          chatJid: groupJid,
+          participantName: isGroup && !fromMe ? (info.PushName ?? null) : null,
+          participantPhone: isGroup && !fromMe ? participantPhone : null,
+          fromMe,
+          skipAutomations: semAutomacoes,
+          occurredAt,
+          mentionsMe:
+            isGroup && !fromMe
+              ? mentionsOwnNumber(message, body, (config as { phone?: string }).phone ?? "")
+              : false,
+        }),
+      );
+    } catch (error) {
+      console.error("[evolution] falha ao registrar mensagem:", (error as Error).message);
+      try {
+        const { registrarOcorrencia } = await import("@/lib/monitor.server");
+        await registrarOcorrencia({
+          tipo: "Mensagem perdida",
+          mensagem: `Uma mensagem recebida não pôde ser registrada: ${(error as Error).message}`,
+          severidade: "erro",
+          deviceId: config.id,
+          deviceLabel: (config as { label?: string }).label ?? "",
+          provider: (config as { provider?: string }).provider ?? "",
+        });
+      } catch {
+        /* o aviso é complementar */
+      }
+      return new Response((error as Error).message, { status: 500 });
+    }
+
+    await memorizarLid().catch(() => undefined);
+
+    return Response.json({ received: true });
+  }
 }
 
 export const Route = createFileRoute("/api/public/evolution")({
@@ -1836,4 +1864,3 @@ export const Route = createFileRoute("/api/public/evolution")({
     },
   },
 });
-

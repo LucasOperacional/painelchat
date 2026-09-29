@@ -63,13 +63,11 @@ export function webhookEventsSignature(events: readonly string[]) {
   return [...events].sort().join(",");
 }
 
-
 /** A mensagem de erro indica recusa da lista de eventos do webhook? */
 export function isWebhookEventsError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? "");
   return /eventos?\s+para\s+webhook|invalid.*event|event.*invalid|subscribe/i.test(message);
 }
-
 
 export { digitsOnly, jidToPhone, formatBrPhone } from "@/lib/phone";
 
@@ -169,7 +167,8 @@ export async function resolveConversationConfigId(
   const waJid = (row?.contact?.wa_jid ?? "").trim();
   if (phone || waJid) {
     let matchingContacts = supabaseAdmin.from("contacts").select("id");
-    if (row?.contact?.project_id) matchingContacts = matchingContacts.eq("project_id", row.contact.project_id);
+    if (row?.contact?.project_id)
+      matchingContacts = matchingContacts.eq("project_id", row.contact.project_id);
     const alternatives = [phone ? `phone.eq.${phone}` : "", waJid ? `wa_jid.eq.${waJid}` : ""]
       .filter(Boolean)
       .join(",");
@@ -228,9 +227,7 @@ export async function listEvolutionConfigs(projectId?: string | null): Promise<E
   let query = supabaseAdmin.from("whatsapp_config").select("*");
   // Cada endereço (franquia) enxerga só os próprios aparelhos.
   if (projectId) query = query.eq("project_id", projectId);
-  const { data, error } = await query
-    .order("is_default", { ascending: false })
-    .order("created_at");
+  const { data, error } = await query.order("is_default", { ascending: false }).order("created_at");
   if (error) throw new Error(error.message);
   return (data ?? []) as EvolutionConfig[];
 }
@@ -426,9 +423,6 @@ export async function evolutionRequest<T = unknown>(options: {
     })) as T;
   }
 
-
-
-
   const apiKey = instanceToken || (await loadEvolutionApiKey(options.configId ?? null));
   if (!apiKey)
     throw new Error(
@@ -483,17 +477,23 @@ export async function evolutionRequest<T = unknown>(options: {
     }
 
     text = await response.text();
+    // `isSend` já bloqueia a repetição quando a rede cai; faltava bloquear aqui.
+    // Um gateway que devolve 502/504 muitas vezes ENTREGOU a mensagem e só não
+    // conseguiu responder — repetir mandava a mesma mensagem de novo para o
+    // cliente. O envio agora falha de uma vez e vira "incerto" na fila de saída.
     if (
       (response.status === 429 ||
         response.status === 502 ||
         response.status === 503 ||
         response.status === 504) &&
+      !isSend &&
       attempt < maxAttempts
     ) {
       const retryAfter = Number(response.headers.get("retry-after"));
-      const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
-        ? Math.min(retryAfter * 1000, 10_000)
-        : attempt * 1500;
+      const waitMs =
+        Number.isFinite(retryAfter) && retryAfter > 0
+          ? Math.min(retryAfter * 1000, 10_000)
+          : attempt * 1500;
       await new Promise((resolve) => setTimeout(resolve, waitMs));
       continue;
     }
@@ -515,9 +515,7 @@ export async function evolutionRequest<T = unknown>(options: {
 /** Traduz o ErrorResponse documentado ({ success, error: { code, message } }). */
 function describeEvolutionError(status: number, payload: unknown): string {
   const raw = payload as
-    | { error?: string | { code?: string; message?: string }; message?: string }
-    | string
-    | null;
+    { error?: string | { code?: string; message?: string }; message?: string } | string | null;
   const errorField = typeof raw === "object" && raw ? raw.error : undefined;
   const message =
     (typeof errorField === "string" ? errorField : errorField?.message) ??
@@ -564,7 +562,9 @@ export async function evolutionCreateInstance(
   // aqui garante que as chamadas seguintes da instância sempre sejam
   // autenticadas e evita o erro "token is required".
   const requestedToken = crypto.randomUUID();
-  const res = await evolutionRequest<EvolutionEnvelope<{ id?: string; name?: string; token?: string }>>({
+  const res = await evolutionRequest<
+    EvolutionEnvelope<{ id?: string; name?: string; token?: string }>
+  >({
     baseUrl: target.baseUrl,
     configId: target.configId ?? null,
     path: "/instance/create",
@@ -686,7 +686,6 @@ const WEBHOOK_FORCE_COOLDOWN_MS = 30 * 60 * 1000;
 /** Quando alguém pede à força (queda, silêncio, novo pareamento), a espera é curta. */
 const WEBHOOK_FORCE_MIN_MS = 5 * 60 * 1000;
 
-
 async function ultimoEventoRecebidoWebhook(token: string | null | undefined) {
   if (!token) return null;
   try {
@@ -707,10 +706,7 @@ async function ultimoEventoRecebidoWebhook(token: string | null | undefined) {
 /** Nomes do site que apontam para esta mesma central. */
 function hostsDaCentral() {
   const projectId = process.env["LOVABLE_PROJECT_ID"] ?? "a3daa33e-35ce-4bc4-9ed0-fa0c79c7a779";
-  const hosts = new Set<string>([
-    `project--${projectId}.lovable.app`,
-    "painelchat.lovable.app",
-  ]);
+  const hosts = new Set<string>([`project--${projectId}.lovable.app`, "painelchat.lovable.app"]);
   const configurado = (process.env["PUBLIC_SITE_URL"] ?? "").trim();
   try {
     if (configurado) hosts.add(new URL(configurado).host);
@@ -758,7 +754,12 @@ export async function ensureEvolutionWebhook(
     }
 
     await evolutionConnectInstance(
-      { baseUrl: config.base_url, instanceId: config.instance_id, configId: config.id, provider: config.provider },
+      {
+        baseUrl: config.base_url,
+        instanceId: config.instance_id,
+        configId: config.id,
+        provider: config.provider,
+      },
       { webhookUrl: inboundUrl, immediate: true },
     );
     console.log(`[webhook] reconfigurado device=${config.id}`);
@@ -939,9 +940,7 @@ export async function sincronizarWebhook(
     corrigido: true,
     esperado,
     registrado: depois ?? registrado,
-    detalhe: certo
-      ? "Webhook reassinado na API."
-      : "Não foi possível confirmar o webhook na API.",
+    detalhe: certo ? "Webhook reassinado na API." : "Não foi possível confirmar o webhook na API.",
   };
 }
 
@@ -1018,7 +1017,6 @@ export async function reiniciarSessaoMuda(
   };
 }
 
-
 /** GET /instance/qr → { data: { Qrcode, Code } } */
 export async function evolutionGetQr(
   target: InstanceTarget,
@@ -1078,7 +1076,6 @@ export async function evolutionPair(
   return res?.data?.PairingCode ?? null;
 }
 
-
 /** DELETE /instance/logout — encerra a sessão do WhatsApp na instância. */
 export async function evolutionLogout(target: InstanceTarget) {
   return evolutionRequest({
@@ -1125,9 +1122,7 @@ type SendTarget = { baseUrl: string; instanceId: string; configId?: string | nul
 
 /** Todas as rotas /send/* respondem { data: { Info: { ID } } }. */
 function extractSentId(payload: unknown): string | null {
-  const p = payload as
-    | { data?: { Info?: { ID?: string }; ID?: string; id?: string } }
-    | null;
+  const p = payload as { data?: { Info?: { ID?: string }; ID?: string; id?: string } } | null;
   return p?.data?.Info?.ID ?? p?.data?.ID ?? p?.data?.id ?? null;
 }
 
@@ -1146,8 +1141,6 @@ async function assertLoggedIn(target: SendTarget) {
   // A WAHA responde na hora quando a sessão não está ativa, então a conferência
   // prévia só somaria uma ida e volta ao servidor antes de cada mensagem.
   if ((await providerOf(target.configId ?? null)) === "waha") return;
-
-
 
   // A sessão pode estar apenas reconectando (queda rápida de rede do celular).
   // Damos duas chances antes de dizer que o aparelho está desconectado.
@@ -1198,7 +1191,6 @@ function enforceEmergencySendCooldown(path: string, body: unknown) {
   }
   ultimoEnvioAdmin = agora;
 }
-
 
 async function sendRequest(target: SendTarget, path: string, body: unknown) {
   enforceEmergencySendCooldown(path, body);
@@ -1272,15 +1264,20 @@ async function normalizeOutgoingMedia(input: {
   mimeType: string;
 }): Promise<{ fileName: string; mimeType: string }> {
   const originalName = input.fileName.trim() || "arquivo";
-  const originalMime = input.mimeType.split(";")[0]?.trim().toLowerCase() || "application/octet-stream";
-  const genericMime = !originalMime || originalMime === "application/octet-stream" || originalMime === "binary/octet-stream";
+  const originalMime =
+    input.mimeType.split(";")[0]?.trim().toLowerCase() || "application/octet-stream";
+  const genericMime =
+    !originalMime ||
+    originalMime === "application/octet-stream" ||
+    originalMime === "binary/octet-stream";
   let isPdf = originalMime === "application/pdf" || /\.pdf$/i.test(originalName);
 
   if (!isPdf && (genericMime || /\.bin$/i.test(originalName))) {
     try {
       const response = await fetch(input.url, { headers: { Range: "bytes=0-7" } });
       if (response.ok) {
-        const responseMime = response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
+        const responseMime =
+          response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
         const reader = response.body?.getReader();
         const firstChunk = reader ? await reader.read() : null;
         await reader?.cancel().catch(() => undefined);
@@ -1356,7 +1353,6 @@ export async function evolutionSendSticker(
     });
   }
 }
-
 
 /** POST /send/contact */
 export async function evolutionSendContact(
@@ -1496,8 +1492,6 @@ export async function evolutionMarkRead(
   return true;
 }
 
-
-
 // ---------------------------------------------------------------------------
 // Contatos e grupos (docs → User / Group)
 // ---------------------------------------------------------------------------
@@ -1564,7 +1558,6 @@ export async function evolutionListGroups(
   if (all.length === 0 && lastError) throw lastError;
   return all;
 }
-
 
 /** POST /group/info → dados de um grupo (nome real, dono, participantes). */
 export async function evolutionGroupInfo(
@@ -1699,7 +1692,11 @@ export function extractEvolutionConnection(payload: unknown): {
 // API Key global e provisionamento do dispositivo
 // ---------------------------------------------------------------------------
 
-async function loadProviderApiToken(provider: string, envName: string, configId?: string | null): Promise<string> {
+async function loadProviderApiToken(
+  provider: string,
+  envName: string,
+  configId?: string | null,
+): Promise<string> {
   const envKey = (process.env[envName] ?? "").trim();
   if (envKey) return envKey;
 
@@ -1710,7 +1707,10 @@ async function loadProviderApiToken(provider: string, envName: string, configId?
   if (cached !== undefined) return cached;
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const query = supabaseAdmin.from("whatsapp_secrets").select("instance_token").eq("provider", provider);
+  const query = supabaseAdmin
+    .from("whatsapp_secrets")
+    .select("instance_token")
+    .eq("provider", provider);
   const { data } = configId
     ? await query.eq("config_id", configId).maybeSingle()
     : await query.order("updated_at", { ascending: false }).limit(1).maybeSingle();
@@ -1786,7 +1786,11 @@ export async function saveProviderApiKey(input: {
 
 /** Guarda a API Key global da Evolution Go (preserva o token da instância). */
 export async function saveEvolutionApiKey(input: { configId: string; apiKey: string }) {
-  await saveProviderApiKey({ configId: input.configId, provider: "evolution", apiKey: input.apiKey });
+  await saveProviderApiKey({
+    configId: input.configId,
+    provider: "evolution",
+    apiKey: input.apiKey,
+  });
 }
 
 /** Token da instância (usado como apikey nas rotas por instância). */
@@ -2076,4 +2080,3 @@ export async function downloadInboundMedia(input: {
     media: input.media,
   });
 }
-

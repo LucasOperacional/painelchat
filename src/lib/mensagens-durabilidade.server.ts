@@ -249,8 +249,7 @@ export async function concluirEntrada(
         const { error } = await db
           .from("webhook_eventos")
           .update({
-            status:
-              erro || httpStatus >= 400 ? "erro" : descartadoPor ? "ignorado" : "ok",
+            status: erro || httpStatus >= 400 ? "erro" : descartadoPor ? "ignorado" : "ok",
             http_status: httpStatus,
             erro: (erro ?? descartadoPor ?? null)?.slice(0, 500) ?? null,
             processado_em: new Date().toISOString(),
@@ -365,16 +364,20 @@ export async function concluirSaida(id: string | null, desfecho: DesfechoEnvio) 
  * (com certeza não saiu). Tempo esgotado e conexão cortada são os casos em que
  * a API pode ter recebido e entregue sem conseguir responder.
  */
-export function classificarFalhaDeEnvio(
-  error: unknown,
-): Extract<DesfechoEnvio, { erro: string }> {
+export function classificarFalhaDeEnvio(error: unknown): Extract<DesfechoEnvio, { erro: string }> {
   const mensagem = error instanceof Error ? error.message : String(error);
   const nome = (error as Error | undefined)?.name ?? "";
+  // "não respondeu" sem exigir o que vem depois: os três clientes escrevem
+  // "não respondeu no tempo esperado", e o padrão antigo pedia "não respondeu
+  // em". Nenhum tempo esgotado casava, então TODO envio sem resposta era
+  // marcado como "falhou" e a tela de pendentes oferecia reenviar uma mensagem
+  // que podia já estar no WhatsApp do cliente — duplicando a conversa.
+  // "nao respondeu" sem acento cobre log e retorno de servidor sem UTF-8.
   const semResposta =
     nome === "TimeoutError" ||
     nome === "AbortError" ||
-    /não respondeu em|timeout|socket|ECONNRESET|network|fetch failed/i.test(mensagem);
-  return semResposta
-    ? { estado: "incerto", erro: mensagem }
-    : { estado: "falhou", erro: mensagem };
+    /n[ãa]o respondeu|timeout|tempo esgotado|socket|ECONNRESET|ECONNABORTED|ETIMEDOUT|network|fetch failed/i.test(
+      mensagem,
+    );
+  return semResposta ? { estado: "incerto", erro: mensagem } : { estado: "falhou", erro: mensagem };
 }

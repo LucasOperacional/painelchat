@@ -80,9 +80,7 @@ function isMissingSessionError(error: unknown): boolean {
 }
 
 /** Requisição bruta a um endpoint da WuzAPI; devolve o campo data do envelope. */
-async function call<T = unknown>(
-  options: WuzapiCall & { admin?: boolean },
-): Promise<T> {
+async function call<T = unknown>(options: WuzapiCall & { admin?: boolean }): Promise<T> {
   const base = normalizeBaseUrl(options.baseUrl);
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (options.admin) {
@@ -104,23 +102,35 @@ async function call<T = unknown>(
 
   // A WuzAPI pode responder 429/5xx ou cair momentaneamente: tentamos algumas
   // vezes antes de considerar a conexão perdida.
+  //
+  // Envio de mensagem (/chat/send/*) é exceção, como já acontece na Evolution e
+  // na WAHA: quando a rede cai ou o gateway responde 502 no meio da chamada não
+  // há como saber se a mensagem chegou ao cliente. Repetir entregava a mesma
+  // mensagem duas, três, quatro vezes no WhatsApp de quem está do outro lado.
+  // Aqui o envio falha uma vez só e sobe com a mensagem certa, para o
+  // classificador marcar "incerto" e deixar a decisão de reenviar com o
+  // atendente, em vez de duplicar sozinho.
+  const isSend = /^\/chat\/send\//i.test(options.path);
   let response!: Response;
   let text = "";
-  const maxAttempts = 4;
+  const maxAttempts = isSend ? 1 : 4;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 20_000);
     try {
       response = await fetch(`${base}${options.path}`, { ...init, signal: controller.signal });
     } catch (error) {
-      if (attempt < maxAttempts) {
+      const abortado = (error as Error).name === "AbortError";
+      // Só repete o que é seguro repetir, e nunca depois de um tempo esgotado:
+      // aí a chamada pode ter sido recebida do outro lado.
+      if (attempt < maxAttempts && !abortado) {
         await new Promise((resolve) => setTimeout(resolve, attempt * 1200));
         continue;
       }
-      if ((error as Error).name === "AbortError")
+      if (abortado)
         throw new Error("O servidor WuzAPI não respondeu no tempo esperado. Tente novamente.");
       throw new Error(
-        "Não foi possível falar com o servidor WuzAPI. Confira o endereço em Administração → API de conexão.",
+        "Não foi possível falar com o servidor WuzAPI (fetch failed). Confira o endereço em Administração → API de conexão.",
       );
     } finally {
       clearTimeout(timer);
@@ -128,8 +138,11 @@ async function call<T = unknown>(
 
     text = await response.text();
     if (
-      (response.status === 429 || response.status === 502 || response.status === 503 ||
+      (response.status === 429 ||
+        response.status === 502 ||
+        response.status === 503 ||
         response.status === 504) &&
+      !isSend &&
       attempt < maxAttempts
     ) {
       const retryAfter = Number(response.headers.get("retry-after"));
@@ -154,9 +167,9 @@ async function call<T = unknown>(
   if (!response.ok || envelope?.success === false) {
     throw new Error(describeWuzapiError(response.status, payload));
   }
-  return (envelope && typeof envelope === "object" && "data" in envelope
-    ? envelope.data
-    : payload) as T;
+  return (
+    envelope && typeof envelope === "object" && "data" in envelope ? envelope.data : payload
+  ) as T;
 }
 
 const MAX_MEDIA_BYTES = 25 * 1024 * 1024;
@@ -174,7 +187,10 @@ async function toDataUri(url: string, fallbackMime: string): Promise<string> {
   if (buffer.byteLength > MAX_MEDIA_BYTES)
     throw new Error("Arquivo grande demais para enviar pelo WhatsApp (limite de 25 MB).");
   const header = response.headers.get("content-type")?.split(";")[0]?.trim() ?? "";
-  const mime = !header || header === "application/octet-stream" || header === "binary/octet-stream" ? fallbackMime : header;
+  const mime =
+    !header || header === "application/octet-stream" || header === "binary/octet-stream"
+      ? fallbackMime
+      : header;
   return `data:${mime};base64,${Buffer.from(buffer).toString("base64")}`;
 }
 
@@ -447,8 +463,16 @@ export async function wuzapiDispatch(options: WuzapiCall): Promise<unknown> {
       }
       const data = await run("/chat/send/document", "POST", {
         Phone: phone,
-        Document: await toDataUri(url, String(body["mimetype"] ?? body["mimeType"] ?? "") || mimeFromName(String(body["filename"] ?? ""))),
-        FileName: nomeComExtensao(String(body["filename"] ?? "arquivo"), String(body["mimetype"] ?? body["mimeType"] ?? "") || mimeFromName(String(body["filename"] ?? ""))),
+        Document: await toDataUri(
+          url,
+          String(body["mimetype"] ?? body["mimeType"] ?? "") ||
+            mimeFromName(String(body["filename"] ?? "")),
+        ),
+        FileName: nomeComExtensao(
+          String(body["filename"] ?? "arquivo"),
+          String(body["mimetype"] ?? body["mimeType"] ?? "") ||
+            mimeFromName(String(body["filename"] ?? "")),
+        ),
       });
       return sentEnvelope(data);
     }
@@ -593,7 +617,11 @@ export async function testWuzapiConnection(
     headers: { Authorization: adminToken, "Content-Type": "application/json" },
     signal: AbortSignal.timeout(30_000),
   });
-  const payload = (await res.json().catch(() => null)) as { data?: unknown[]; error?: string; message?: string };
+  const payload = (await res.json().catch(() => null)) as {
+    data?: unknown[];
+    error?: string;
+    message?: string;
+  };
   if (!res.ok) {
     return {
       ok: false,
@@ -708,7 +736,20 @@ export async function wuzapiDownloadMedia(input: {
 
 function mimeFromName(name: string, fallback = "application/octet-stream"): string {
   const ext = (name.split(".").pop() ?? "").toLowerCase();
-  const map: Record<string, string> = { pdf: "application/pdf", xml: "application/xml", zip: "application/zip", doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", txt: "text/plain", csv: "text/csv", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg" };
+  const map: Record<string, string> = {
+    pdf: "application/pdf",
+    xml: "application/xml",
+    zip: "application/zip",
+    doc: "application/msword",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    xls: "application/vnd.ms-excel",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    txt: "text/plain",
+    csv: "text/csv",
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+  };
   return map[ext] ?? fallback;
 }
 function nomeComExtensao(name: string, mime: string): string {
